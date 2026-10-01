@@ -1,0 +1,22 @@
+line-length = 100
+target-version = "py311"
+exclude = [
+    ".venv",
+    "tests/fixtures",
+]
+
+[lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "B",
+    "UP",
+]
+ignore = [
+    "E501",
+    "B008", # do not perform function calls in argument defaults (standard for FastAPI Depends)
+]
+
+[lint.isort]
+known-first-party = ["app"]

@@ -8,11 +8,11 @@ from app.models.domain.enums import DebtCategory
 from app.models.domain.finding import Finding
 from app.models.domain.rule import RuleDefinition
 
-logger = logging.getLogger("silentguard.analyzers")
+logger = logging.getLogger("entropy.analyzers")
 
 
 class AnalyzerRegistry:
-    """Central registry for all active SilentGuard static analyzers.
+    """Central registry for all active Entropy static analyzers.
 
     Facilitates modular extension: new analyzers can be plugged in without
     modifying the core analysis orchestration or scoring engines.
@@ -34,6 +34,10 @@ class AnalyzerRegistry:
 
     def get_all(self) -> list[BaseAnalyzer]:
         """Return all registered analyzers."""
+        return list(self._analyzers.values())
+
+    def get_enabled(self) -> list[BaseAnalyzer]:
+        """Return all enabled analyzers."""
         return list(self._analyzers.values())
 
     def get_by_category(self, category: DebtCategory) -> list[BaseAnalyzer]:
@@ -67,6 +71,10 @@ class AnalyzerRegistry:
                     exc_info=True,
                 )
         return all_findings
+
+    def analyze(self, context: AnalysisContext) -> list[Finding]:
+        """Alias for run_all executing all enabled analyzers."""
+        return self.run_all(context)
 
 
 def create_default_registry() -> AnalyzerRegistry:

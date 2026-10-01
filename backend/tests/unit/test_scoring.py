@@ -15,8 +15,15 @@ def test_scoring_zero_findings():
     assert result.is_explainable is True
     assert len(result.audit_trail) > 0
 
+    # Analyzed category with zero findings has score 0.0
+    assert result.category_scores[DebtCategory.ERROR_HANDLING].score == 0.0
+    assert result.category_scores[DebtCategory.ERROR_HANDLING].status == "analyzed"
+
+    # Unanalyzed categories must not have fabricated 0.0 scores
     for cat in DebtCategory:
-        assert result.category_scores[cat].score == 0.0
+        if cat != DebtCategory.ERROR_HANDLING:
+            assert result.category_scores[cat].score is None
+            assert result.category_scores[cat].status == "not_analyzed"
 
 
 def test_scoring_with_findings():
@@ -65,5 +72,6 @@ def test_scoring_with_findings():
     assert result.total_score > 0
     assert result.category_scores[DebtCategory.ERROR_HANDLING].score > 0
     assert result.category_scores[DebtCategory.ERROR_HANDLING].finding_count == 2
-    assert result.category_scores[DebtCategory.AUTHENTICATION_CONSISTENCY].score == 0
-    assert "Raw_Penalty" in result.formula_summary
+    assert result.category_scores[DebtCategory.AUTHENTICATION_CONSISTENCY].score is None
+    assert result.category_scores[DebtCategory.AUTHENTICATION_CONSISTENCY].status == "not_analyzed"
+    assert "Entropy_Score" in result.formula_summary

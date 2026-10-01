@@ -4,8 +4,8 @@ import { ShieldAlert, BookOpen, ScrollText } from "lucide-react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SilentGuard — Silent Security Debt Platform",
-  description: "Architectural risk analysis platform for modern AI-assisted software development.",
+  title: "Entropy — Architectural Security Debt Platform",
+  description: "Entropy is an architectural security-debt analyzer for AI-assisted codebases. Measure hidden structural disorder in AI-assisted codebases.",
 };
 
 export default function RootLayout({
@@ -22,7 +22,7 @@ export default function RootLayout({
               <div className="h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
                 <ShieldAlert className="h-5 w-5" />
               </div>
-              <span>SILENTGUARD</span>
+              <span>ENTROPY</span>
               <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono font-normal">
                 v0.1.0-alpha
               </span>
@@ -60,8 +60,8 @@ export default function RootLayout({
         </main>
 
         <footer className="border-t border-border py-6 px-8 text-center text-xs text-slate-500">
-          <p>SilentGuard — Surfacing Silent Security Debt in Modern AI-Assisted Software Development</p>
-          <p className="mt-1 text-slate-600">Deterministic Static Analysis • Backend-Verified Truth • Phase 0 Architecture</p>
+          <p>Entropy — Architectural Security Debt Analyzer for AI-Assisted Codebases</p>
+          <p className="mt-1 text-slate-600">Deterministic Static Analysis • AST Verification • Production Engine</p>
         </footer>
       </body>
     </html>

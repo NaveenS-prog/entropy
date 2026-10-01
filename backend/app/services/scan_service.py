@@ -15,11 +15,13 @@ from app.parser.base import BaseParser, ParsedFile
 from app.parser.python_ast import PythonAstParser
 from app.repository.discoverer import RepositoryDiscoverer
 from app.repository.git_service import GitService
+from app.repository.manifest import ManifestBuilder
 from app.scoring.engine import ScoringEngine, scoring_engine
+from app.services.repository_service import _scans_store
 
 
 class ScanService:
-    """End-to-end scanner coordinator implementing the SilentGuard Core User Flow:
+    """End-to-end scanner coordinator implementing the Entropy Core User Flow:
 
     Repository ingestion -> File discovery -> Language detection -> Source-code parsing ->
     Static analysis -> Pattern detection -> Finding generation -> Debt scoring.
@@ -34,8 +36,8 @@ class ScanService:
         self.scoring = scoring or scoring_engine
         self.discoverer = RepositoryDiscoverer()
         self.parsers: list[BaseParser] = [PythonAstParser()]
-        # In-memory scan store for Phase 0
-        self._scans: dict[str, RepositoryScanResult] = {}
+        # Shared scan store
+        self._scans: dict[str, RepositoryScanResult] = _scans_store
 
     def get_parser_for_language(self, language: SupportedLanguage) -> BaseParser | None:
         """Find a compatible parser for the language."""
@@ -61,20 +63,28 @@ class ScanService:
 
         logger.info("Initiating scan %s for repo: %s", scan_id, path)
 
-        # 1. Discover files
-        discovered_files = self.discoverer.discover(path)
-        total_loc = sum(f.line_count for f in discovered_files)
+        # 1. Discover files & manifest
+        discovery = self.discoverer.discover_repository(path)
+        discovered_files = discovery.source_files
+        total_loc = discovery.total_source_loc
 
         # 2. Git metadata
         branch = GitService.get_current_branch(path)
         commit = GitService.get_head_commit(path)
+
+        manifest = ManifestBuilder.build(
+            repo_name=name,
+            root_path=path,
+            discovery=discovery,
+            timestamp=started_at,
+        )
 
         repo_meta = RepositoryMetadata(
             name=name,
             path=str(path),
             branch=branch,
             commit_hash=commit,
-            total_files=len(discovered_files),
+            total_files=discovery.total_files_inspected,
             scannable_files=len(discovered_files),
             total_loc=total_loc,
         )
@@ -83,6 +93,7 @@ class ScanService:
             scan_id=scan_id,
             repository=repo_meta,
             status=ScanStatus.PARSING,
+            manifest=manifest,
             findings=[],
             score=None,
             started_at=started_at,

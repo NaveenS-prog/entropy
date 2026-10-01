@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from app.models.domain.enums import ScanStatus
 from app.models.domain.finding import Finding
+from app.models.domain.manifest import RepositoryManifest
 from app.models.domain.scoring import DebtScoreResult
 
 
@@ -27,6 +28,10 @@ class RepositoryScanResult(BaseModel):
     scan_id: str = Field(..., description="Unique scan identifier")
     repository: RepositoryMetadata = Field(..., description="Repository context")
     status: ScanStatus = Field(..., description="Scan execution status")
+    manifest: RepositoryManifest | None = Field(
+        default=None,
+        description="Repository manifest generated during ingestion",
+    )
     findings: list[Finding] = Field(default_factory=list, description="All identified debt findings")
     score: DebtScoreResult | None = Field(
         default=None,

@@ -1,4 +1,4 @@
-"""Domain models for SilentGuard Rule definitions."""
+"""Domain models for Entropy Rule definitions."""
 
 from pydantic import BaseModel, Field
 

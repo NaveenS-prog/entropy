@@ -4,11 +4,11 @@ set -e
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PATH="/home/naveen/.local/bin:$PATH"
 
-echo "=== Starting SilentGuard Local Development ==="
+echo "=== Starting Entropy Local Development ==="
 
 # Trap cleanup to kill child processes
 cleanup() {
-    echo "Stopping SilentGuard services..."
+    echo "Stopping Entropy services..."
     kill $(jobs -p) 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -23,7 +23,7 @@ cd "$DIR/frontend"
 npm run dev &
 FRONTEND_PID=$!
 
-echo "SilentGuard is running:"
+echo "Entropy is running:"
 echo "  - Backend API: http://localhost:8000 (Docs: http://localhost:8000/docs)"
 echo "  - Frontend UI: http://localhost:3000"
 echo "Press Ctrl+C to terminate both servers."

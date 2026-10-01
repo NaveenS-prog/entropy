@@ -1,42 +1,15 @@
 """Base analyzer interface and analysis execution context."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from pathlib import Path
 
+from app.analyzers.context import AnalysisContext, PythonASTContext
 from app.models.domain.enums import DebtCategory, SupportedLanguage
 from app.models.domain.finding import Finding
 from app.models.domain.rule import RuleDefinition
-from app.parser.base import ParsedFile
-
-
-@dataclass
-class AnalysisContext:
-    """Read-only analysis context passed to all analyzers during a scan.
-
-    Provides analyzers access to all parsed files, syntax trees, and codebase metrics.
-    """
-
-    repo_path: Path
-    parsed_files: list[ParsedFile]
-    total_loc: int
-    scanned_file_count: int
-    metadata: dict[str, str] = field(default_factory=dict)
-
-    def get_files_for_language(self, language: SupportedLanguage) -> list[ParsedFile]:
-        """Filter parsed files by language."""
-        return [f for f in self.parsed_files if f.language == language and f.is_valid]
-
-    def get_file(self, relative_path: str) -> ParsedFile | None:
-        """Lookup a parsed file by relative path."""
-        for f in self.parsed_files:
-            if f.relative_path == relative_path:
-                return f
-        return None
 
 
 class BaseAnalyzer(ABC):
-    """Abstract base class for all SilentGuard analyzers.
+    """Abstract base class for all Entropy static analyzers.
 
     Every analyzer is self-contained, modular, and yields structured Finding objects.
     """
@@ -79,3 +52,6 @@ class BaseAnalyzer(ABC):
             list[Finding]: Concrete findings discovered during analysis.
         """
         pass
+
+
+__all__ = ["AnalysisContext", "BaseAnalyzer", "PythonASTContext"]

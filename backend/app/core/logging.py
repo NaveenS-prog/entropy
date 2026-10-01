@@ -1,12 +1,12 @@
-"""Structured logging configuration for SilentGuard."""
+"""Structured logging configuration for Entropy."""
 
 import logging
 import sys
 
 
 def setup_logging(level: int = logging.INFO) -> logging.Logger:
-    """Configure and return the root SilentGuard logger."""
-    logger = logging.getLogger("silentguard")
+    """Configure and return the root Entropy logger."""
+    logger = logging.getLogger("entropy")
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
         formatter = logging.Formatter(

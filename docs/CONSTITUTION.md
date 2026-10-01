@@ -1,19 +1,19 @@
-# The SilentGuard Engineering Constitution
+# The Entropy Engineering Constitution
 
 ## Preamble
 
-SilentGuard is built to surface **Silent Security Debt** in modern software repositories. Because the platform operates in the sensitive domain of cybersecurity and developer trust, the engineering team adheres to this binding Constitution.
+Entropy is built to surface **Architectural Security Debt** in modern software repositories. Because the platform operates in the sensitive domain of cybersecurity and developer trust, the engineering team adheres to this binding Constitution.
 
 ---
 
 ## Article I: Product Definition & Boundaries
 
-### 1.1 Silent Security Debt Defined
-Traditional application security tools scan for active vulnerabilities present in code today (such as SQL injections or buffer overflows). SilentGuard identifies:
+### 1.1 Architectural Security Debt Defined
+Traditional application security tools scan for active vulnerabilities present in code today (such as SQL injections or buffer overflows). Entropy identifies:
 
 > **Observable architectural patterns that may not represent an immediate vulnerability today, but accumulate security and maintenance risk over time.**
 
-Examples of Silent Security Debt include:
+Examples of Architectural Security Debt include:
 - Swallowed or overly broad exception handlers masking authentication/crypto errors.
 - Inconsistent authorization and authentication checks across endpoints.
 - Fragmented or repeated validation logic across service layers.
@@ -21,7 +21,7 @@ Examples of Silent Security Debt include:
 - Boilerplate duplication and repeated structural patterns across codebase silos.
 
 ### 1.2 The Non-Attribution Covenant (Anti-Hallucination)
-- **Rule 1**: SilentGuard must **NEVER** claim: *"This code was written by AI."*
+- **Rule 1**: Entropy must **NEVER** claim: *"This code was written by AI."*
 - **Rule 2**: The product must never present uncertain AI authorship as a fact.
 - **Rule 3**: Instead, identify: *"AI-assisted development patterns / generated-code-like structural patterns / architectural inconsistencies."*
 - **Rule 4**: Findings must be based exclusively on **measurable, observable properties**:

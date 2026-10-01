@@ -1,8 +1,8 @@
-# SilentGuard Analyzer Authoring Specification
+# Entropy Analyzer Authoring Specification
 
 ## 1. Analyzer Design Contract
 
-Every analyzer in SilentGuard must inherit from `BaseAnalyzer` and adhere to the following contract:
+Every analyzer in Entropy must inherit from `BaseAnalyzer` and adhere to the following contract:
 
 ```python
 from app.analyzers.base import BaseAnalyzer, AnalysisContext

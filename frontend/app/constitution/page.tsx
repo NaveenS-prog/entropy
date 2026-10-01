@@ -13,11 +13,11 @@ export default function ConstitutionPage() {
           </span>
         </div>
         <h1 className="text-3xl font-extrabold text-white tracking-tight">
-          The SilentGuard Engineering Constitution
+          The Entropy Engineering Constitution
         </h1>
         <p className="text-sm text-slate-400 mt-2 leading-relaxed">
           Binding principles, architectural covenants, and product boundaries governing the
-          development and operation of SilentGuard.
+          development and operation of Entropy.
         </p>
       </div>
 
@@ -25,12 +25,12 @@ export default function ConstitutionPage() {
       <section className="bg-card border border-border rounded-xl p-6 space-y-3">
         <div className="flex items-center gap-2 text-white font-bold text-base">
           <Shield className="h-5 w-5 text-emerald-400" />
-          <h2>Article I: The Concept of Silent Security Debt</h2>
+          <h2>Article I: The Concept of Architectural Security Debt</h2>
         </div>
         <p className="text-xs text-slate-300 leading-relaxed">
           Traditional security scanners primarily focus on vulnerabilities that exist in the code{" "}
           <strong className="text-white">TODAY</strong> (e.g. SQL injection, known CVEs).
-          SilentGuard focuses on something different:
+          Entropy focuses on something different:
         </p>
         <blockquote className="border-l-2 border-emerald-500 pl-4 py-1 text-xs text-emerald-300 italic bg-emerald-950/20 rounded-r">
           &ldquo;Architectural patterns that may not represent an immediate vulnerability today, but
@@ -45,11 +45,11 @@ export default function ConstitutionPage() {
           <h2>Article II: The Non-Attribution Covenant (Anti-Hallucination)</h2>
         </div>
         <div className="p-3 rounded-lg bg-amber-950/20 border border-amber-900/40 text-xs text-amber-200">
-          <strong>Mandatory Principle:</strong> SilentGuard must NEVER claim &ldquo;This code was
+          <strong>Mandatory Principle:</strong> Entropy must NEVER claim &ldquo;This code was
           written by AI.&rdquo;
         </div>
         <p className="text-xs text-slate-300 leading-relaxed">
-          SilentGuard identifies{" "}
+          Entropy identifies{" "}
           <em>
             &ldquo;AI-assisted development patterns / generated-code-like structural patterns /
             architectural inconsistencies.&rdquo;

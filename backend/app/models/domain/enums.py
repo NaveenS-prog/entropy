@@ -1,10 +1,10 @@
-"""Core domain enumerations for SilentGuard."""
+"""Core domain enumerations for Entropy."""
 
 from enum import StrEnum
 
 
 class DebtCategory(StrEnum):
-    """The 7 foundational categories of Silent Security Debt."""
+    """The 7 foundational categories of Architectural Security Debt."""
 
     ERROR_HANDLING = "error_handling"
     AUTHENTICATION_CONSISTENCY = "authentication_consistency"
@@ -50,13 +50,13 @@ class Confidence(StrEnum):
 
 
 class DebtScoreTier(StrEnum):
-    """Official score tiers defined by SilentGuard Product Specification (0-100)."""
+    """Official score tiers defined by Entropy Product Specification (0-100)."""
 
-    VERY_LOW = "very_low"      # 0 - 20
-    LOW = "low"                # 21 - 40
-    MODERATE = "moderate"      # 41 - 60
-    HIGH = "high"              # 61 - 80
-    VERY_HIGH = "very_high"    # 81 - 100
+    VERY_LOW = "very_low"  # 0 - 20
+    LOW = "low"  # 21 - 40
+    MODERATE = "moderate"  # 41 - 60
+    HIGH = "high"  # 61 - 80
+    VERY_HIGH = "very_high"  # 81 - 100
 
     @classmethod
     def from_score(cls, score: float) -> "DebtScoreTier":
@@ -86,6 +86,8 @@ class DebtScoreTier(StrEnum):
 class ScanStatus(StrEnum):
     """Lifecycle status of a scan."""
 
+    PENDING = "pending"
+    SCANNING = "scanning"
     QUEUED = "queued"
     INGESTING = "ingesting"
     PARSING = "parsing"
@@ -96,10 +98,14 @@ class ScanStatus(StrEnum):
 
 
 class SupportedLanguage(StrEnum):
-    """Programming languages supported or recognized by SilentGuard."""
+    """Programming languages supported or recognized by Entropy."""
 
     PYTHON = "python"
     JAVASCRIPT = "javascript"
     TYPESCRIPT = "typescript"
+    JAVA = "java"
+    C = "c"
+    CPP = "cpp"
     GO = "go"
+    RUST = "rust"
     UNKNOWN = "unknown"

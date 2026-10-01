@@ -1,8 +1,8 @@
-# SilentGuard System Architecture
+# Entropy System Architecture
 
 ## 1. System Overview
 
-SilentGuard is a cybersecurity developer platform designed specifically for modern AI-assisted software development. Rather than focusing solely on active, live vulnerabilities that exist today, SilentGuard analyzes **Silent Security Debt**: architectural inconsistencies, structural duplications, swallowed exceptions, and fragmented security controls that accumulate risk over time.
+Entropy is an architectural security-debt platform designed specifically for modern AI-assisted software development. Rather than focusing solely on active, live vulnerabilities that exist today, Entropy analyzes **Architectural Security Debt**: architectural inconsistencies, structural duplications, swallowed exceptions, and fragmented security controls that accumulate risk over time.
 
 ---
 
@@ -81,7 +81,7 @@ The architecture strictly decouples 8 distinct layers:
 | **Parsing** | Transforms raw source text into abstract syntax trees (AST/CST). | Fails gracefully on syntax errors without crashing the scan. |
 | **Analysis** | Detects observable syntactic and structural debt patterns. | Must produce structured `Finding` objects traceable to exact lines. |
 | **Finding Generation** | Encapsulates rule ID, severity, confidence, verbatim code evidence, impact, and recommendation. | Generates stable SHA-256 fingerprints for cross-commit tracking. |
-| **Scoring** | Computes the 0–100 Silent Security Debt Score and 7 category breakdowns. | Consumes findings only; never inspects source code directly. |
+| **Scoring** | Computes the 0–100 Architectural Security Debt Score and 7 category breakdowns. | Consumes findings only; never inspects source code directly. |
 | **AI Explanation** | Synthesizes contextual architectural rationale and remediation diffs. | Never invents or fabricates findings; strictly explains static analysis results. |
 | **API** | Exposes versioned REST endpoints (`/api/v1/*`). | Zero analysis or scoring logic directly in route handlers. |
 | **Frontend** | Renders interactive dashboard, category matrices, and code viewers. | **Never** computes or alters debt scores. Backend is the sole source of truth. |
@@ -122,7 +122,7 @@ Tree-sitter provides concrete syntax tree (CST) parsers for TypeScript, JavaScri
 
 ## 6. Extensibility: Authoring a New Analyzer
 
-To add a new analyzer to SilentGuard:
+To add a new analyzer to Entropy:
 
 1. Create a module under `backend/app/analyzers/rules/<category>/<analyzer_name>.py`.
 2. Subclass `BaseAnalyzer`.

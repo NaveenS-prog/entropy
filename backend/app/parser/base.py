@@ -21,11 +21,28 @@ class ParsedFile:
     lines: list[str]
     ast_root: Any | None = None
     parse_errors: list[str] = field(default_factory=list)
+    structure: Any | None = None
+    unit: Any | None = None
 
     @property
     def is_valid(self) -> bool:
         """True if the file was parsed successfully without fatal syntax errors."""
         return self.ast_root is not None and len(self.parse_errors) == 0
+
+    @classmethod
+    def from_unit(cls, unit: Any) -> "ParsedFile":
+        """Construct a ParsedFile instance wrapping a Phase 2 ParsedPythonUnit."""
+        return cls(
+            absolute_path=unit.absolute_path,
+            relative_path=unit.file_path,
+            language=unit.language,
+            source_code=unit.source_code,
+            lines=unit.lines,
+            ast_root=unit.ast_root,
+            parse_errors=unit.errors,
+            structure=unit.structure,
+            unit=unit,
+        )
 
     def get_line_count(self) -> int:
         return len(self.lines)

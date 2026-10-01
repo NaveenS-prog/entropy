@@ -1,65 +1,31 @@
-"""Resilient Python AST parser."""
-
-import ast
+"""Resilient Python AST parser integrating PythonParser with the BaseParser interface."""
 
 from app.models.domain.enums import SupportedLanguage
 from app.parser.base import BaseParser, ParsedFile
+from app.parser.python.parser import PythonParser
 from app.repository.discoverer import DiscoveredFile
 
 
 class PythonAstParser(BaseParser):
-    """Parses Python source code into Python standard AST representations."""
+    """Adapter bridging the production PythonParser into the BaseParser interface."""
+
+    def __init__(self, parser: PythonParser | None = None) -> None:
+        self._parser = parser or PythonParser()
 
     def can_parse(self, language: SupportedLanguage) -> bool:
-        return language == SupportedLanguage.PYTHON
+        return self._parser.can_parse(language)
 
     def parse(self, discovered_file: DiscoveredFile) -> ParsedFile:
-        """Parse Python source file into an AST root, recording any syntax failures."""
-        try:
-            with open(discovered_file.absolute_path, encoding="utf-8", errors="replace") as f:
-                source = f.read()
-        except Exception as e:
-            return ParsedFile(
-                absolute_path=discovered_file.absolute_path,
-                relative_path=discovered_file.relative_path,
-                language=SupportedLanguage.PYTHON,
-                source_code="",
-                lines=[],
-                ast_root=None,
-                parse_errors=[f"Failed to read file: {e}"],
-            )
-
-        lines = source.splitlines(keepends=True)
-
-        try:
-            tree = ast.parse(source, filename=discovered_file.relative_path)
-            return ParsedFile(
-                absolute_path=discovered_file.absolute_path,
-                relative_path=discovered_file.relative_path,
-                language=SupportedLanguage.PYTHON,
-                source_code=source,
-                lines=lines,
-                ast_root=tree,
-                parse_errors=[],
-            )
-        except SyntaxError as e:
-            err_msg = f"SyntaxError at line {e.lineno}, col {e.offset}: {e.msg}"
-            return ParsedFile(
-                absolute_path=discovered_file.absolute_path,
-                relative_path=discovered_file.relative_path,
-                language=SupportedLanguage.PYTHON,
-                source_code=source,
-                lines=lines,
-                ast_root=None,
-                parse_errors=[err_msg],
-            )
-        except Exception as e:
-            return ParsedFile(
-                absolute_path=discovered_file.absolute_path,
-                relative_path=discovered_file.relative_path,
-                language=SupportedLanguage.PYTHON,
-                source_code=source,
-                lines=lines,
-                ast_root=None,
-                parse_errors=[f"Unexpected AST parse error: {e}"],
-            )
+        """Parse Python source file into an AST root and normalized structure."""
+        unit = self._parser.parse_discovered(discovered_file)
+        return ParsedFile(
+            absolute_path=unit.absolute_path,
+            relative_path=unit.file_path,
+            language=unit.language,
+            source_code=unit.source_code,
+            lines=unit.lines,
+            ast_root=unit.ast_root,
+            parse_errors=unit.errors,
+            structure=unit.structure,
+            unit=unit,
+        )

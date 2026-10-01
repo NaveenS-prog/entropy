@@ -1,4 +1,4 @@
-"""Domain models for SilentGuard findings and source locations."""
+"""Domain models for Entropy findings and source locations."""
 
 from hashlib import sha256
 from typing import Any
@@ -46,6 +46,8 @@ class Finding(BaseModel):
     file: str = Field(..., description="Relative file path in repository")
     line_start: int = Field(..., ge=1, description="Starting line in source")
     line_end: int = Field(..., ge=1, description="Ending line in source")
+    column_start: int | None = Field(default=None, description="0-indexed starting column")
+    column_end: int | None = Field(default=None, description="0-indexed ending column")
     symbol: str | None = Field(
         default=None,
         description="Function, class, or symbol where the pattern occurs",
@@ -75,6 +77,20 @@ class Finding(BaseModel):
         default_factory=dict,
         description="Analyzer-specific metadata (AST node types, syntactic markers, etc.)",
     )
+
+    @classmethod
+    def generate_deterministic_id(
+        cls,
+        rule_id: str,
+        file: str,
+        line_start: int,
+        line_end: int,
+        symbol: str | None,
+        evidence_signature: str,
+    ) -> str:
+        """Generate a stable, deterministic 16-character hex ID."""
+        raw = f"{rule_id}:{file}:{line_start}:{line_end}:{symbol or ''}:{evidence_signature}"
+        return sha256(raw.encode("utf-8")).hexdigest()[:16]
 
     @classmethod
     def generate_fingerprint(

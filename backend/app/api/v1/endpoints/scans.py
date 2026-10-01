@@ -4,8 +4,9 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.core.errors import RepositoryNotFoundError
+from app.models.domain.manifest import RepositoryManifest
 from app.schemas.scan_schemas import ScanCreateRequest, ScanDetailResponse, ScanSummaryResponse
+from app.services.repository_service import repository_service
 from app.services.scan_service import scan_service
 
 router = APIRouter()
@@ -13,37 +14,32 @@ router = APIRouter()
 
 @router.post("", response_model=ScanDetailResponse, status_code=status.HTTP_201_CREATED)
 def trigger_scan(request: ScanCreateRequest) -> ScanDetailResponse:
-    """Execute a deterministic static analysis scan over the specified repository path."""
-    try:
-        scan_result = scan_service.execute_scan(
-            repo_path=request.repo_path,
-            repo_name=request.repo_name,
-        )
-        return ScanDetailResponse(
-            scan_id=scan_result.scan_id,
-            repository=scan_result.repository,
-            status=scan_result.status,
-            findings=scan_result.findings,
-            score=scan_result.score,
-            started_at=scan_result.started_at,
-            completed_at=scan_result.completed_at,
-            duration_ms=scan_result.duration_ms,
-            analyzers_executed=scan_result.analyzers_executed,
-            errors=scan_result.errors,
-        )
-    except RepositoryNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Scan execution failed: {e}",
-        ) from e
+    """Execute repository scan, file discovery, language classification, and manifest generation."""
+    target = request.target_path
+    scan_result = repository_service.execute_scan(
+        repo_path=target,
+        repo_name=request.repo_name,
+    )
+    return ScanDetailResponse(
+        scan_id=scan_result.scan_id,
+        repository=scan_result.repository,
+        status=scan_result.status,
+        manifest=scan_result.manifest,
+        findings=scan_result.findings,
+        score=scan_result.score,
+        started_at=scan_result.started_at,
+        completed_at=scan_result.completed_at,
+        duration_ms=scan_result.duration_ms,
+        analyzers_executed=scan_result.analyzers_executed,
+        errors=scan_result.errors,
+    )
 
 
 @router.get("", response_model=list[ScanSummaryResponse])
 def list_scans() -> list[ScanSummaryResponse]:
     """Retrieve all completed scans."""
     scans = scan_service.list_scans()
+    scans = repository_service.list_scans()
     return [
         ScanSummaryResponse(
             scan_id=s.scan_id,
@@ -67,7 +63,7 @@ def list_scans() -> list[ScanSummaryResponse]:
 @router.get("/{scan_id}", response_model=ScanDetailResponse)
 def get_scan(scan_id: str) -> ScanDetailResponse:
     """Retrieve full details of a specific scan by its ID."""
-    scan_result = scan_service.get_scan(scan_id)
+    scan_result = repository_service.get_scan(scan_id)
     if not scan_result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -78,6 +74,7 @@ def get_scan(scan_id: str) -> ScanDetailResponse:
         scan_id=scan_result.scan_id,
         repository=scan_result.repository,
         status=scan_result.status,
+        manifest=scan_result.manifest,
         findings=scan_result.findings,
         score=scan_result.score,
         started_at=scan_result.started_at,
@@ -88,6 +85,140 @@ def get_scan(scan_id: str) -> ScanDetailResponse:
     )
 
 
+@router.get("/{scan_id}/manifest", response_model=RepositoryManifest)
+def get_scan_manifest(scan_id: str) -> RepositoryManifest:
+    """Retrieve the repository manifest for a scan."""
+    manifest = repository_service.get_manifest(scan_id)
+    if not manifest:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Manifest for scan '{scan_id}' not found",
+        )
+    return manifest
+
+
+@router.get("/{scan_id}/ast")
+def get_scan_ast_summary(scan_id: str) -> list[dict]:
+    """Retrieve summary of all parsed Python AST units for a scan."""
+    scan = repository_service.get_scan(scan_id)
+    if not scan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scan '{scan_id}' not found",
+        )
+    units = repository_service.parse_python_files(scan_id)
+    return [u.to_summary_dict() for u in units]
+
+
+@router.get("/{scan_id}/ast/{file_path:path}")
+def get_scan_file_ast(scan_id: str, file_path: str) -> dict:
+    """Retrieve detailed AST structure for a specific Python file in a scan."""
+    scan = repository_service.get_scan(scan_id)
+    if not scan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scan '{scan_id}' not found",
+        )
+    unit = repository_service.parse_python_file(scan_id, file_path)
+    if not unit:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"File '{file_path}' not found in scan manifest",
+        )
+    return {
+        "file_path": unit.file_path,
+        "language": unit.language.value,
+        "status": unit.status.value,
+        "line_count": unit.line_count,
+        "size_bytes": unit.size_bytes,
+        "is_valid": unit.is_valid,
+        "is_empty": unit.is_empty,
+        "errors": unit.errors,
+        "structure": (
+            {
+                "docstring": unit.structure.docstring if unit.structure else None,
+                "imports": [
+                    {
+                        "module": imp.module,
+                        "name": imp.name,
+                        "alias": imp.alias,
+                        "is_from": imp.is_from,
+                        "line": imp.location.line_start,
+                    }
+                    for imp in (unit.structure.imports if unit.structure else [])
+                ],
+                "classes": [
+                    {
+                        "name": cls.name,
+                        "qualified_name": cls.qualified_name,
+                        "base_classes": cls.base_classes,
+                        "methods_count": len(cls.methods),
+                        "docstring": cls.docstring,
+                        "line_start": cls.location.line_start,
+                        "line_end": cls.location.line_end,
+                    }
+                    for cls in (unit.structure.classes if unit.structure else [])
+                ],
+                "functions": [
+                    {
+                        "name": fn.name,
+                        "qualified_name": fn.qualified_name,
+                        "is_async": fn.is_async,
+                        "is_method": fn.is_method,
+                        "decorators": [d.name for d in fn.decorators],
+                        "parameters": [p.name for p in fn.parameters],
+                        "return_annotation": fn.return_annotation,
+                        "docstring": fn.docstring,
+                        "statement_count": fn.statement_count,
+                        "calls_count": len(fn.calls),
+                        "handlers_count": len(fn.handlers),
+                        "raises_count": len(fn.raises),
+                        "returns_count": len(fn.returns),
+                        "line_start": fn.location.line_start,
+                        "line_end": fn.location.line_end,
+                    }
+                    for fn in (unit.structure.functions if unit.structure else [])
+                ],
+                "handlers": [
+                    {
+                        "exception_types": h.exception_types,
+                        "name": h.name,
+                        "is_bare": h.is_bare,
+                        "body_statement_count": h.body_statement_count,
+                        "has_pass_only": h.has_pass_only,
+                        "enclosing_function": h.enclosing_function,
+                        "line_start": h.location.line_start,
+                        "line_end": h.location.line_end,
+                    }
+                    for h in (unit.structure.all_handlers if unit.structure else [])
+                ],
+                "raises": [
+                    {
+                        "exception_type": r.exception_type,
+                        "has_cause": r.has_cause,
+                        "cause_type": r.cause_type,
+                        "enclosing_function": r.enclosing_function,
+                        "line_start": r.location.line_start,
+                    }
+                    for r in (unit.structure.all_raises if unit.structure else [])
+                ],
+                "calls": [
+                    {
+                        "callable_name": c.callable_name,
+                        "arg_count": c.arg_count,
+                        "keyword_args": c.keyword_args,
+                        "enclosing_function": c.enclosing_function,
+                        "line_start": c.location.line_start,
+                    }
+                    for c in (unit.structure.all_calls if unit.structure else [])
+                ],
+            }
+            if unit.structure
+            else None
+        ),
+    }
+
+
 @router.post("/sample", response_model=ScanDetailResponse, status_code=status.HTTP_201_CREATED)
 def trigger_sample_scan() -> ScanDetailResponse:
     """Trigger a demo scan on the built-in fixture repository.
@@ -96,6 +227,12 @@ def trigger_sample_scan() -> ScanDetailResponse:
     an external repository.
     """
     fixture_dir = Path(__file__).resolve().parent.parent.parent.parent.parent / "tests" / "fixtures" / "sample_repo"
+    fixture_dir = (
+        Path(__file__).resolve().parent.parent.parent.parent.parent
+        / "tests"
+        / "fixtures"
+        / "sample_repo"
+    )
     if not fixture_dir.exists():
         fixture_dir.mkdir(parents=True, exist_ok=True)
         # Create a sample python file demonstrating authentic debt
@@ -111,6 +248,16 @@ def trigger_sample_scan() -> ScanDetailResponse:
             '    try:\n'
             '        return db_query(user_id)\n'
             '    except:\n'
+            "def handle_payment(payload):\n"
+            "    try:\n"
+            "        process_token(payload)\n"
+            "    except Exception:\n"
+            "        pass\n"
+            "\n"
+            "def fetch_user(user_id):\n"
+            "    try:\n"
+            "        return db_query(user_id)\n"
+            "    except:\n"
             '        print("User query failed")\n'
         )
 
@@ -122,6 +269,7 @@ def trigger_sample_scan() -> ScanDetailResponse:
         scan_id=scan_result.scan_id,
         repository=scan_result.repository,
         status=scan_result.status,
+        manifest=scan_result.manifest,
         findings=scan_result.findings,
         score=scan_result.score,
         started_at=scan_result.started_at,

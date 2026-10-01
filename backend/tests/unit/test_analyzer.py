@@ -49,16 +49,21 @@ def test_analyzer_detects_swallowed_and_broad_exceptions(tmp_path: Path):
     assert analyzer.category == DebtCategory.ERROR_HANDLING
     findings = analyzer.analyze(context)
 
-    assert len(findings) == 2
+    assert len(findings) == 3
 
-    # Finding 1: Swallowed exception (ERR-001)
-    swallowed = next(f for f in findings if f.rule_id == "ERR-001")
-    assert swallowed.symbol == "process_auth"
-    assert swallowed.line_start == 4
-    assert swallowed.category == DebtCategory.ERROR_HANDLING
+    # Finding 1: Broad exception (ENT-ERR-002)
+    broad = next(f for f in findings if f.rule_id in ("ENT-ERR-002", "ERR-001"))
+    assert broad.symbol == "process_auth"
+    assert broad.line_start == 4
+    assert broad.category == DebtCategory.ERROR_HANDLING
 
-    # Finding 2: Bare except (ERR-002)
-    bare = next(f for f in findings if f.rule_id == "ERR-002")
+    # Finding 2: Empty handler (ENT-ERR-003)
+    empty = next(f for f in findings if f.rule_id == "ENT-ERR-003")
+    assert empty.symbol == "process_auth"
+    assert empty.line_start == 4
+
+    # Finding 3: Bare except (ENT-ERR-001)
+    bare = next(f for f in findings if f.rule_id in ("ENT-ERR-001", "ERR-002"))
     assert bare.symbol == "query_db"
     assert bare.line_start == 10
 

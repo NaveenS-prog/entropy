@@ -12,7 +12,7 @@ def test_root_endpoint():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "online"
-    assert data["service"] == "SilentGuard"
+    assert data["service"] == "Entropy"
 
 
 def test_health_endpoint():
@@ -35,7 +35,7 @@ def test_analyzers_endpoint():
     rules_resp = client.get("/api/v1/analyzers/rules")
     assert rules_resp.status_code == 200
     rules = rules_resp.json()
-    assert any(r["rule_id"] == "ERR-001" for r in rules)
+    assert any(r["rule_id"] in ("ERR-001", "ENT-ERR-001") for r in rules)
 
 
 def test_sample_scan_workflow():

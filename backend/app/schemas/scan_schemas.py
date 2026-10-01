@@ -1,11 +1,12 @@
-"""Pydantic API DTO schemas for scans."""
+"""Pydantic API DTO schemas for scans and repository ingestion."""
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.domain.enums import DebtScoreTier, ScanStatus
 from app.models.domain.finding import Finding
+from app.models.domain.manifest import RepositoryManifest
 from app.models.domain.scan import RepositoryMetadata
 from app.models.domain.scoring import DebtScoreResult
 
@@ -13,8 +14,22 @@ from app.models.domain.scoring import DebtScoreResult
 class ScanCreateRequest(BaseModel):
     """Payload to trigger a repository scan."""
 
-    repo_path: str = Field(..., description="Absolute or relative path to local repository directory")
-    repo_name: str | None = Field(default=None, description="Optional custom name for repository")
+    path: str | None = Field(default=None, description="Path to local repository directory")
+    repo_path: str | None = Field(default=None, description="Alias/legacy field for repository path")
+    repo_name: str | None = Field(default=None, description="Optional custom display name for repository")
+
+    @model_validator(mode="after")
+    def validate_path_provided(self) -> "ScanCreateRequest":
+        target = self.path or self.repo_path
+        if not target or not target.strip():
+            raise ValueError("Repository path must be provided via 'path' or 'repo_path'.")
+        return self
+
+    @property
+    def target_path(self) -> str:
+        target = self.path or self.repo_path
+        assert target is not None
+        return target.strip()
 
 
 class ScanSummaryResponse(BaseModel):
@@ -36,15 +51,16 @@ class ScanSummaryResponse(BaseModel):
 
 
 class ScanDetailResponse(BaseModel):
-    """Comprehensive scan result including findings and score breakdown."""
+    """Comprehensive scan result including repository metadata, manifest, findings, and scores."""
 
     scan_id: str
     repository: RepositoryMetadata
     status: ScanStatus
-    findings: list[Finding]
+    manifest: RepositoryManifest | None = None
+    findings: list[Finding] = Field(default_factory=list)
     score: DebtScoreResult | None = None
     started_at: datetime
     completed_at: datetime | None = None
     duration_ms: float | None = None
-    analyzers_executed: list[str]
-    errors: list[str]
+    analyzers_executed: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)

@@ -1,4 +1,4 @@
-"""Domain models for SilentGuard."""
+"""Domain models for Entropy."""
 
 from app.models.domain.enums import (
     Confidence,

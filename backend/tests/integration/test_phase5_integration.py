@@ -136,8 +136,7 @@ def test_phase5_full_pipeline_and_scoring_validation(tmp_path: Path):
     assert cat_scores["authorization_consistency"]["score"] > 0
 
     assert cat_scores["code_duplication"]["status"] == "analyzed"
-    assert cat_scores["architectural_consistency"]["status"] == "not_analyzed"
-    assert cat_scores["architectural_consistency"]["score"] is None
+    assert cat_scores["architectural_consistency"]["status"] == "analyzed"
 
     # Verify input_validation and logging_and_secrets are ANALYZED
     assert cat_scores["input_validation"]["status"] == "analyzed"

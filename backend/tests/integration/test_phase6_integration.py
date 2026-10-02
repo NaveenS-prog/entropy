@@ -142,10 +142,7 @@ def test_phase6_progressive_remediation_lifecycle(tmp_path: Path):
         assert cat_scores[cat]["score"] > 0, f"Expected {cat} score > 0"
         assert cat_scores[cat]["finding_count"] > 0, f"Expected {cat} finding_count > 0"
     assert cat_scores["code_duplication"]["status"] == "analyzed"
-
-    # Remaining 1 category must remain NOT_ANALYZED with null score
-    assert cat_scores["architectural_consistency"]["status"] == "not_analyzed"
-    assert cat_scores["architectural_consistency"]["score"] is None
+    assert cat_scores["architectural_consistency"]["status"] == "analyzed"
 
     score_v0 = score_data["total_score"]
     assert score_v0 > 0

@@ -89,8 +89,8 @@ def test_empty_findings_produces_zero_debt():
     assert result.category_scores[DebtCategory.LOGGING_AND_SECRETS].status == CategoryAnalysisStatus.ANALYZED
     assert result.category_scores[DebtCategory.CODE_DUPLICATION].score == 0.0
     assert result.category_scores[DebtCategory.CODE_DUPLICATION].status == CategoryAnalysisStatus.ANALYZED
-    assert result.category_scores[DebtCategory.ARCHITECTURAL_CONSISTENCY].score is None
-    assert result.category_scores[DebtCategory.ARCHITECTURAL_CONSISTENCY].status == CategoryAnalysisStatus.NOT_ANALYZED
+    assert result.category_scores[DebtCategory.ARCHITECTURAL_CONSISTENCY].score == 0.0
+    assert result.category_scores[DebtCategory.ARCHITECTURAL_CONSISTENCY].status == CategoryAnalysisStatus.ANALYZED
 
 
 # ==============================================================================

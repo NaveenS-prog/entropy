@@ -2,6 +2,7 @@
 
 import logging
 
+from app.analyzers.architecture import ArchitecturalConsistencyAnalyzer
 from app.analyzers.base import AnalysisContext, BaseAnalyzer
 from app.analyzers.duplication import CodeDuplicationDebtAnalyzer
 from app.analyzers.rules.error_handling.broad_exception import ErrorHandlingDebtAnalyzer
@@ -91,6 +92,7 @@ def create_default_registry() -> AnalyzerRegistry:
     registry.register(InputValidationConsistencyAnalyzer())
     registry.register(LoggingAndSecretsAnalyzer())
     registry.register(CodeDuplicationDebtAnalyzer())
+    registry.register(ArchitecturalConsistencyAnalyzer())
     return registry
 
 

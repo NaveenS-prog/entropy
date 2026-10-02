@@ -1,8 +1,10 @@
 """Domain models for Repository Scan executions and aggregated results."""
 
 from datetime import datetime
+from hashlib import sha256
+from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.domain.enums import ScanStatus
 from app.models.domain.finding import Finding
@@ -15,11 +17,29 @@ class RepositoryMetadata(BaseModel):
 
     name: str = Field(..., description="Repository name or directory basename")
     path: str = Field(..., description="Root path or identifier")
+    repository_id: str | None = Field(default=None, description="Stable identifier for repository history")
+    remote_url: str | None = Field(default=None, description="Remote Git origin URL if available")
     branch: str | None = Field(default=None, description="Active git branch if available")
     commit_hash: str | None = Field(default=None, description="Head commit hash if available")
     total_files: int = Field(default=0, ge=0)
     scannable_files: int = Field(default=0, ge=0)
     total_loc: int = Field(default=0, ge=0)
+
+    @staticmethod
+    def derive_repository_id(path: str, remote_url: str | None = None) -> str:
+        """Derive a stable, deterministic 16-character hex identifier for a repository."""
+        target = (
+            remote_url.strip().lower()
+            if remote_url and remote_url.strip()
+            else str(Path(path).resolve())
+        )
+        return sha256(target.encode("utf-8")).hexdigest()[:16]
+
+    @model_validator(mode="after")
+    def ensure_repository_id(self) -> "RepositoryMetadata":
+        if not self.repository_id:
+            self.repository_id = self.derive_repository_id(self.path, self.remote_url)
+        return self
 
 
 class RepositoryScanResult(BaseModel):

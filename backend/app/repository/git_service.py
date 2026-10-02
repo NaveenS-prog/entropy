@@ -42,3 +42,21 @@ class GitService:
         except Exception:
             pass
         return None
+
+    @staticmethod
+    def get_remote_url(repo_path: Path | str) -> str | None:
+        """Retrieve the git origin remote URL if configured."""
+        try:
+            result = subprocess.run(
+                ["git", "config", "--get", "remote.origin.url"],
+                cwd=str(repo_path),
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except Exception:
+            pass
+        return None

@@ -45,6 +45,7 @@ class RepositoryScanner:
         # 3. Non-destructive Git metadata retrieval
         branch = GitService.get_current_branch(root_path)
         commit = GitService.get_head_commit(root_path)
+        remote_url = GitService.get_remote_url(root_path)
 
         # 4. Build manifest
         manifest = ManifestBuilder.build(
@@ -57,6 +58,7 @@ class RepositoryScanner:
         repo_meta = RepositoryMetadata(
             name=repo_name,
             path=str(root_path),
+            remote_url=remote_url,
             branch=branch,
             commit_hash=commit,
             total_files=discovery.total_files_inspected,

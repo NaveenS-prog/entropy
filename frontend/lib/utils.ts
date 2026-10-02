@@ -70,6 +70,11 @@ export function getSeverityBadge(severity: Severity): {
   }
 }
 
+export function getSeverityColor(severity: Severity): string {
+  const badge = getSeverityBadge(severity);
+  return `${badge.bg} ${badge.text} ${badge.border}`;
+}
+
 export function getCategoryDisplayName(category: DebtCategory): string {
   const names: Record<DebtCategory, string> = {
     error_handling: "Error Handling Debt",

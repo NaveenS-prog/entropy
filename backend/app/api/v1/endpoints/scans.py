@@ -4,6 +4,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
 
+from app.comparison.models import ScanComparisonResult
+from app.comparison.service import comparison_service
 from app.models.domain.manifest import RepositoryManifest
 from app.schemas.scan_schemas import ScanCreateRequest, ScanDetailResponse, ScanSummaryResponse
 from app.services.repository_service import repository_service
@@ -278,3 +280,57 @@ def trigger_sample_scan() -> ScanDetailResponse:
         analyzers_executed=scan_result.analyzers_executed,
         errors=scan_result.errors,
     )
+
+
+@router.get("/{current_scan_id}/compare/{previous_scan_id}", response_model=ScanComparisonResult)
+def compare_scans(current_scan_id: str, previous_scan_id: str) -> ScanComparisonResult:
+    """Compare two historical scans to identify new, resolved, and persistent debt findings and score deltas."""
+    current_scan = repository_service.get_scan(current_scan_id)
+    if not current_scan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Current scan '{current_scan_id}' not found",
+        )
+
+    previous_scan = repository_service.get_scan(previous_scan_id)
+    if not previous_scan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Previous scan '{previous_scan_id}' not found",
+        )
+
+    # Ensure findings and scores are loaded for both scans
+    needs_reload = False
+    if not current_scan.analyzers_executed:
+        from app.services.analysis_service import analysis_service
+
+        analysis_service.analyze_scan(current_scan_id)
+        needs_reload = True
+    if current_scan.score is None:
+        from app.scoring.service import scoring_service
+
+        scoring_service.calculate_scan_score(current_scan_id)
+        needs_reload = True
+
+    if needs_reload:
+        current_scan = repository_service.get_scan(current_scan_id) or current_scan
+
+    prev_needs_reload = False
+    if not previous_scan.analyzers_executed:
+        from app.services.analysis_service import analysis_service
+
+        analysis_service.analyze_scan(previous_scan_id)
+        prev_needs_reload = True
+    if previous_scan.score is None:
+        from app.scoring.service import scoring_service
+
+        scoring_service.calculate_scan_score(previous_scan_id)
+        prev_needs_reload = True
+
+    if prev_needs_reload:
+        previous_scan = repository_service.get_scan(previous_scan_id) or previous_scan
+
+    return comparison_service.compare_scans(
+        current_scan=current_scan, previous_scan=previous_scan
+    )
+

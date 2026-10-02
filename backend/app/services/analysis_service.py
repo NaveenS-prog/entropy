@@ -43,7 +43,7 @@ class AnalysisService:
             raise RepositoryNotFoundError(f"Scan '{scan_id}' has no repository manifest")
 
         # Run analysis if not already cached or if forced
-        if not scan.findings or force_reanalyze:
+        if not scan.analyzers_executed or force_reanalyze:
             logger.info("Executing Phase 3 debt analyzers for scan '%s'", scan_id)
             root_path = Path(scan.repository.path)
             python_units = self.repo_service.parse_python_files(scan_id)
@@ -57,6 +57,7 @@ class AnalysisService:
             findings = self.registry.analyze(context)
             scan.findings = findings
             scan.analyzers_executed = [a.analyzer_id for a in self.registry.get_all()]
+            self.repo_service.save_scan(scan)
             logger.info(
                 "Scan '%s' analysis complete: %d finding(s) discovered across %d Python file(s)",
                 scan_id,

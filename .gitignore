@@ -63,6 +63,9 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 *.db
+*.db-wal
+*.db-shm
+.scans/
 scans/
 tmp/
 

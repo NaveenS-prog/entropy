@@ -3,9 +3,12 @@ import {
   DebtScoreResult,
   Finding,
   FindingExplanation,
+  PaginatedScanSnapshots,
   RepositoryManifest,
   RepositoryScanResult,
+  RepositoryTrendResponse,
   RuleDefinition,
+  ScanComparisonResult,
   SystemHealth,
 } from "@/types";
 
@@ -95,4 +98,50 @@ export async function requestAIExplanation(
   }
   return res.json();
 }
+
+export async function listRepositoryScans(
+  repositoryId: string,
+  page: number = 1,
+  pageSize: number = 20,
+  status?: string,
+  branch?: string
+): Promise<PaginatedScanSnapshots> {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  });
+  if (status) params.set("status", status);
+  if (branch) params.set("branch", branch);
+
+  const res = await fetch(`${API_BASE}/repositories/${repositoryId}/scans?${params.toString()}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Failed to list repository scans: ${res.statusText}`);
+  return res.json();
+}
+
+export async function getRepositoryTrend(
+  repositoryId: string
+): Promise<RepositoryTrendResponse> {
+  const res = await fetch(`${API_BASE}/repositories/${repositoryId}/trend`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Failed to fetch repository trend: ${res.statusText}`);
+  return res.json();
+}
+
+export async function compareScans(
+  currentScanId: string,
+  previousScanId: string
+): Promise<ScanComparisonResult> {
+  const res = await fetch(`${API_BASE}/scans/${currentScanId}/compare/${previousScanId}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Comparison failed: ${res.statusText}`);
+  }
+  return res.json();
+}
+
 

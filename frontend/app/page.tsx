@@ -1,18 +1,34 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchHealth, getFindings, getManifest, getScore, listScans, triggerScan } from "@/lib/api";
+import {
+  compareScans,
+  fetchHealth,
+  getFindings,
+  getManifest,
+  getRepositoryTrend,
+  getScore,
+  listRepositoryScans,
+  listScans,
+  triggerScan,
+} from "@/lib/api";
 import {
   DebtCategory,
   DebtScoreResult,
   Finding,
+  PaginatedScanSnapshots,
   RepositoryManifest,
   RepositoryScanResult,
+  RepositoryTrendResponse,
+  ScanComparisonResult,
   SystemHealth,
 } from "@/types";
 import { FindingsViewer } from "@/components/findings/FindingsViewer";
 import { ScoreBanner } from "@/components/dashboard/ScoreBanner";
 import { CategoryMatrix } from "@/components/dashboard/CategoryMatrix";
+import { ScoreTrendChart } from "@/components/history/ScoreTrendChart";
+import { ScanHistoryTable } from "@/components/history/ScanHistoryTable";
+import { ScanComparisonView } from "@/components/comparison/ScanComparisonView";
 import {
   FolderGit2,
   FileCode,
@@ -29,6 +45,8 @@ import {
   Terminal,
   FileText,
   Braces,
+  History,
+  GitCompare,
 } from "lucide-react";
 
 const SCAN_STEPS = [
@@ -58,6 +76,49 @@ export default function RepositoryIngestionDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedLanguageFilter, setSelectedLanguageFilter] = useState<string>("ALL");
   const [showJsonManifest, setShowJsonManifest] = useState(false);
+
+  // Phase 10 History & Comparison State
+  const [activeTab, setActiveTab] = useState<"overview" | "history" | "comparison">("overview");
+  const [history, setHistory] = useState<PaginatedScanSnapshots | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [trend, setTrend] = useState<RepositoryTrendResponse | null>(null);
+  const [isLoadingTrend, setIsLoadingTrend] = useState(false);
+  const [comparison, setComparison] = useState<ScanComparisonResult | null>(null);
+  const [isLoadingComparison, setIsLoadingComparison] = useState(false);
+  const [comparisonError, setComparisonError] = useState<string | null>(null);
+
+  const loadHistoryAndTrend = async (repoId: string, page = 1) => {
+    if (!repoId) return;
+    setIsLoadingHistory(true);
+    setIsLoadingTrend(true);
+    try {
+      const [histData, trendData] = await Promise.all([
+        listRepositoryScans(repoId, page).catch(() => null),
+        getRepositoryTrend(repoId).catch(() => null),
+      ]);
+      setHistory(histData);
+      setTrend(trendData);
+    } finally {
+      setIsLoadingHistory(false);
+      setIsLoadingTrend(false);
+    }
+  };
+
+  const handleCompareScans = async (currId: string, prevId: string) => {
+    setIsLoadingComparison(true);
+    setComparisonError(null);
+    setActiveTab("comparison");
+    try {
+      const comp = await compareScans(currId, prevId);
+      setComparison(comp);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to compare scans";
+      setComparisonError(msg);
+      setComparison(null);
+    } finally {
+      setIsLoadingComparison(false);
+    }
+  };
 
   const loadFindingsForScan = async (scanId: string) => {
     setIsLoadingFindings(true);
@@ -104,6 +165,9 @@ export default function RepositoryIngestionDashboard() {
           }
           loadFindingsForScan(first.scan_id);
           loadScoreForScan(first.scan_id);
+          if (first.repository.repository_id) {
+            loadHistoryAndTrend(first.repository.repository_id);
+          }
         }
       } catch (err) {
         console.error("Initialization error:", err);
@@ -139,6 +203,9 @@ export default function RepositoryIngestionDashboard() {
       }
       loadFindingsForScan(result.scan_id);
       loadScoreForScan(result.scan_id);
+      if (result.repository.repository_id) {
+        loadHistoryAndTrend(result.repository.repository_id);
+      }
     } catch (err: unknown) {
       clearInterval(interval);
       const errorMessage = err instanceof Error ? err.message : "Failed to scan repository";
@@ -164,6 +231,9 @@ export default function RepositoryIngestionDashboard() {
     }
     loadFindingsForScan(found.scan_id);
     loadScoreForScan(found.scan_id);
+    if (found.repository.repository_id) {
+      loadHistoryAndTrend(found.repository.repository_id);
+    }
   };
 
   const filteredFiles = (manifest?.files || []).filter((f) => {
@@ -355,14 +425,70 @@ export default function RepositoryIngestionDashboard() {
       {/* Real Scan Results */}
       {manifest && activeScan ? (
         <div className="space-y-6">
-          {/* Entropy Debt Score Banner (Phase 4 Engine) */}
-          {score && (
-            <ScoreBanner
-              score={score}
-              repository={activeScan.repository}
-              durationMs={activeScan.duration_ms}
-            />
-          )}
+          {/* Navigation Tabs */}
+          <div className="flex items-center gap-2 border-b border-border pb-3">
+            <button
+              onClick={() => setActiveTab("overview")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                activeTab === "overview"
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+              }`}
+            >
+              <FolderGit2 className="w-4 h-4" />
+              <span>Overview</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab("history");
+                if (activeScan.repository.repository_id) {
+                  loadHistoryAndTrend(activeScan.repository.repository_id);
+                }
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                activeTab === "history"
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+              }`}
+            >
+              <History className="w-4 h-4" />
+              <span>Scan History &amp; Trends</span>
+              {history && history.total > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-slate-900 font-mono text-emerald-300">
+                  {history.total}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab("comparison")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                activeTab === "comparison"
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+              }`}
+            >
+              <GitCompare className="w-4 h-4" />
+              <span>Compare Scans</span>
+              {comparison && (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-slate-900 font-mono text-emerald-300">
+                  active
+                </span>
+              )}
+            </button>
+          </div>
+
+          {activeTab === "overview" && (
+            <div className="space-y-6">
+              {/* Entropy Debt Score Banner (Phase 4 Engine) */}
+              {score && (
+                <ScoreBanner
+                  score={score}
+                  repository={activeScan.repository}
+                  durationMs={activeScan.duration_ms}
+                />
+              )}
 
           {/* Architectural Debt Categories Breakdown */}
           {score && score.category_scores && (
@@ -648,7 +774,78 @@ export default function RepositoryIngestionDashboard() {
             )}
           </div>
         </div>
-      ) : (
+      )}
+
+      {/* Scan History & Trend Intelligence Tab */}
+      {activeTab === "history" && (
+        <div className="space-y-6">
+          <ScoreTrendChart
+            trend={trend}
+            isLoading={isLoadingTrend}
+            onSelectScan={handleSelectScan}
+          />
+          <ScanHistoryTable
+            history={history}
+            activeScanId={activeScan?.scan_id}
+            isLoading={isLoadingHistory}
+            onSelectScan={handleSelectScan}
+            onCompareScans={handleCompareScans}
+            onPageChange={(p) => {
+              if (activeScan?.repository.repository_id) {
+                loadHistoryAndTrend(activeScan.repository.repository_id, p);
+              }
+            }}
+          />
+        </div>
+      )}
+
+      {/* Scan Comparison Tab */}
+      {activeTab === "comparison" && (
+        <div className="space-y-6">
+          {isLoadingComparison ? (
+            <div className="bg-card border border-border rounded-xl p-12 flex flex-col items-center justify-center min-h-[300px] text-center space-y-3">
+              <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
+              <p className="text-sm font-semibold text-slate-300">
+                Computing deterministic comparison...
+              </p>
+              <p className="text-xs text-slate-500 font-mono">
+                Matching fingerprints, computing score and category deltas
+              </p>
+            </div>
+          ) : comparisonError ? (
+            <div className="bg-card border border-red-900/60 rounded-xl p-6 text-xs text-red-300 space-y-2">
+              <div className="flex items-center gap-2 text-red-400 font-semibold">
+                <AlertCircle className="w-4 h-4" />
+                <span>Comparison Failed</span>
+              </div>
+              <p className="font-mono">{comparisonError}</p>
+            </div>
+          ) : comparison ? (
+            <ScanComparisonView
+              comparison={comparison}
+              onClose={() => setActiveTab("history")}
+            />
+          ) : (
+            <div className="bg-card border border-border rounded-xl p-10 text-center space-y-4">
+              <GitCompare className="w-10 h-10 text-slate-500 mx-auto" />
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-white">No Active Comparison</h3>
+                <p className="text-xs text-slate-400 max-w-md mx-auto">
+                  Go to the <strong>Scan History &amp; Trends</strong> tab and choose any two scans to run a deterministic comparison.
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveTab("history")}
+                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors"
+              >
+                Open Scan History
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  ) : (
         /* Empty Welcome State */
         <div className="border border-dashed border-slate-800 rounded-2xl p-12 text-center bg-card/30">
           <div className="h-14 w-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-4">

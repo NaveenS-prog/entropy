@@ -18,6 +18,7 @@ from app.models.domain.manifest import RepositoryManifest
 from app.models.domain.scan import RepositoryMetadata, RepositoryScanResult
 from app.parser.python.models import ParsedPythonUnit
 from app.parser.python.parser import PythonParser
+from app.persistence.database import scan_db
 from app.repository.config import ScannerConfig
 from app.repository.scanner import RepositoryScanner
 from app.repository.sources import LocalRepositorySource
@@ -88,6 +89,7 @@ class RepositoryService:
         try:
             scan_result = self.scanner.scan(source)
             self._scans[scan_result.scan_id] = scan_result
+            scan_db.save_scan(scan_result)
             return scan_result
         except Exception as e:
             logger.exception("Scan execution failed for repository '%s': %s", repo_path, e)
@@ -95,13 +97,24 @@ class RepositoryService:
             initial_record.completed_at = datetime.now(UTC)
             initial_record.errors.append(str(e))
             self._scans[scan_id] = initial_record
+            scan_db.save_scan(initial_record)
             if isinstance(e, RepositoryError):
                 raise
             raise RepositoryError(f"Unexpected scanner failure: {e}") from e
 
+    def save_scan(self, scan: RepositoryScanResult) -> None:
+        """Persist or update scan in memory and database."""
+        self._scans[scan.scan_id] = scan
+        scan_db.save_scan(scan)
+
     def get_scan(self, scan_id: str) -> RepositoryScanResult | None:
         """Retrieve a stored scan result by its ID."""
-        return self._scans.get(scan_id)
+        scan = self._scans.get(scan_id)
+        if not scan:
+            scan = scan_db.get_scan(scan_id)
+            if scan:
+                self._scans[scan_id] = scan
+        return scan
 
     def get_manifest(self, scan_id: str) -> RepositoryManifest | None:
         """Retrieve the repository manifest for a scan."""

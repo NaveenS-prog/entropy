@@ -90,6 +90,7 @@ class ScoringService:
 
         # Persist on scan record
         scan.score = score_result
+        self.repo_service.save_scan(scan)
         logger.info(
             "Computed Entropy Score for scan '%s': %d/100 (%s) across %d finding(s)",
             scan_id,

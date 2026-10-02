@@ -1,10 +1,13 @@
 """Main FastAPI application entrypoint for Entropy."""
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.v1.endpoints.repositories import _resolve_repository_id
 from app.api.v1.router import api_router
+from app.comparison.models import RepositoryTrendResponse, ScanComparisonResult
+from app.comparison.service import comparison_service
 from app.core.config import settings
 from app.core.errors import (
     EntropyError,
@@ -19,6 +22,8 @@ from app.models.domain.enums import DebtCategory, Severity
 from app.models.domain.finding import Finding
 from app.models.domain.manifest import RepositoryManifest
 from app.models.domain.scoring import DebtScoreResult
+from app.persistence.database import scan_db
+from app.persistence.models import PaginatedScanSnapshots
 from app.schemas.scan_schemas import ScanCreateRequest, ScanDetailResponse
 from app.scoring.service import scoring_service
 from app.services.analysis_service import analysis_service
@@ -204,6 +209,73 @@ def root_get_findings(
 def root_get_score(scan_id: str) -> DebtScoreResult:
     """Retrieve or compute the Entropy Debt Score via top-level endpoint."""
     return scoring_service.get_score(scan_id)
+
+
+@app.get("/repositories/{repository_id}/scans", response_model=PaginatedScanSnapshots, tags=["Repositories"])
+def root_get_repository_scans(
+    repository_id: str,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    status: str | None = Query(default=None),
+    branch: str | None = Query(default=None),
+) -> PaginatedScanSnapshots:
+    """Retrieve paginated scan history for a repository."""
+    resolved_id = _resolve_repository_id(repository_id)
+    offset = (page - 1) * page_size
+    items, total = scan_db.list_scans_for_repository(
+        repository_id=resolved_id,
+        limit=page_size,
+        offset=offset,
+        status=status,
+        branch=branch,
+    )
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+    return PaginatedScanSnapshots(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+    )
+
+
+@app.get("/repositories/{repository_id}/trend", response_model=RepositoryTrendResponse, tags=["Repositories"])
+def root_get_repository_trend(repository_id: str) -> RepositoryTrendResponse:
+    """Retrieve chronological score trend for a repository."""
+    resolved_id = _resolve_repository_id(repository_id)
+    return comparison_service.build_repository_trend(resolved_id)
+
+
+@app.get("/scans/{current_scan_id}/compare/{previous_scan_id}", response_model=ScanComparisonResult, tags=["Scans"])
+def root_compare_scans(current_scan_id: str, previous_scan_id: str) -> ScanComparisonResult:
+    """Compare two scans via top-level endpoint."""
+    current_scan = repository_service.get_scan(current_scan_id)
+    if not current_scan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Current scan '{current_scan_id}' not found",
+        )
+    previous_scan = repository_service.get_scan(previous_scan_id)
+    if not previous_scan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Previous scan '{previous_scan_id}' not found",
+        )
+
+    # Ensure findings and scores are loaded
+    if not current_scan.findings:
+        analysis_service.analyze_scan(current_scan_id)
+    if not current_scan.score:
+        scoring_service.calculate_scan_score(current_scan_id)
+    if not previous_scan.findings:
+        analysis_service.analyze_scan(previous_scan_id)
+    if not previous_scan.score:
+        scoring_service.calculate_scan_score(previous_scan_id)
+
+    return comparison_service.compare_scans(
+        current_scan=current_scan, previous_scan=previous_scan
+    )
+
 
 
 @app.get("/", tags=["Root"])

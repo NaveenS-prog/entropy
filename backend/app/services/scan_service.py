@@ -13,6 +13,7 @@ from app.models.domain.enums import ScanStatus, SupportedLanguage
 from app.models.domain.scan import RepositoryMetadata, RepositoryScanResult
 from app.parser.base import BaseParser, ParsedFile
 from app.parser.python_ast import PythonAstParser
+from app.persistence.database import scan_db
 from app.repository.discoverer import RepositoryDiscoverer
 from app.repository.git_service import GitService
 from app.repository.manifest import ManifestBuilder
@@ -71,6 +72,7 @@ class ScanService:
         # 2. Git metadata
         branch = GitService.get_current_branch(path)
         commit = GitService.get_head_commit(path)
+        remote_url = GitService.get_remote_url(path)
 
         manifest = ManifestBuilder.build(
             repo_name=name,
@@ -82,6 +84,7 @@ class ScanService:
         repo_meta = RepositoryMetadata(
             name=name,
             path=str(path),
+            remote_url=remote_url,
             branch=branch,
             commit_hash=commit,
             total_files=discovery.total_files_inspected,
@@ -147,6 +150,8 @@ class ScanService:
         scan_record.status = ScanStatus.COMPLETED
 
         self._scans[scan_id] = scan_record
+        scan_db.save_scan(scan_record)
+
         logger.info(
             "Scan %s completed in %.2f ms. Score: %d (%s), Findings: %d",
             scan_id,
@@ -159,7 +164,12 @@ class ScanService:
 
     def get_scan(self, scan_id: str) -> RepositoryScanResult | None:
         """Retrieve a stored scan result by its ID."""
-        return self._scans.get(scan_id)
+        scan = self._scans.get(scan_id)
+        if not scan:
+            scan = scan_db.get_scan(scan_id)
+            if scan:
+                self._scans[scan_id] = scan
+        return scan
 
     def list_scans(self) -> list[RepositoryScanResult]:
         """List all completed scans ordered by most recent first."""

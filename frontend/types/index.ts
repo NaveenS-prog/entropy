@@ -163,6 +163,8 @@ export interface DebtScoreResult {
 export interface RepositoryMetadata {
   name: string;
   path: string;
+  repository_id?: string | null;
+  remote_url?: string | null;
   branch?: string | null;
   commit_hash?: string | null;
   total_files: number;
@@ -226,3 +228,126 @@ export interface SystemHealth {
   total_rules_count: number;
   supported_languages: string[];
 }
+
+// =============================================================================
+// Phase 10: Scan History, Trends & Scan Comparison Types
+// =============================================================================
+
+export interface ScanSnapshot {
+  scan_id: string;
+  repository_id: string;
+  repo_name: string;
+  repo_path: string;
+  branch?: string | null;
+  commit_sha?: string | null;
+  status: ScanStatus;
+  entropy_score?: number | null;
+  score_band?: DebtScoreTier | null;
+  total_files?: number;
+  analyzed_files: number;
+  total_loc: number;
+  finding_count: number;
+  duration_ms?: number | null;
+  started_at: string;
+  completed_at?: string | null;
+}
+
+export interface PaginatedScanSnapshots {
+  items: ScanSnapshot[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface TrendPoint {
+  scan_id: string;
+  timestamp: string;
+  commit_hash?: string | null;
+  branch?: string | null;
+  entropy_score: number;
+  tier: DebtScoreTier;
+  total_findings: number;
+  total_loc: number;
+  category_scores: Record<string, number | null>;
+}
+
+export interface RepositoryTrendResponse {
+  repository_id: string;
+  repo_name: string;
+  total_scans: number;
+  points: TrendPoint[];
+  message?: string | null;
+}
+
+export type FindingLifecycleStatus = "new" | "resolved" | "persistent";
+
+export interface ComparisonFindingItem {
+  id: string;
+  fingerprint: string;
+  rule_id: string;
+  category: DebtCategory;
+  severity: Severity;
+  file: string;
+  symbol: string;
+  title: string;
+  line_start: number;
+  line_end: number;
+  lifecycle_status: FindingLifecycleStatus;
+  resolution_status?: string | null;
+  persistence_scans_count?: number | null;
+}
+
+export interface ScoreComparison {
+  previous_score?: number | null;
+  current_score?: number | null;
+  delta?: number | null;
+  direction: "increased" | "decreased" | "unchanged";
+  explanation: string;
+}
+
+export interface CategoryComparison {
+  category: DebtCategory;
+  previous_status: string;
+  current_status: string;
+  previous_score?: number | null;
+  current_score?: number | null;
+  score_delta?: number | null;
+  previous_finding_count: number;
+  current_finding_count: number;
+  finding_delta: number;
+}
+
+export interface RuleComparison {
+  rule_id: string;
+  title: string;
+  category: DebtCategory;
+  previous_count: number;
+  current_count: number;
+  delta: number;
+}
+
+export interface ComparisonSummary {
+  score_delta: number;
+  new_findings_count: number;
+  resolved_findings_count: number;
+  persistent_findings_count: number;
+  total_current_findings: number;
+  total_previous_findings: number;
+}
+
+export interface ScanComparisonResult {
+  current_scan_id: string;
+  previous_scan_id: string;
+  current_timestamp: string;
+  previous_timestamp: string;
+  repository_id: string;
+  summary: ComparisonSummary;
+  score_comparison: ScoreComparison;
+  category_comparisons: Record<string, CategoryComparison>;
+  rule_comparisons: RuleComparison[];
+  new_findings: ComparisonFindingItem[];
+  resolved_findings: ComparisonFindingItem[];
+  persistent_findings: ComparisonFindingItem[];
+}
+

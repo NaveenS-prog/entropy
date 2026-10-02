@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getTierColor, getSeverityBadge, getCategoryDisplayName } from "./utils";
+import { getTierColor, getSeverityBadge, getSeverityColor, getCategoryDisplayName } from "./utils";
 
 describe("Frontend Utility Tests", () => {
   it("maps debt score tiers to correct color schemes", () => {
@@ -24,9 +24,18 @@ describe("Frontend Utility Tests", () => {
     expect(info.text).toBe("text-slate-400");
   });
 
+  it("maps finding severities to combined color string", () => {
+    const critClass = getSeverityColor("critical");
+    expect(critClass).toContain("text-red-400");
+    expect(critClass).toContain("bg-red-500/20");
+  });
+
   it("maps debt categories to human-readable names", () => {
     expect(getCategoryDisplayName("error_handling")).toBe("Error Handling Debt");
     expect(getCategoryDisplayName("authentication_consistency")).toBe("Authentication Consistency Debt");
     expect(getCategoryDisplayName("authorization_consistency")).toBe("Authorization Consistency Debt");
+    expect(getCategoryDisplayName("code_duplication")).toBe("Duplication & Boilerplate Debt");
+    expect(getCategoryDisplayName("architectural_consistency")).toBe("Architectural Consistency Debt");
   });
 });
+

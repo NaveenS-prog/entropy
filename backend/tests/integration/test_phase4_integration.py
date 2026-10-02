@@ -88,9 +88,12 @@ def test_full_pipeline_ingestion_to_scoring(tmp_path: Path):
     assert auth_cat["finding_count"] == 0
 
     dup_cat = category_scores["code_duplication"]
-    assert dup_cat["status"] == "not_analyzed"
-    assert dup_cat["score"] is None
+    assert dup_cat["status"] == "analyzed"
+    assert dup_cat["score"] == 0.0
     assert dup_cat["finding_count"] == 0
+
+    assert category_scores["architectural_consistency"]["status"] == "not_analyzed"
+    assert category_scores["architectural_consistency"]["score"] is None
 
     assert category_scores["input_validation"]["status"] == "analyzed"
     assert category_scores["logging_and_secrets"]["status"] == "analyzed"

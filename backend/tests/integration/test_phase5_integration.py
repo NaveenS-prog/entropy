@@ -135,10 +135,9 @@ def test_phase5_full_pipeline_and_scoring_validation(tmp_path: Path):
     assert cat_scores["authorization_consistency"]["status"] == "analyzed"
     assert cat_scores["authorization_consistency"]["score"] > 0
 
-    # Remaining 2 categories must remain NOT_ANALYZED with null scores
-    for unanalyzed in ("code_duplication", "architectural_consistency"):
-        assert cat_scores[unanalyzed]["status"] == "not_analyzed"
-        assert cat_scores[unanalyzed]["score"] is None
+    assert cat_scores["code_duplication"]["status"] == "analyzed"
+    assert cat_scores["architectural_consistency"]["status"] == "not_analyzed"
+    assert cat_scores["architectural_consistency"]["score"] is None
 
     # Verify input_validation and logging_and_secrets are ANALYZED
     assert cat_scores["input_validation"]["status"] == "analyzed"

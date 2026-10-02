@@ -27,13 +27,14 @@ from app.scoring.models import (
 from app.scoring.normalizer import ScoreNormalizer, normalizer
 from app.scoring.weights import CATEGORY_WEIGHTS
 
-# Default analyzed categories for Phase 6 (categories with active analyzers)
+# Default analyzed categories for Phase 8 (categories with active analyzers)
 DEFAULT_ANALYZED_CATEGORIES: set[DebtCategory] = {
     DebtCategory.ERROR_HANDLING,
     DebtCategory.AUTHENTICATION_CONSISTENCY,
     DebtCategory.AUTHORIZATION_CONSISTENCY,
     DebtCategory.INPUT_VALIDATION,
     DebtCategory.LOGGING_AND_SECRETS,
+    DebtCategory.CODE_DUPLICATION,
 }
 
 

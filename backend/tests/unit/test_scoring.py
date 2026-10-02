@@ -72,7 +72,9 @@ def test_scoring_with_findings():
     assert result.total_score > 0
     assert result.category_scores[DebtCategory.ERROR_HANDLING].score > 0
     assert result.category_scores[DebtCategory.ERROR_HANDLING].finding_count == 2
-    assert result.category_scores[DebtCategory.CODE_DUPLICATION].score is None
-    assert result.category_scores[DebtCategory.CODE_DUPLICATION].status == "not_analyzed"
+    assert result.category_scores[DebtCategory.CODE_DUPLICATION].score == 0.0
+    assert result.category_scores[DebtCategory.CODE_DUPLICATION].status == "analyzed"
+    assert result.category_scores[DebtCategory.ARCHITECTURAL_CONSISTENCY].score is None
+    assert result.category_scores[DebtCategory.ARCHITECTURAL_CONSISTENCY].status == "not_analyzed"
     assert result.category_scores[DebtCategory.INPUT_VALIDATION].status == "analyzed"
     assert "Entropy_Score" in result.formula_summary

@@ -21,7 +21,7 @@ def test_scoring_zero_findings():
 
     # Unanalyzed categories must not have fabricated 0.0 scores
     for cat in DebtCategory:
-        if cat != DebtCategory.ERROR_HANDLING:
+        if cat not in result.analyzed_categories:
             assert result.category_scores[cat].score is None
             assert result.category_scores[cat].status == "not_analyzed"
 
@@ -72,6 +72,7 @@ def test_scoring_with_findings():
     assert result.total_score > 0
     assert result.category_scores[DebtCategory.ERROR_HANDLING].score > 0
     assert result.category_scores[DebtCategory.ERROR_HANDLING].finding_count == 2
-    assert result.category_scores[DebtCategory.AUTHENTICATION_CONSISTENCY].score is None
-    assert result.category_scores[DebtCategory.AUTHENTICATION_CONSISTENCY].status == "not_analyzed"
+    assert result.category_scores[DebtCategory.CODE_DUPLICATION].score is None
+    assert result.category_scores[DebtCategory.CODE_DUPLICATION].status == "not_analyzed"
+    assert result.category_scores[DebtCategory.INPUT_VALIDATION].status == "analyzed"
     assert "Entropy_Score" in result.formula_summary

@@ -83,9 +83,17 @@ def test_full_pipeline_ingestion_to_scoring(tmp_path: Path):
     assert err_cat["finding_count"] >= 3
 
     auth_cat = category_scores["authentication_consistency"]
-    assert auth_cat["status"] == "not_analyzed"
-    assert auth_cat["score"] is None
+    assert auth_cat["status"] == "analyzed"
+    assert auth_cat["score"] == 0.0
     assert auth_cat["finding_count"] == 0
+
+    dup_cat = category_scores["code_duplication"]
+    assert dup_cat["status"] == "not_analyzed"
+    assert dup_cat["score"] is None
+    assert dup_cat["finding_count"] == 0
+
+    assert category_scores["input_validation"]["status"] == "analyzed"
+    assert category_scores["logging_and_secrets"]["status"] == "analyzed"
 
     # Severity breakdown check
     sev_breakdown = score_data["severity_breakdown"]

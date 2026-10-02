@@ -72,13 +72,20 @@ class ScoringService:
         analyzed_files = len([f for f in scan.manifest.files if f.analysis_supported])
         skipped_files = manifest_repo.skipped_files
 
+        # Determine active analyzed categories from registered analyzers if not specified
+        active_cats = (
+            analyzed_categories
+            if analyzed_categories is not None
+            else {a.category for a in self.analy_service.registry.get_all()}
+        )
+
         # Compute deterministic score
         score_result = self.scorer.calculate_score(
             findings=findings,
             total_loc=total_loc,
             analyzed_files=analyzed_files,
             skipped_files=skipped_files,
-            analyzed_categories=analyzed_categories,
+            analyzed_categories=active_cats,
         )
 
         # Persist on scan record

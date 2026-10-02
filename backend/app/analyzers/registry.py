@@ -4,6 +4,10 @@ import logging
 
 from app.analyzers.base import AnalysisContext, BaseAnalyzer
 from app.analyzers.rules.error_handling.broad_exception import ErrorHandlingDebtAnalyzer
+from app.analyzers.security.auth.authentication import AuthenticationConsistencyAnalyzer
+from app.analyzers.security.auth.authorization import AuthorizationConsistencyAnalyzer
+from app.analyzers.security.logging_secrets import LoggingAndSecretsAnalyzer
+from app.analyzers.security.validation import InputValidationConsistencyAnalyzer
 from app.models.domain.enums import DebtCategory
 from app.models.domain.finding import Finding
 from app.models.domain.rule import RuleDefinition
@@ -81,6 +85,10 @@ def create_default_registry() -> AnalyzerRegistry:
     """Create and seed the default registry with production-ready analyzers."""
     registry = AnalyzerRegistry()
     registry.register(ErrorHandlingDebtAnalyzer())
+    registry.register(AuthenticationConsistencyAnalyzer())
+    registry.register(AuthorizationConsistencyAnalyzer())
+    registry.register(InputValidationConsistencyAnalyzer())
+    registry.register(LoggingAndSecretsAnalyzer())
     return registry
 
 

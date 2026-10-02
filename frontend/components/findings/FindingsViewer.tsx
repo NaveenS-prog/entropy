@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { DebtCategory, Finding, Severity } from "@/types";
+import { useMemo, useState } from "react";
+import { AIExplanation, DebtCategory, Finding, Severity } from "@/types";
 import { getSeverityBadge } from "@/lib/utils";
+import { requestAIExplanation } from "@/lib/api";
 import {
   Code,
   AlertCircle,
@@ -13,6 +14,10 @@ import {
   ShieldCheck,
   ShieldAlert,
   Hash,
+  Sparkles,
+  Loader2,
+  RefreshCw,
+  Info,
 } from "lucide-react";
 
 interface FindingsViewerProps {
@@ -22,17 +27,8 @@ interface FindingsViewerProps {
   isLoading?: boolean;
 }
 
-const ERROR_HANDLING_RULES = [
-  { id: "all", label: "All Rules" },
-  { id: "ENT-ERR-001", label: "ENT-ERR-001 (Bare Except)" },
-  { id: "ENT-ERR-002", label: "ENT-ERR-002 (Broad Handler)" },
-  { id: "ENT-ERR-003", label: "ENT-ERR-003 (Empty Handler)" },
-  { id: "ENT-ERR-004", label: "ENT-ERR-004 (Silently Swallowed)" },
-  { id: "ENT-ERR-005", label: "ENT-ERR-005 (Generic Fallback)" },
-];
-
 export function FindingsViewer({
-  scanId: _scanId,
+  scanId,
   findings,
   selectedCategory,
   isLoading = false,
@@ -41,6 +37,11 @@ export function FindingsViewer({
   const [selectedSeverity, setSelectedSeverity] = useState<Severity | "all">("all");
   const [selectedRule, setSelectedRule] = useState<string>("all");
   const [expandedFindings, setExpandedFindings] = useState<Record<string, boolean>>({});
+
+  // Phase 7: AI Explanation States
+  const [aiExplanations, setAiExplanations] = useState<Record<string, AIExplanation>>({});
+  const [loadingAI, setLoadingAI] = useState<Record<string, boolean>>({});
+  const [aiErrors, setAiErrors] = useState<Record<string, string>>({});
 
   const toggleExpand = (id: string) => {
     setExpandedFindings((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -57,6 +58,35 @@ export function FindingsViewer({
   const collapseAll = () => {
     setExpandedFindings({});
   };
+
+  const handleRequestAIExplanation = async (findingId: string) => {
+    setLoadingAI((prev) => ({ ...prev, [findingId]: true }));
+    setAiErrors((prev) => {
+      const copy = { ...prev };
+      delete copy[findingId];
+      return copy;
+    });
+
+    try {
+      const result = await requestAIExplanation(findingId, scanId);
+      setAiExplanations((prev) => ({ ...prev, [findingId]: result }));
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "AI explanation is currently unavailable. The deterministic finding remains available.";
+      setAiErrors((prev) => ({ ...prev, [findingId]: message }));
+    } finally {
+      setLoadingAI((prev) => ({ ...prev, [findingId]: false }));
+    }
+  };
+
+  // Derive unique rules dynamically across all active categories (Phase 3, 5, 6)
+  const uniqueRules = useMemo(() => {
+    const ruleSet = new Set<string>();
+    findings.forEach((f) => ruleSet.add(f.rule_id));
+    return Array.from(ruleSet).sort();
+  }, [findings]);
 
   // Filter findings
   const filtered = findings.filter((f) => {
@@ -81,13 +111,13 @@ export function FindingsViewer({
         <div>
           <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
             <ShieldAlert className="h-5 w-5 text-amber-400" />
-            <span>Error Handling Debt Findings</span>
+            <span>Architectural Debt Findings</span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
               {filtered.length} of {findings.length}
             </span>
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Deterministic AST findings: bare clauses, broad handlers, empty blocks, silent swallows, and generic fallbacks.
+            Deterministic AST findings across error handling, auth consistency, input validation, and secret hygiene.
           </p>
         </div>
 
@@ -105,15 +135,16 @@ export function FindingsViewer({
             />
           </div>
 
-          {/* Rule Filter */}
+          {/* Dynamic Rule Filter */}
           <select
             value={selectedRule}
             onChange={(e) => setSelectedRule(e.target.value)}
             className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono cursor-pointer"
           >
-            {ERROR_HANDLING_RULES.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.label}
+            <option value="all">All Rules ({uniqueRules.length})</option>
+            {uniqueRules.map((ruleId) => (
+              <option key={ruleId} value={ruleId}>
+                {ruleId}
               </option>
             ))}
           </select>
@@ -158,14 +189,14 @@ export function FindingsViewer({
       <div className="mt-5 space-y-3">
         {isLoading ? (
           <div className="text-center py-12 text-slate-400 text-xs font-mono">
-            Analyzing Python AST for Error Handling Debt...
+            Analyzing Python AST for Architectural & Security Debt...
           </div>
         ) : findings.length === 0 ? (
           <div className="text-center py-12 px-4 rounded-xl border border-dashed border-emerald-900/60 bg-emerald-950/20">
             <ShieldCheck className="h-10 w-10 text-emerald-400 mx-auto mb-2.5 opacity-90" />
-            <h3 className="text-sm font-semibold text-emerald-300">Clean Exception Architecture</h3>
+            <h3 className="text-sm font-semibold text-emerald-300">Clean Architecture</h3>
             <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-              No Error Handling Debt findings detected by the currently enabled rules.
+              No architectural or security debt findings detected by active analyzers.
             </p>
           </div>
         ) : filtered.length === 0 ? (
@@ -176,6 +207,9 @@ export function FindingsViewer({
           filtered.map((finding) => {
             const isExpanded = !!expandedFindings[finding.id];
             const badge = getSeverityBadge(finding.severity);
+            const explanation = aiExplanations[finding.id];
+            const isExplaining = !!loadingAI[finding.id];
+            const aiError = aiErrors[finding.id];
 
             return (
               <div
@@ -234,7 +268,7 @@ export function FindingsViewer({
 
                 {/* Expanded details */}
                 {isExpanded && (
-                  <div className="p-4 pt-2 border-t border-slate-800/80 mt-1 space-y-3.5 text-xs">
+                  <div className="p-4 pt-2 border-t border-slate-800/80 mt-1 space-y-4 text-xs">
                     {/* Description */}
                     <p className="text-slate-300 leading-relaxed">{finding.description}</p>
 
@@ -290,6 +324,132 @@ export function FindingsViewer({
                         </div>
                         <p className="text-slate-300 leading-relaxed">{finding.recommendation}</p>
                       </div>
+                    </div>
+
+                    {/* Phase 7: AI Explanation & Remediation Section */}
+                    <div className="pt-2 border-t border-slate-800/80">
+                      {!explanation && !isExplaining && !aiError && (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-slate-400 text-xs">
+                            <Sparkles className="h-4 w-4 text-indigo-400" />
+                            <span>Need deeper architectural context or tailored remediation?</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRequestAIExplanation(finding.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs shadow-sm transition-colors"
+                          >
+                            <Sparkles className="h-3.5 w-3.5" />
+                            <span>Explain with AI</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Loading State */}
+                      {isExplaining && (
+                        <div className="p-4 rounded-lg bg-indigo-950/30 border border-indigo-900/50 flex items-center justify-center gap-2.5 text-indigo-200">
+                          <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
+                          <span className="font-mono text-xs">
+                            Generating AI-assisted architectural explanation & remediation...
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Error State */}
+                      {aiError && (
+                        <div className="p-3.5 rounded-lg bg-red-950/30 border border-red-900/50 flex items-center justify-between gap-3 text-red-200">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4 text-red-400 flex-shrink-0" />
+                            <div className="text-xs">
+                              <p className="font-semibold text-red-300">
+                                AI explanation is currently unavailable.
+                              </p>
+                              <p className="text-slate-400 text-[11px] mt-0.5">
+                                {aiError.includes("disabled")
+                                  ? "AI explanations are not configured or disabled for this environment. Deterministic findings remain fully available."
+                                  : aiError}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRequestAIExplanation(finding.id)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] border border-slate-700"
+                          >
+                            <RefreshCw className="h-3 w-3" />
+                            <span>Retry</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Structured Explanation Display */}
+                      {explanation && (
+                        <div className="p-4 rounded-xl border border-indigo-900/50 bg-indigo-950/20 space-y-3.5">
+                          {/* Advisory Label Banner */}
+                          <div className="flex items-center justify-between pb-2 border-b border-indigo-900/40">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="h-4 w-4 text-indigo-400" />
+                              <span className="text-xs font-bold text-indigo-300 tracking-wider uppercase font-mono">
+                                AI-Generated Explanation — Advisory Only
+                              </span>
+                            </div>
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800 font-mono">
+                              AI Confidence: {explanation.confidence}
+                            </span>
+                          </div>
+
+                          {/* Executive Summary */}
+                          <p className="text-xs text-indigo-200/90 leading-relaxed font-medium">
+                            {explanation.summary}
+                          </p>
+
+                          {/* Why It Matters & Evidence Grounding */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                            <div className="p-3 rounded-lg bg-slate-900/80 border border-slate-800">
+                              <div className="font-semibold text-slate-300 mb-1">Why This Matters</div>
+                              <p className="text-slate-400 leading-relaxed">{explanation.why_it_matters}</p>
+                            </div>
+
+                            <div className="p-3 rounded-lg bg-slate-900/80 border border-slate-800">
+                              <div className="font-semibold text-slate-300 mb-1">Observable Evidence Grounding</div>
+                              <p className="text-slate-400 leading-relaxed">{explanation.evidence_explanation}</p>
+                            </div>
+                          </div>
+
+                          {/* Architectural Impact */}
+                          <div className="p-3 rounded-lg bg-slate-900/80 border border-slate-800 text-xs">
+                            <div className="font-semibold text-slate-300 mb-1">Architectural Impact</div>
+                            <p className="text-slate-400 leading-relaxed">{explanation.architectural_impact}</p>
+                          </div>
+
+                          {/* Remediation */}
+                          <div className="p-3 rounded-lg bg-emerald-950/30 border border-emerald-900/40 text-xs">
+                            <div className="font-semibold text-emerald-400 mb-1">Remediation Steps</div>
+                            <p className="text-slate-300 leading-relaxed">{explanation.remediation}</p>
+                          </div>
+
+                          {/* Suggested Pattern */}
+                          {explanation.suggested_pattern && (
+                            <div className="space-y-1">
+                              <div className="text-[11px] font-mono text-slate-400">Suggested Pattern</div>
+                              <div className="bg-slate-950 rounded-lg p-3 border border-slate-800 font-mono text-xs overflow-x-auto text-emerald-300">
+                                <pre>{explanation.suggested_pattern}</pre>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Footer with Metadata & Mandatory Disclaimer */}
+                          <div className="flex flex-wrap items-center justify-between text-[10px] font-mono text-slate-500 pt-2 border-t border-indigo-900/30 gap-2">
+                            <span>
+                              Model: {explanation.model} | Prompt v{explanation.prompt_version}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Info className="h-3 w-3 text-slate-500" />
+                              {explanation.disclaimer}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Deterministic Fingerprint / Audit Footer */}

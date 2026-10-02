@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,6 +31,44 @@ class Settings(BaseSettings):
 
     # Database (SQLite default for Phase 0, easily swappable for Postgres in production)
     DATABASE_URL: str = "sqlite:///./entropy.db"
+
+    # Phase 7: AI Explanation Layer Settings
+    AI_ENABLED: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("AI_ENABLED", "ENTROPY_AI_ENABLED"),
+        description="Toggle AI explanation and remediation advisory layer",
+    )
+    AI_PROVIDER: str = Field(
+        default="gemini",
+        validation_alias=AliasChoices("AI_PROVIDER", "ENTROPY_AI_PROVIDER"),
+        description="AI provider name: gemini, fake, openai",
+    )
+    AI_MODEL: str = Field(
+        default="gemini-1.5-flash",
+        validation_alias=AliasChoices("AI_MODEL", "ENTROPY_AI_MODEL"),
+        description="Model name used for AI explanations",
+    )
+    AI_API_KEY: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AI_API_KEY", "ENTROPY_AI_API_KEY", "GEMINI_API_KEY"),
+        description="API key for the configured AI provider",
+    )
+    AI_TIMEOUT_SECONDS: int = Field(
+        default=30,
+        validation_alias=AliasChoices("AI_TIMEOUT_SECONDS", "ENTROPY_AI_TIMEOUT_SECONDS"),
+        description="HTTP timeout for AI provider requests",
+    )
+    AI_MAX_TOKENS: int = Field(
+        default=1024,
+        validation_alias=AliasChoices("AI_MAX_TOKENS", "ENTROPY_AI_MAX_TOKENS"),
+        description="Maximum tokens allowed in AI response",
+    )
+    AI_PROMPT_VERSION: str = Field(
+        default="1",
+        validation_alias=AliasChoices("AI_PROMPT_VERSION", "ENTROPY_AI_PROMPT_VERSION"),
+        description="Prompt version identifier for cache key derivation",
+    )
+    AI_CACHE_DIR: Path = Path(__file__).resolve().parents[3] / ".ai_cache"
 
     model_config = SettingsConfigDict(
         env_prefix="ENTROPY_",

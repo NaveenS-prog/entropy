@@ -191,6 +191,21 @@ export interface FindingExplanation {
   suggested_action: string;
 }
 
+export interface AIExplanation {
+  finding_id: string;
+  summary: string;
+  why_it_matters: string;
+  evidence_explanation: string;
+  architectural_impact: string;
+  remediation: string;
+  suggested_pattern: string;
+  confidence: string;
+  generated_at: string;
+  model: string;
+  prompt_version: string;
+  disclaimer: string;
+}
+
 export interface RuleDefinition {
   rule_id: string;
   category: DebtCategory;

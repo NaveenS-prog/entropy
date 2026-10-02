@@ -11,4 +11,5 @@ api_router.include_router(analyzers.router, prefix="/analyzers", tags=["Analyzer
 api_router.include_router(repositories.router, prefix="/repositories", tags=["Repositories"])
 api_router.include_router(scans.router, prefix="/scans", tags=["Scans"])
 api_router.include_router(findings.router, prefix="/scans", tags=["Findings"])
+api_router.include_router(findings.direct_router, prefix="/findings", tags=["Findings"])
 api_router.include_router(scoring.router, prefix="/scans", tags=["Scoring"])

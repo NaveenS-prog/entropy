@@ -1,5 +1,6 @@
 """Domain models for Entropy."""
 
+from app.models.domain.ai_explanation import AIExplanation, AIExplanationContext
 from app.models.domain.enums import (
     Confidence,
     DebtCategory,
@@ -14,6 +15,8 @@ from app.models.domain.scan import RepositoryMetadata, RepositoryScanResult
 from app.models.domain.scoring import CategoryScoreBreakdown, DebtScoreResult
 
 __all__ = [
+    "AIExplanation",
+    "AIExplanationContext",
     "Confidence",
     "DebtCategory",
     "DebtScoreTier",

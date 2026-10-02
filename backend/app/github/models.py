@@ -7,6 +7,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+from app.policy.models import PolicyEvaluation
+
 
 class PRAnalysisStatus(StrEnum):
     """Lifecycle status of a Pull Request debt analysis job."""
@@ -64,6 +66,8 @@ class PRAnalysisRecord(BaseModel):
     error_message: str | None = None
     check_run_id: int | None = None
     comment_id: int | None = None
+    policy_status: str | None = None
+    policy_evaluation: PolicyEvaluation | None = None
     is_current_head: bool = True
     created_at: datetime
     updated_at: datetime

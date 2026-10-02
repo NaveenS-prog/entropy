@@ -24,10 +24,12 @@ from app.github.client import GitHubClient
 from app.github.formatter import build_check_run_output, build_pr_comment_markdown
 from app.github.models import PRAnalysisRecord, PRAnalysisStatus
 from app.github.source import temporary_checkout, validate_commit_sha
+from app.policy.models import PolicyEvaluation, PolicyStatus
 
 if TYPE_CHECKING:
     from app.comparison.service import ComparisonService
     from app.persistence.database import ScanDatabase
+    from app.policy.service import PolicyService
     from app.scoring.service import ScoringService
     from app.services.analysis_service import AnalysisService
     from app.services.repository_service import RepositoryService
@@ -46,6 +48,7 @@ class GitHubWorkflowService:
         analy_svc: AnalysisService | None = None,
         score_svc: ScoringService | None = None,
         comp_svc: ComparisonService | None = None,
+        policy_svc: PolicyService | None = None,
     ) -> None:
         self._db = db
         self._client = client
@@ -53,6 +56,15 @@ class GitHubWorkflowService:
         self._analy_svc = analy_svc
         self._score_svc = score_svc
         self._comp_svc = comp_svc
+        self._policy_svc = policy_svc
+
+    @property
+    def policy_svc(self) -> PolicyService:
+        if self._policy_svc is None:
+            from app.policy.service import policy_service
+
+            self._policy_svc = policy_service
+        return self._policy_svc
 
     @property
     def db(self) -> ScanDatabase:
@@ -273,6 +285,15 @@ class GitHubWorkflowService:
                 previous_scan=base_scan,
             )
 
+            # Step C2: Deterministic Policy Evaluation using Phase 13 Policy Service
+            policy_eval: PolicyEvaluation | None = None
+            try:
+                policy_eval = self.policy_svc.evaluate_comparison_obj(comparison)
+                record.policy_status = policy_eval.status.value
+                record.policy_evaluation = policy_eval
+            except Exception as exc:
+                logger.warning("Policy evaluation error during PR workflow: %s", exc)
+
             # Step D: Update PR Record with Results
             record.base_scan_id = base_scan.scan_id
             record.head_scan_id = head_scan.scan_id
@@ -313,17 +334,28 @@ class GitHubWorkflowService:
             dashboard_url = f"http://localhost:3000?tab=pr&repo={owner}/{repo}&pr={pr_number}"
             if check_run_id:
                 try:
+                    if policy_eval:
+                        if policy_eval.status == PolicyStatus.PASS:
+                            conclusion = "success"
+                        elif policy_eval.status == PolicyStatus.WARN:
+                            conclusion = "neutral"
+                        else:
+                            conclusion = "failure"
+                    else:
+                        conclusion = "neutral"
+
                     check_run_output = build_check_run_output(
                         comparison=comparison,
                         pr_number=pr_number,
                         dashboard_url=dashboard_url,
+                        policy_evaluation=policy_eval,
                     )
                     self.client.update_check_run(
                         owner=owner,
                         repo=repo,
                         check_run_id=check_run_id,
                         status="completed",
-                        conclusion="neutral",  # Informational check run
+                        conclusion=conclusion,
                         output=check_run_output,
                     )
                 except Exception as exc:
@@ -335,6 +367,7 @@ class GitHubWorkflowService:
                     comparison=comparison,
                     pr_number=pr_number,
                     dashboard_url=dashboard_url,
+                    policy_evaluation=policy_eval,
                 )
                 comment_id = self.client.create_or_update_comment(
                     owner=owner,

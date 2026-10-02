@@ -7,6 +7,7 @@ from app.api.v1.endpoints import (
     findings,
     github_prs,
     health,
+    policies,
     repositories,
     scans,
     scoring,
@@ -16,6 +17,7 @@ from app.api.v1.endpoints import (
 api_router = APIRouter()
 
 api_router.include_router(health.router, tags=["Health"])
+api_router.include_router(policies.router, tags=["Policies"])
 api_router.include_router(analyzers.router, prefix="/analyzers", tags=["Analyzers"])
 api_router.include_router(repositories.router, prefix="/repositories", tags=["Repositories"])
 api_router.include_router(scans.router, prefix="/scans", tags=["Scans"])

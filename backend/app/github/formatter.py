@@ -9,15 +9,19 @@ Follows strict non-negotiable principles:
 from __future__ import annotations
 
 import collections
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.comparison.models import ScanComparisonResult
+
+if TYPE_CHECKING:
+    from app.policy.models import PolicyEvaluation
 
 
 def build_check_run_output(
     comparison: ScanComparisonResult,
     pr_number: int,
     dashboard_url: str | None = None,
+    policy_evaluation: PolicyEvaluation | None = None,
 ) -> dict[str, Any]:
     """Build the title, summary, and text for a GitHub Check Run output."""
     summary_data = comparison.summary
@@ -28,7 +32,8 @@ def build_check_run_output(
     delta = summary_data.score_delta if summary_data.score_delta is not None else 0
 
     sign = "+" if delta > 0 else ""
-    title = f"Entropy Debt Score: {head_score}/100 ({sign}{delta})"
+    policy_suffix = f" — Policy: {policy_evaluation.status.value.upper()}" if policy_evaluation else ""
+    title = f"Entropy Debt Score: {head_score}/100 ({sign}{delta}){policy_suffix}"
 
     # Changed categories
     changed_cats = []
@@ -38,11 +43,19 @@ def build_check_run_output(
 
     cat_changes_str = ", ".join(changed_cats) if changed_cats else "None"
 
+    policy_summary_str = ""
+    if policy_evaluation:
+        policy_summary_str = (
+            f"\n**Entropy Policy**: **{policy_evaluation.status.value.upper()}** "
+            f"({len(policy_evaluation.violations)} violation(s), {len(policy_evaluation.warnings)} warning(s))\n"
+        )
+
     summary = (
         f"### Entropy Architectural & Security Debt Analysis (PR #{pr_number})\n\n"
         f"- **Head Score**: {head_score} / 100 ({score_comp.current_band.value if score_comp.current_band else 'unrated'})\n"
         f"- **Base Score**: {base_score} / 100 ({score_comp.previous_band.value if score_comp.previous_band else 'unrated'})\n"
-        f"- **Score Delta**: {sign}{delta} points\n\n"
+        f"- **Score Delta**: {sign}{delta} points\n"
+        f"{policy_summary_str}\n"
         f"**Finding Lifecycle Breakdown**:\n"
         f"- **New Debt**: {summary_data.new_findings_count} finding(s)\n"
         f"- **Resolved**: {summary_data.resolved_findings_count} finding(s)\n"
@@ -70,6 +83,19 @@ def build_check_run_output(
         if len(comparison.resolved_findings) > 10:
             text_lines.append(f"- *...and {len(comparison.resolved_findings) - 10} more resolved finding(s)*")
 
+    if policy_evaluation:
+        text_lines.append("\n### 🛡️ Policy Evaluation Breakdown:")
+        if policy_evaluation.violations:
+            text_lines.append("\n**Blocking Policy Violations:**")
+            for v in policy_evaluation.violations:
+                text_lines.append(f"- ❌ **{v.rule_name}**: {v.message}")
+        if policy_evaluation.warnings:
+            text_lines.append("\n**Policy Warnings:**")
+            for w in policy_evaluation.warnings:
+                text_lines.append(f"- ⚠️ **{w.rule_name}**: {w.message}")
+        if not policy_evaluation.violations and not policy_evaluation.warnings:
+            text_lines.append("*(All evaluated policy rules satisfied)*")
+
     text = "\n".join(text_lines)
 
     return {
@@ -83,6 +109,7 @@ def build_pr_comment_markdown(
     comparison: ScanComparisonResult,
     pr_number: int,
     dashboard_url: str | None = None,
+    policy_evaluation: PolicyEvaluation | None = None,
 ) -> str:
     """Build Markdown body for an informational Pull Request comment."""
     summary_data = comparison.summary
@@ -111,10 +138,32 @@ def build_pr_comment_markdown(
         "| :--- | :---: | :---: | :---: |",
         f"| **Entropy Score** | **{base_score}** / 100 | **{head_score}** / 100 | **{sign}{delta}** |",
         f"| **Total Findings** | {summary_data.resolved_findings_count + summary_data.persistent_findings_count} | {summary_data.total_current_findings} | {summary_data.new_findings_count - summary_data.resolved_findings_count:+d} |",
+    ]
+
+    if policy_evaluation:
+        status_emoji = "✅" if policy_evaluation.status == "pass" else ("⚠️" if policy_evaluation.status == "warn" else "❌")
+        comment_lines.append(
+            f"| **Policy Decision** | — | **{status_emoji} {policy_evaluation.status.value.upper()}** | "
+            f"{len(policy_evaluation.violations)} violation(s), {len(policy_evaluation.warnings)} warning(s) |"
+        )
+
+    comment_lines.extend([
         "",
         f"**Debt Movement Summary**: {score_comp.explanation}",
         "",
-    ]
+    ])
+
+    if policy_evaluation and policy_evaluation.violations:
+        comment_lines.append("### 🚫 Policy Violations")
+        for v in policy_evaluation.violations:
+            comment_lines.append(f"- ❌ **{v.rule_name}**: {v.message}")
+        comment_lines.append("")
+
+    if policy_evaluation and policy_evaluation.warnings:
+        comment_lines.append("### ⚠️ Policy Warnings")
+        for w in policy_evaluation.warnings:
+            comment_lines.append(f"- ⚠️ **{w.rule_name}**: {w.message}")
+        comment_lines.append("")
 
     if new_by_rule:
         comment_lines.append("### ⚠️ New Debt Findings")

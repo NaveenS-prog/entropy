@@ -162,6 +162,19 @@ export function PRWorkflowView() {
                 >
                   {analysis.status}
                 </span>
+                {analysis.policy_status && (
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full font-bold uppercase ${
+                      analysis.policy_status === "pass"
+                        ? "bg-emerald-950 text-emerald-300 border border-emerald-700"
+                        : analysis.policy_status === "warn"
+                        ? "bg-amber-950 text-amber-300 border border-amber-700"
+                        : "bg-rose-950 text-rose-300 border border-rose-700"
+                    }`}
+                  >
+                    Policy: {analysis.policy_status}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
                 <GitCommit className="w-3.5 h-3.5 text-slate-500" />
@@ -211,6 +224,68 @@ export function PRWorkflowView() {
               <span className="text-lg font-bold text-white">{analysis.persistent_findings_count}</span>
             </div>
           </div>
+
+          {/* Policy Decision Section */}
+          {analysis.policy_evaluation && (
+            <div className="mt-4 border border-slate-800 bg-slate-950/50 rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-indigo-400" />
+                  <span className="text-xs font-semibold text-white uppercase tracking-wider">
+                    Policy Evaluation: {analysis.policy_evaluation.policy_name} (v{analysis.policy_evaluation.policy_version})
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="text-rose-400 font-medium">
+                    {analysis.policy_evaluation.violations.length} Violation(s)
+                  </span>
+                  <span className="text-amber-400 font-medium">
+                    {analysis.policy_evaluation.warnings.length} Warning(s)
+                  </span>
+                  <span className="text-emerald-400 font-medium">
+                    {analysis.policy_evaluation.passed_rules.length} Passed
+                  </span>
+                </div>
+              </div>
+
+              {analysis.policy_evaluation.violations.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[11px] font-bold text-rose-400 uppercase tracking-wide">Blocking Violations</span>
+                  {analysis.policy_evaluation.violations.map((v, idx) => (
+                    <div key={idx} className="p-2.5 rounded bg-rose-950/30 border border-rose-900/60 text-xs text-rose-200 flex flex-col gap-0.5">
+                      <div className="flex items-center justify-between font-semibold">
+                        <span>❌ {v.rule_name}</span>
+                        <span className="font-mono text-[11px] text-rose-300">Actual: {String(v.actual_value)} | Limit: {String(v.threshold)}</span>
+                      </div>
+                      <p className="text-rose-300/90 text-[11px]">{v.message}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {analysis.policy_evaluation.warnings.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wide">Warnings</span>
+                  {analysis.policy_evaluation.warnings.map((w, idx) => (
+                    <div key={idx} className="p-2.5 rounded bg-amber-950/30 border border-amber-900/60 text-xs text-amber-200 flex flex-col gap-0.5">
+                      <div className="flex items-center justify-between font-semibold">
+                        <span>⚠️ {w.rule_name}</span>
+                        <span className="font-mono text-[11px] text-amber-300">Actual: {String(w.actual_value)} | Limit: {String(w.threshold)}</span>
+                      </div>
+                      <p className="text-amber-300/90 text-[11px]">{w.message}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {analysis.policy_evaluation.violations.length === 0 && analysis.policy_evaluation.warnings.length === 0 && (
+                <div className="p-2.5 rounded bg-emerald-950/30 border border-emerald-900/60 text-xs text-emerald-300 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>All policy thresholds satisfied. Pull request conforms to organizational security debt policy.</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

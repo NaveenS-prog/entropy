@@ -380,6 +380,8 @@ export interface PRAnalysisRecord {
   error_message?: string | null;
   check_run_id?: number | null;
   comment_id?: number | null;
+  policy_status?: PolicyStatus | null;
+  policy_evaluation?: PolicyEvaluation | null;
   is_current_head: boolean;
   created_at: string;
   updated_at: string;
@@ -391,6 +393,75 @@ export interface PRAnalysisTriggerRequest {
   base_branch?: string;
   head_branch?: string;
   source_path?: string;
+}
+
+export type PolicyStatus = "pass" | "warn" | "fail" | "not_applicable";
+
+export interface PolicyRuleResult {
+  rule_name: string;
+  rule_type: "absolute" | "delta";
+  status: PolicyStatus;
+  severity: "fail" | "warn";
+  actual_value: any;
+  threshold: any;
+  message: string;
+  category?: string | null;
+  finding_ids: string[];
+  rule_ids: string[];
+}
+
+export interface PolicyEvaluation {
+  policy_name: string;
+  policy_version: string;
+  status: PolicyStatus;
+  passed: boolean;
+  score: number;
+  base_score?: number | null;
+  score_delta?: number | null;
+  new_findings_count?: number | null;
+  violations: PolicyRuleResult[];
+  warnings: PolicyRuleResult[];
+  passed_rules: PolicyRuleResult[];
+  not_applicable_rules: PolicyRuleResult[];
+  evaluated_at: string;
+  summary: string;
+}
+
+export interface ScoreRulesConfig {
+  max_score?: number | null;
+  max_delta?: number | null;
+  warn_score?: number | null;
+  warn_delta?: number | null;
+}
+
+export interface FindingRulesConfig {
+  max_new?: number | null;
+  max_new_high?: number | null;
+  max_new_critical?: number | null;
+  max_total?: number | null;
+  max_total_high?: number | null;
+  max_total_critical?: number | null;
+}
+
+export interface CategoryRulesConfig {
+  max_score?: Record<string, number>;
+  max_delta?: Record<string, number>;
+  warn_delta?: Record<string, number>;
+}
+
+export interface RuleSpecificRulesConfig {
+  forbidden_rules?: string[];
+}
+
+export interface PolicyConfig {
+  name: string;
+  description: string;
+  enabled: boolean;
+  version: string;
+  score?: ScoreRulesConfig;
+  findings?: FindingRulesConfig;
+  categories?: CategoryRulesConfig;
+  rules?: RuleSpecificRulesConfig;
 }
 
 

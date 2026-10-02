@@ -15,6 +15,7 @@ from app.github.models import PRAnalysisRecord, PRAnalysisStatus
 from app.models.domain.enums import DebtScoreTier, ScanStatus
 from app.models.domain.scan import RepositoryScanResult
 from app.persistence.models import ScanSnapshot
+from app.policy.models import PolicyEvaluation
 
 logger = logging.getLogger("entropy.persistence")
 
@@ -133,6 +134,14 @@ class ScanDatabase:
                 ON pr_analyses (owner, repo, pr_number, base_sha, head_sha);
                 """
             )
+
+            # Phase 13: Policy columns migration
+            for col, col_type in [("policy_status", "TEXT"), ("policy_evaluation_json", "TEXT")]:
+                try:
+                    conn.execute(f"ALTER TABLE pr_analyses ADD COLUMN {col} {col_type};")
+                except sqlite3.OperationalError:
+                    pass
+
             logger.info("Initialized scan database at %s", self.db_path)
 
     def save_scan(self, scan: RepositoryScanResult) -> None:
@@ -342,6 +351,11 @@ class ScanDatabase:
     ) -> None:
         """Persist or update a Pull Request analysis record and comparison snapshot."""
         raw_comparison = comparison.model_dump_json() if comparison else None
+        raw_policy = (
+            record.policy_evaluation.model_dump_json()
+            if record.policy_evaluation
+            else None
+        )
 
         query = """
             INSERT INTO pr_analyses (
@@ -350,8 +364,9 @@ class ScanDatabase:
                 base_score, head_score, score_delta, new_findings_count,
                 resolved_findings_count, persistent_findings_count,
                 status, error_message, check_run_id, comment_id,
-                is_current_head, created_at, updated_at, raw_comparison_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                is_current_head, created_at, updated_at, raw_comparison_json,
+                policy_status, policy_evaluation_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 base_scan_id = excluded.base_scan_id,
                 head_scan_id = excluded.head_scan_id,
@@ -367,7 +382,9 @@ class ScanDatabase:
                 comment_id = excluded.comment_id,
                 is_current_head = excluded.is_current_head,
                 updated_at = excluded.updated_at,
-                raw_comparison_json = COALESCE(excluded.raw_comparison_json, pr_analyses.raw_comparison_json);
+                raw_comparison_json = COALESCE(excluded.raw_comparison_json, pr_analyses.raw_comparison_json),
+                policy_status = excluded.policy_status,
+                policy_evaluation_json = COALESCE(excluded.policy_evaluation_json, pr_analyses.policy_evaluation_json);
         """
         params = (
             record.id,
@@ -395,6 +412,8 @@ class ScanDatabase:
             record.created_at.isoformat(),
             record.updated_at.isoformat(),
             raw_comparison,
+            record.policy_status,
+            raw_policy,
         )
 
         with self._get_connection() as conn:
@@ -483,8 +502,23 @@ class ScanDatabase:
                 (current_id,),
             )
 
+    def get_pr_policy(self, pr_analysis_id: str) -> PolicyEvaluation | None:
+        """Retrieve the persisted verbatim PolicyEvaluation for a PR analysis."""
+        query = "SELECT policy_evaluation_json FROM pr_analyses WHERE id = ?;"
+        with self._get_connection() as conn:
+            row = conn.execute(query, (pr_analysis_id,)).fetchone()
+            if row and "policy_evaluation_json" in row.keys() and row["policy_evaluation_json"]:
+                with contextlib.suppress(Exception):
+                    return PolicyEvaluation.model_validate_json(row["policy_evaluation_json"])
+        return None
+
     def _row_to_pr_record(self, row: sqlite3.Row) -> PRAnalysisRecord:
         """Convert a sqlite3.Row into a typed PRAnalysisRecord."""
+        policy_eval = None
+        if "policy_evaluation_json" in row.keys() and row["policy_evaluation_json"]:
+            with contextlib.suppress(Exception):
+                policy_eval = PolicyEvaluation.model_validate_json(row["policy_evaluation_json"])
+
         return PRAnalysisRecord(
             id=row["id"],
             repository_id=row["repository_id"],
@@ -507,6 +541,8 @@ class ScanDatabase:
             error_message=row["error_message"],
             check_run_id=row["check_run_id"],
             comment_id=row["comment_id"],
+            policy_status=row["policy_status"] if "policy_status" in row.keys() else None,
+            policy_evaluation=policy_eval,
             is_current_head=bool(row["is_current_head"]),
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),

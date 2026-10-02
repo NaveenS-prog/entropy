@@ -4,6 +4,8 @@ import {
   Finding,
   FindingExplanation,
   PaginatedScanSnapshots,
+  PolicyConfig,
+  PolicyEvaluation,
   PRAnalysisRecord,
   PRAnalysisTriggerRequest,
   RepositoryManifest,
@@ -205,6 +207,77 @@ export async function listPRAnalyses(
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.detail || `Failed to list PR analyses: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function getDefaultPolicy(): Promise<PolicyConfig> {
+  const res = await fetch(`${API_BASE}/policies/default`, { cache: "no-store" });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to fetch default policy: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function validatePolicy(
+  policy: Partial<PolicyConfig>
+): Promise<{ valid: boolean; policy?: PolicyConfig; errors: any[] }> {
+  const res = await fetch(`${API_BASE}/policies/validate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(policy),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to validate policy: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function evaluateScanPolicy(
+  scanId: string,
+  customPolicy?: Partial<PolicyConfig>
+): Promise<PolicyEvaluation> {
+  const res = await fetch(`${API_BASE}/policies/scans/${scanId}/evaluate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: customPolicy ? JSON.stringify(customPolicy) : undefined,
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to evaluate scan policy: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function evaluateComparisonPolicy(
+  currentScanId: string,
+  previousScanId: string,
+  customPolicy?: Partial<PolicyConfig>
+): Promise<PolicyEvaluation> {
+  const res = await fetch(
+    `${API_BASE}/policies/scans/${currentScanId}/compare/${previousScanId}/evaluate`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: customPolicy ? JSON.stringify(customPolicy) : undefined,
+    }
+  );
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to evaluate comparison policy: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function getPRPolicy(analysisId: string): Promise<PolicyEvaluation> {
+  const res = await fetch(`${API_BASE}/policies/github/prs/${analysisId}/policy`, {
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to fetch PR policy: ${res.statusText}`);
   }
   return res.json();
 }

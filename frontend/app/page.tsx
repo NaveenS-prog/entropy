@@ -29,6 +29,7 @@ import { CategoryMatrix } from "@/components/dashboard/CategoryMatrix";
 import { ScoreTrendChart } from "@/components/history/ScoreTrendChart";
 import { ScanHistoryTable } from "@/components/history/ScanHistoryTable";
 import { ScanComparisonView } from "@/components/comparison/ScanComparisonView";
+import { PRWorkflowView } from "@/components/github/PRWorkflowView";
 import {
   FolderGit2,
   FileCode,
@@ -47,6 +48,7 @@ import {
   Braces,
   History,
   GitCompare,
+  GitPullRequest,
 } from "lucide-react";
 
 const SCAN_STEPS = [
@@ -77,8 +79,8 @@ export default function RepositoryIngestionDashboard() {
   const [selectedLanguageFilter, setSelectedLanguageFilter] = useState<string>("ALL");
   const [showJsonManifest, setShowJsonManifest] = useState(false);
 
-  // Phase 10 History & Comparison State
-  const [activeTab, setActiveTab] = useState<"overview" | "history" | "comparison">("overview");
+  // Phase 10 History & Comparison State and Phase 12 PR Workflow State
+  const [activeTab, setActiveTab] = useState<"overview" | "history" | "comparison" | "pull_requests">("overview");
   const [history, setHistory] = useState<PaginatedScanSnapshots | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [trend, setTrend] = useState<RepositoryTrendResponse | null>(null);
@@ -292,8 +294,42 @@ export default function RepositoryIngestionDashboard() {
         </div>
       </div>
 
-      {/* Main Scan Trigger Box */}
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+      {/* Top Workspace Mode Selector */}
+      <div className="flex items-center gap-2 border-b border-border pb-3">
+        <button
+          onClick={() => setActiveTab("overview")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${
+            activeTab !== "pull_requests"
+              ? "bg-emerald-600 text-white shadow-sm"
+              : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+          }`}
+        >
+          <FolderGit2 className="w-4 h-4" />
+          <span>Local Repository Scanner</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("pull_requests")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${
+            activeTab === "pull_requests"
+              ? "bg-indigo-600 text-white shadow-sm"
+              : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+          }`}
+        >
+          <GitPullRequest className="w-4 h-4" />
+          <span>GitHub Pull Requests</span>
+          <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 font-mono">
+            Phase 12
+          </span>
+        </button>
+      </div>
+
+      {activeTab === "pull_requests" ? (
+        <PRWorkflowView />
+      ) : (
+        <>
+          {/* Main Scan Trigger Box */}
+          <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
         <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-2 flex items-center gap-2">
           <Terminal className="h-4 w-4 text-emerald-400" />
           <span>Scan Repository</span>
@@ -857,6 +893,8 @@ export default function RepositoryIngestionDashboard() {
             classify languages, and generate a complete static analysis manifest.
           </p>
         </div>
+      )}
+        </>
       )}
     </div>
   );

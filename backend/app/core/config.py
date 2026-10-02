@@ -70,6 +70,43 @@ class Settings(BaseSettings):
     )
     AI_CACHE_DIR: Path = Path(__file__).resolve().parents[3] / ".ai_cache"
 
+    # Phase 12: GitHub Integration Settings
+    GITHUB_ENABLED: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("GITHUB_ENABLED", "ENTROPY_GITHUB_ENABLED"),
+        description="Toggle GitHub App integration and Pull Request workflow",
+    )
+    GITHUB_APP_ID: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GITHUB_APP_ID", "ENTROPY_GITHUB_APP_ID"),
+        description="GitHub App ID",
+    )
+    GITHUB_PRIVATE_KEY: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GITHUB_PRIVATE_KEY", "ENTROPY_GITHUB_PRIVATE_KEY"),
+        description="GitHub App private key (PEM format)",
+    )
+    GITHUB_TOKEN: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GITHUB_TOKEN", "ENTROPY_GITHUB_TOKEN"),
+        description="GitHub Personal Access Token or Installation Token",
+    )
+    GITHUB_WEBHOOK_SECRET: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GITHUB_WEBHOOK_SECRET", "ENTROPY_GITHUB_WEBHOOK_SECRET"),
+        description="Secret key for validating GitHub webhook HMAC-SHA256 signatures",
+    )
+    GITHUB_API_BASE_URL: str = Field(
+        default="https://api.github.com",
+        validation_alias=AliasChoices("GITHUB_API_BASE_URL", "ENTROPY_GITHUB_API_BASE_URL"),
+        description="GitHub REST API base URL",
+    )
+    GITHUB_TIMEOUT_SECONDS: int = Field(
+        default=15,
+        validation_alias=AliasChoices("GITHUB_TIMEOUT_SECONDS", "ENTROPY_GITHUB_TIMEOUT_SECONDS"),
+        description="Timeout in seconds for GitHub API HTTP requests",
+    )
+
     model_config = SettingsConfigDict(
         env_prefix="ENTROPY_",
         env_file=".env",

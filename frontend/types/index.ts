@@ -351,3 +351,46 @@ export interface ScanComparisonResult {
   persistent_findings: ComparisonFindingItem[];
 }
 
+export type PRAnalysisStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export interface PRAnalysisRecord {
+  id: string;
+  repository_id: string;
+  owner: string;
+  repo: string;
+  pr_number: number;
+  base_sha: string;
+  head_sha: string;
+  base_branch?: string | null;
+  head_branch?: string | null;
+  base_scan_id?: string | null;
+  head_scan_id?: string | null;
+  base_score?: number | null;
+  head_score?: number | null;
+  score_delta?: number | null;
+  new_findings_count: number;
+  resolved_findings_count: number;
+  persistent_findings_count: number;
+  status: PRAnalysisStatus;
+  error_message?: string | null;
+  check_run_id?: number | null;
+  comment_id?: number | null;
+  is_current_head: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PRAnalysisTriggerRequest {
+  base_sha?: string;
+  head_sha?: string;
+  base_branch?: string;
+  head_branch?: string;
+  source_path?: string;
+}
+
+

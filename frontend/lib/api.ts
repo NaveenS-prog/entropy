@@ -4,6 +4,8 @@ import {
   Finding,
   FindingExplanation,
   PaginatedScanSnapshots,
+  PRAnalysisRecord,
+  PRAnalysisTriggerRequest,
   RepositoryManifest,
   RepositoryScanResult,
   RepositoryTrendResponse,
@@ -143,5 +145,69 @@ export async function compareScans(
   }
   return res.json();
 }
+
+export async function getPRAnalysis(
+  owner: string,
+  repo: string,
+  prNumber: number
+): Promise<PRAnalysisRecord> {
+  const res = await fetch(`${API_BASE}/github/prs/${owner}/${repo}/${prNumber}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to fetch PR analysis: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function getPRComparison(
+  owner: string,
+  repo: string,
+  prNumber: number
+): Promise<ScanComparisonResult> {
+  const res = await fetch(`${API_BASE}/github/prs/${owner}/${repo}/${prNumber}/comparison`, {
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to fetch PR comparison: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function triggerPRAnalysis(
+  owner: string,
+  repo: string,
+  prNumber: number,
+  request?: PRAnalysisTriggerRequest
+): Promise<PRAnalysisRecord> {
+  const res = await fetch(`${API_BASE}/github/prs/${owner}/${repo}/${prNumber}/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: request ? JSON.stringify(request) : JSON.stringify({}),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to trigger PR analysis: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function listPRAnalyses(
+  owner: string,
+  repo: string,
+  limit: number = 20
+): Promise<PRAnalysisRecord[]> {
+  const res = await fetch(`${API_BASE}/github/prs/${owner}/${repo}?limit=${limit}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to list PR analyses: ${res.statusText}`);
+  }
+  return res.json();
+}
+
 
 

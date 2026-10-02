@@ -9,7 +9,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from app.comparison.models import ScanComparisonResult
 from app.core.config import settings
+from app.github.models import PRAnalysisRecord, PRAnalysisStatus
 from app.models.domain.enums import DebtScoreTier, ScanStatus
 from app.models.domain.scan import RepositoryScanResult
 from app.persistence.models import ScanSnapshot
@@ -86,6 +88,49 @@ class ScanDatabase:
                 """
                 CREATE INDEX IF NOT EXISTS idx_snapshots_status
                 ON scan_snapshots (status);
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS pr_analyses (
+                    id TEXT PRIMARY KEY,
+                    repository_id TEXT NOT NULL,
+                    owner TEXT NOT NULL,
+                    repo TEXT NOT NULL,
+                    pr_number INTEGER NOT NULL,
+                    base_sha TEXT NOT NULL,
+                    head_sha TEXT NOT NULL,
+                    base_branch TEXT,
+                    head_branch TEXT,
+                    base_scan_id TEXT,
+                    head_scan_id TEXT,
+                    base_score INTEGER,
+                    head_score INTEGER,
+                    score_delta INTEGER,
+                    new_findings_count INTEGER DEFAULT 0,
+                    resolved_findings_count INTEGER DEFAULT 0,
+                    persistent_findings_count INTEGER DEFAULT 0,
+                    status TEXT NOT NULL,
+                    error_message TEXT,
+                    check_run_id INTEGER,
+                    comment_id INTEGER,
+                    is_current_head INTEGER DEFAULT 1,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    raw_comparison_json TEXT
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_pr_analyses_target
+                ON pr_analyses (owner, repo, pr_number);
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_pr_analyses_idempotency
+                ON pr_analyses (owner, repo, pr_number, base_sha, head_sha);
                 """
             )
             logger.info("Initialized scan database at %s", self.db_path)
@@ -288,6 +333,183 @@ class ScanDatabase:
             if row["completed_at"]
             else None,
             duration_ms=row["duration_ms"],
+        )
+
+    def save_pr_analysis(
+        self,
+        record: PRAnalysisRecord,
+        comparison: ScanComparisonResult | None = None,
+    ) -> None:
+        """Persist or update a Pull Request analysis record and comparison snapshot."""
+        raw_comparison = comparison.model_dump_json() if comparison else None
+
+        query = """
+            INSERT INTO pr_analyses (
+                id, repository_id, owner, repo, pr_number, base_sha, head_sha,
+                base_branch, head_branch, base_scan_id, head_scan_id,
+                base_score, head_score, score_delta, new_findings_count,
+                resolved_findings_count, persistent_findings_count,
+                status, error_message, check_run_id, comment_id,
+                is_current_head, created_at, updated_at, raw_comparison_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                base_scan_id = excluded.base_scan_id,
+                head_scan_id = excluded.head_scan_id,
+                base_score = excluded.base_score,
+                head_score = excluded.head_score,
+                score_delta = excluded.score_delta,
+                new_findings_count = excluded.new_findings_count,
+                resolved_findings_count = excluded.resolved_findings_count,
+                persistent_findings_count = excluded.persistent_findings_count,
+                status = excluded.status,
+                error_message = excluded.error_message,
+                check_run_id = excluded.check_run_id,
+                comment_id = excluded.comment_id,
+                is_current_head = excluded.is_current_head,
+                updated_at = excluded.updated_at,
+                raw_comparison_json = COALESCE(excluded.raw_comparison_json, pr_analyses.raw_comparison_json);
+        """
+        params = (
+            record.id,
+            record.repository_id,
+            record.owner,
+            record.repo,
+            record.pr_number,
+            record.base_sha,
+            record.head_sha,
+            record.base_branch,
+            record.head_branch,
+            record.base_scan_id,
+            record.head_scan_id,
+            record.base_score,
+            record.head_score,
+            record.score_delta,
+            record.new_findings_count,
+            record.resolved_findings_count,
+            record.persistent_findings_count,
+            record.status.value,
+            record.error_message,
+            record.check_run_id,
+            record.comment_id,
+            1 if record.is_current_head else 0,
+            record.created_at.isoformat(),
+            record.updated_at.isoformat(),
+            raw_comparison,
+        )
+
+        with self._get_connection() as conn:
+            conn.execute(query, params)
+        logger.debug(
+            "Persisted PR analysis '%s' for PR #%d (%s/%s)",
+            record.id,
+            record.pr_number,
+            record.owner,
+            record.repo,
+        )
+
+    def get_pr_analysis(self, pr_analysis_id: str) -> PRAnalysisRecord | None:
+        """Fetch a PR analysis record by its primary ID."""
+        query = "SELECT * FROM pr_analyses WHERE id = ?;"
+        with self._get_connection() as conn:
+            row = conn.execute(query, (pr_analysis_id,)).fetchone()
+            if row:
+                return self._row_to_pr_record(row)
+        return None
+
+    def get_pr_analysis_by_target(
+        self, owner: str, repo: str, pr_number: int, base_sha: str, head_sha: str
+    ) -> PRAnalysisRecord | None:
+        """Fetch exact analysis record for an idempotent (repo, pr, base_sha, head_sha) target."""
+        query = """
+            SELECT * FROM pr_analyses
+            WHERE owner = ? AND repo = ? AND pr_number = ? AND base_sha = ? AND head_sha = ?
+            ORDER BY updated_at DESC LIMIT 1;
+        """
+        with self._get_connection() as conn:
+            row = conn.execute(query, (owner, repo, pr_number, base_sha, head_sha)).fetchone()
+            if row:
+                return self._row_to_pr_record(row)
+        return None
+
+    def get_latest_pr_analysis(
+        self, owner: str, repo: str, pr_number: int
+    ) -> PRAnalysisRecord | None:
+        """Fetch the current active (is_current_head=1) or most recently updated PR analysis record."""
+        query = """
+            SELECT * FROM pr_analyses
+            WHERE owner = ? AND repo = ? AND pr_number = ?
+            ORDER BY is_current_head DESC, updated_at DESC LIMIT 1;
+        """
+        with self._get_connection() as conn:
+            row = conn.execute(query, (owner, repo, pr_number)).fetchone()
+            if row:
+                return self._row_to_pr_record(row)
+        return None
+
+    def list_pr_analyses_for_repo(
+        self, owner: str, repo: str, limit: int = 20
+    ) -> list[PRAnalysisRecord]:
+        """List recent PR analysis records for a repository."""
+        query = """
+            SELECT * FROM pr_analyses
+            WHERE owner = ? AND repo = ?
+            ORDER BY updated_at DESC LIMIT ?;
+        """
+        with self._get_connection() as conn:
+            rows = conn.execute(query, (owner, repo, limit)).fetchall()
+            return [self._row_to_pr_record(r) for r in rows]
+
+    def get_pr_comparison(self, pr_analysis_id: str) -> ScanComparisonResult | None:
+        """Retrieve the persisted verbatim ScanComparisonResult for a PR analysis."""
+        query = "SELECT raw_comparison_json FROM pr_analyses WHERE id = ?;"
+        with self._get_connection() as conn:
+            row = conn.execute(query, (pr_analysis_id,)).fetchone()
+            if row and row["raw_comparison_json"]:
+                with contextlib.suppress(Exception):
+                    return ScanComparisonResult.model_validate_json(row["raw_comparison_json"])
+        return None
+
+    def update_pr_current_head(
+        self, owner: str, repo: str, pr_number: int, current_id: str
+    ) -> None:
+        """Ensure only current_id is marked as is_current_head=1 for this PR."""
+        with self._get_connection() as conn:
+            conn.execute(
+                "UPDATE pr_analyses SET is_current_head = 0 WHERE owner = ? AND repo = ? AND pr_number = ?;",
+                (owner, repo, pr_number),
+            )
+            conn.execute(
+                "UPDATE pr_analyses SET is_current_head = 1 WHERE id = ?;",
+                (current_id,),
+            )
+
+    def _row_to_pr_record(self, row: sqlite3.Row) -> PRAnalysisRecord:
+        """Convert a sqlite3.Row into a typed PRAnalysisRecord."""
+        return PRAnalysisRecord(
+            id=row["id"],
+            repository_id=row["repository_id"],
+            owner=row["owner"],
+            repo=row["repo"],
+            pr_number=row["pr_number"],
+            base_sha=row["base_sha"],
+            head_sha=row["head_sha"],
+            base_branch=row["base_branch"],
+            head_branch=row["head_branch"],
+            base_scan_id=row["base_scan_id"],
+            head_scan_id=row["head_scan_id"],
+            base_score=row["base_score"],
+            head_score=row["head_score"],
+            score_delta=row["score_delta"],
+            new_findings_count=row["new_findings_count"] or 0,
+            resolved_findings_count=row["resolved_findings_count"] or 0,
+            persistent_findings_count=row["persistent_findings_count"] or 0,
+            status=PRAnalysisStatus(row["status"]),
+            error_message=row["error_message"],
+            check_run_id=row["check_run_id"],
+            comment_id=row["comment_id"],
+            is_current_head=bool(row["is_current_head"]),
+            created_at=datetime.fromisoformat(row["created_at"]),
+            updated_at=datetime.fromisoformat(row["updated_at"]),
         )
 
 

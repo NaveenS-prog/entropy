@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 
 from app.analyzers.base import AnalysisContext, BaseAnalyzer
+from app.analyzers.jsts_rules.input_validation import JSUnvalidatedInputRule
 from app.analyzers.rules.base import BaseRule
 from app.analyzers.security.validation.rules import (
     InconsistentInputValidationRule,
@@ -31,7 +32,10 @@ class InputValidationConsistencyAnalyzer(BaseAnalyzer):
             InconsistentInputValidationRule(),
             UnsafeDirectInputUsageRule(),
         ]
-        self._rules_meta: list[RuleDefinition] = [r.definition for r in self._rule_instances]
+        self._js_rules = [JSUnvalidatedInputRule()]
+        self._rules_meta: list[RuleDefinition] = [r.definition for r in self._rule_instances] + [
+            r.definition for r in self._js_rules
+        ]
 
     @property
     def analyzer_id(self) -> str:
@@ -47,14 +51,18 @@ class InputValidationConsistencyAnalyzer(BaseAnalyzer):
 
     @property
     def supported_languages(self) -> set[SupportedLanguage]:
-        return {SupportedLanguage.PYTHON}
+        return {
+            SupportedLanguage.PYTHON,
+            SupportedLanguage.JAVASCRIPT,
+            SupportedLanguage.TYPESCRIPT,
+        }
 
     @property
     def rules(self) -> list[RuleDefinition]:
         return self._rules_meta
 
     def analyze(self, context: AnalysisContext) -> list[Finding]:
-        """Execute input validation rules across all Python files in the repository."""
+        """Execute input validation rules across all Python and JS/TS files in the repository."""
         valid_python_contexts = context.get_valid_python_contexts()
         raw_findings: list[Finding] = []
 
@@ -68,6 +76,21 @@ class InputValidationConsistencyAnalyzer(BaseAnalyzer):
                         "Rule '%s' failed on file '%s': %s",
                         rule.rule_id,
                         py_context.file_path,
+                        e,
+                        exc_info=True,
+                    )
+
+        valid_jsts_contexts = context.get_valid_jsts_contexts()
+        for js_context in valid_jsts_contexts:
+            for js_rule in self._js_rules:
+                try:
+                    file_findings = js_rule.analyze(js_context)
+                    raw_findings.extend(file_findings)
+                except Exception as e:
+                    logger.error(
+                        "JS Rule '%s' failed on file '%s': %s",
+                        js_rule.rule_id,
+                        js_context.file_path,
                         e,
                         exc_info=True,
                     )

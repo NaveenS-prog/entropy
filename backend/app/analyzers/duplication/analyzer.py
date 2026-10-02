@@ -21,7 +21,10 @@ import logging
 from app.analyzers.base import AnalysisContext, BaseAnalyzer
 from app.analyzers.duplication.clustering import DuplicationDetector
 from app.analyzers.duplication.models import FunctionSignature
-from app.analyzers.duplication.normalizer import normalize_python_function
+from app.analyzers.duplication.normalizer import (
+    normalize_jsts_function,
+    normalize_python_function,
+)
 from app.analyzers.duplication.rules import (
     ALL_DUPLICATION_RULES,
     create_finding_for_boilerplate,
@@ -54,7 +57,11 @@ class CodeDuplicationDebtAnalyzer(BaseAnalyzer):
 
     @property
     def supported_languages(self) -> set[SupportedLanguage]:
-        return {SupportedLanguage.PYTHON}
+        return {
+            SupportedLanguage.PYTHON,
+            SupportedLanguage.JAVASCRIPT,
+            SupportedLanguage.TYPESCRIPT,
+        }
 
     @property
     def rules(self) -> list[RuleDefinition]:
@@ -63,10 +70,11 @@ class CodeDuplicationDebtAnalyzer(BaseAnalyzer):
     def analyze(self, context: AnalysisContext) -> list[Finding]:
         """Execute deterministic duplication analysis across the repository context."""
         python_contexts = context.get_valid_python_contexts()
-        if not python_contexts:
+        jsts_contexts = context.get_valid_jsts_contexts()
+        if not python_contexts and not jsts_contexts:
             return []
 
-        # 1. Extract and normalize all functions across Python contexts
+        # 1. Extract and normalize all functions across Python and JS/TS contexts
         all_signatures: list[FunctionSignature] = []
 
         for ctx in python_contexts:
@@ -87,6 +95,20 @@ class CodeDuplicationDebtAnalyzer(BaseAnalyzer):
                             ctx.file_path,
                             e,
                         )
+
+        for jctx in jsts_contexts:
+            for fn in jctx.get_functions():
+                try:
+                    sig = normalize_jsts_function(fn, jctx.file_path, jctx.source_code)
+                    if sig is not None:
+                        all_signatures.append(sig)
+                except Exception as e:
+                    logger.warning(
+                        "Failed to normalize JS/TS function '%s' in '%s': %s",
+                        fn.name,
+                        jctx.file_path,
+                        e,
+                    )
 
         if len(all_signatures) < 2:
             return []

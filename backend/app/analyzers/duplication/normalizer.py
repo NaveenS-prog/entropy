@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+from typing import Any
 
 from app.analyzers.duplication.models import FunctionSignature
 from app.parser.python.models import SourceLocation
@@ -247,3 +248,69 @@ def normalize_python_function(
     """Convenience helper to normalize a single function definition."""
     normalizer = ASTNormalizer()
     return normalizer.normalize_function(func_node, file_path, source_code)
+
+
+def normalize_jsts_function(
+    func: Any,
+    file_path: str,
+    source_code: str,
+) -> FunctionSignature | None:
+    """Create a normalized structural FunctionSignature from a JSFunction."""
+    if func.statement_count < 2 or len(func.body_text.strip()) < 15:
+        return None
+
+    # Anonymize parameter names
+    param_tokens = [f"$p{i+1}" for i in range(len(func.parameters))]
+
+    # Structural tokens from function ast_signature or statement types
+    tokens = list(func.ast_signature.split(":")) if func.ast_signature else ["FN"]
+    # Control flow shape
+    control_flow = [t for t in tokens if t in ("IF", "IF_", "FOR", "WHI", "SWI", "TRY", "RET", "THROW")]
+
+    # Calls
+    call_names = tuple(c.callee for c in func.calls)
+    assign_types = tuple(a.value_type for a in func.assignments)
+    return_types = tuple("fallback" if r.is_fallback_literal else "val" for r in func.returns)
+
+    canonical_repr = (
+        f"JSFN:params={len(param_tokens)}:"
+        f"stmts={func.statement_count}:"
+        f"tokens={':'.join(tokens)}:"
+        f"calls={':'.join(call_names)}:"
+        f"assigns={':'.join(assign_types)}:"
+        f"returns={':'.join(return_types)}"
+    )
+    exact_hash = hashlib.sha256(canonical_repr.encode("utf-8")).hexdigest()
+
+    lines = source_code.splitlines(keepends=True)
+    start = max(1, func.location.line_start)
+    end = min(len(lines), func.location.line_end)
+    snippet = "".join(lines[start - 1 : end])
+
+    loc = SourceLocation(
+        line_start=func.location.line_start,
+        line_end=func.location.line_end,
+        col_offset=func.location.col_start,
+        end_col_offset=func.location.col_end,
+    )
+
+    node_count = getattr(func, "node_count", 0) or (len(tokens) + len(func.calls) + len(func.assignments))
+
+    return FunctionSignature(
+        name=func.name,
+        qualified_name=func.qualified_name,
+        file_path=file_path,
+        location=loc,
+        statement_count=func.statement_count,
+        node_count=node_count,
+        exact_hash=exact_hash,
+        structural_tokens=tuple(tokens),
+        control_flow_shape=tuple(control_flow),
+        source_code=snippet,
+        is_async=func.is_async,
+        is_method=func.is_method,
+        parameter_count=len(func.parameters),
+        call_names=call_names,
+        operators=(),
+    )
+

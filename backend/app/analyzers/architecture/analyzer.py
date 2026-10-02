@@ -47,7 +47,11 @@ class ArchitecturalConsistencyAnalyzer(BaseAnalyzer):
 
     @property
     def supported_languages(self) -> set[SupportedLanguage]:
-        return {SupportedLanguage.PYTHON}
+        return {
+            SupportedLanguage.PYTHON,
+            SupportedLanguage.JAVASCRIPT,
+            SupportedLanguage.TYPESCRIPT,
+        }
 
     @property
     def rules(self) -> list[RuleDefinition]:

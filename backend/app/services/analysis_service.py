@@ -47,11 +47,13 @@ class AnalysisService:
             logger.info("Executing Phase 3 debt analyzers for scan '%s'", scan_id)
             root_path = Path(scan.repository.path)
             python_units = self.repo_service.parse_python_files(scan_id)
+            jsts_units = self.repo_service.parse_jsts_files(scan_id)
 
             context = AnalysisContext.from_python_units(
                 repo_path=root_path,
                 units=python_units,
                 manifest=scan.manifest,
+                jsts_units=jsts_units,
             )
 
             findings = self.registry.analyze(context)
@@ -59,10 +61,11 @@ class AnalysisService:
             scan.analyzers_executed = [a.analyzer_id for a in self.registry.get_all()]
             self.repo_service.save_scan(scan)
             logger.info(
-                "Scan '%s' analysis complete: %d finding(s) discovered across %d Python file(s)",
+                "Scan '%s' analysis complete: %d finding(s) discovered across %d Python file(s) and %d JS/TS file(s)",
                 scan_id,
                 len(findings),
                 len(python_units),
+                len(jsts_units),
             )
         else:
             findings = scan.findings

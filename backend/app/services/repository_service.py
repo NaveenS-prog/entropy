@@ -16,6 +16,8 @@ from app.core.logging import logger
 from app.models.domain.enums import ScanStatus, SupportedLanguage
 from app.models.domain.manifest import RepositoryManifest
 from app.models.domain.scan import RepositoryMetadata, RepositoryScanResult
+from app.parser.jsts.models import ParsedJSTSUnit
+from app.parser.jsts.parser import JSTSParser
 from app.parser.python.models import ParsedPythonUnit
 from app.parser.python.parser import PythonParser
 from app.persistence.database import scan_db
@@ -152,6 +154,36 @@ class RepositoryService:
 
         return units
 
+    def parse_jsts_files(self, scan_id: str) -> list[ParsedJSTSUnit]:
+        """Parse all JavaScript and TypeScript files discovered in a scan's manifest into ParsedJSTSUnits."""
+        scan = self.get_scan(scan_id)
+        if not scan or not scan.manifest:
+            return []
+
+        parser = JSTSParser()
+        units: list[ParsedJSTSUnit] = []
+        root_path = Path(scan.repository.path)
+
+        for file_meta in scan.manifest.files:
+            lang_str = file_meta.language.lower()
+            if lang_str not in ("javascript", "typescript"):
+                continue
+
+            lang = (
+                SupportedLanguage.JAVASCRIPT
+                if lang_str == "javascript"
+                else SupportedLanguage.TYPESCRIPT
+            )
+            file_abs_path = root_path / file_meta.path
+            unit = parser.parse_file(
+                file_path=file_abs_path,
+                relative_path=file_meta.path,
+                language=lang,
+            )
+            units.append(unit)
+
+        return units
+
     def parse_python_file(
         self, scan_id: str, relative_path: str
     ) -> ParsedPythonUnit | None:
@@ -173,6 +205,37 @@ class RepositoryService:
             SupportedLanguage.PYTHON
             if file_meta.language.lower() == "python"
             else SupportedLanguage.UNKNOWN
+        )
+        return parser.parse_file(
+            file_path=file_abs_path,
+            relative_path=relative_path,
+            language=lang,
+        )
+
+    def parse_jsts_file(
+        self, scan_id: str, relative_path: str
+    ) -> ParsedJSTSUnit | None:
+        """Parse a single JavaScript or TypeScript file from a scan's manifest."""
+        scan = self.get_scan(scan_id)
+        if not scan or not scan.manifest:
+            return None
+
+        file_meta = next((f for f in scan.manifest.files if f.path == relative_path), None)
+        if not file_meta:
+            return None
+
+        lang_str = file_meta.language.lower()
+        if lang_str not in ("javascript", "typescript"):
+            return None
+
+        parser = JSTSParser()
+        root_path = Path(scan.repository.path)
+        file_abs_path = root_path / relative_path
+
+        lang = (
+            SupportedLanguage.JAVASCRIPT
+            if lang_str == "javascript"
+            else SupportedLanguage.TYPESCRIPT
         )
         return parser.parse_file(
             file_path=file_abs_path,

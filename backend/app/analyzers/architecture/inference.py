@@ -12,6 +12,7 @@ from app.analyzers.architecture.models import (
     ModuleNode,
 )
 from app.analyzers.context import AnalysisContext, PythonASTContext
+from app.analyzers.jsts_context import JSTSASTContext
 
 # Paths to strictly exclude from architecture debt scanning
 EXCLUDED_PATH_SUBSTRINGS: tuple[str, ...] = (
@@ -51,19 +52,28 @@ class ArchitectureModelBuilder:
 
     def build(self) -> ArchitectureModel:
         """Construct the complete ArchitectureModel."""
-        valid_contexts = [
+        valid_python_contexts = [
             ctx
             for ctx in self.context.get_valid_python_contexts()
             if not is_path_excluded(ctx.file_path)
         ]
+        valid_jsts_contexts = [
+            ctx
+            for ctx in self.context.get_valid_jsts_contexts()
+            if not is_path_excluded(ctx.file_path)
+        ]
 
         # 1. First pass: Register all modules and compute import aliases
-        for ctx in valid_contexts:
+        for ctx in valid_python_contexts:
             self._register_module(ctx)
+        for jctx in valid_jsts_contexts:
+            self._register_jsts_module(jctx)
 
         # 2. Second pass: Resolve imports into local vs external dependencies
-        for ctx in valid_contexts:
+        for ctx in valid_python_contexts:
             self._resolve_dependencies(ctx)
+        for jctx in valid_jsts_contexts:
+            self._resolve_jsts_dependencies(jctx)
 
         # 3. Third pass: Infer architectural layers and responsibilities
         for mod in self.modules.values():
@@ -150,6 +160,94 @@ class ArchitectureModelBuilder:
 
         self.modules[canonical_name] = mod
         self.modules_by_path[path] = mod
+
+    def _register_jsts_module(self, ctx: JSTSASTContext) -> None:
+        """Create ModuleNode for a JS/TS module."""
+        path = ctx.file_path.replace("\\", "/")
+        path_obj = Path(path)
+        parts = list(path_obj.with_suffix("").parts)
+        is_init = path_obj.stem == "index"
+        canonical_name = ".".join(parts)
+        package_name = ".".join(parts[:-1]) if len(parts) > 1 else ""
+        depth = len(parts)
+
+        for i in range(len(parts)):
+            sub_alias = ".".join(parts[i:])
+            self._alias_map[sub_alias] = canonical_name
+
+        is_comp_root = (
+            path_obj.stem in ("index", "main", "server", "app")
+            or "server.listen" in ctx.source_code
+            or "app.listen" in ctx.source_code
+        )
+
+        mod = ModuleNode(
+            file_path=path,
+            module_name=canonical_name,
+            package_name=package_name,
+            package_depth=depth,
+            loc=len(ctx.lines),
+            is_package_init=is_init,
+            is_composition_root=is_comp_root,
+            source_code=ctx.source_code,
+        )
+        self.modules[canonical_name] = mod
+        self.modules_by_path[path] = mod
+
+    def _resolve_jsts_dependencies(self, ctx: JSTSASTContext) -> None:
+        """Resolve JS/TS import statements into local vs external dependencies."""
+        path = ctx.file_path.replace("\\", "/")
+        path_obj = Path(path)
+        parts = list(path_obj.with_suffix("").parts)
+        canonical_name = ".".join(parts)
+        mod = self.modules.get(canonical_name)
+        if not mod:
+            return
+
+        curr_dir = path_obj.parent
+        for imp in ctx.get_imports():
+            if imp.module.startswith("."):
+                resolved_rel = (curr_dir / imp.module).as_posix()
+                resolved_parts: list[str] = []
+                for p in resolved_rel.split("/"):
+                    if p in ("", "."):
+                        continue
+                    if p == "..":
+                        if resolved_parts:
+                            resolved_parts.pop()
+                    else:
+                        resolved_parts.append(p)
+                base_target = "/".join(resolved_parts)
+
+                target_mod = None
+                candidate_paths = [
+                    base_target,
+                    f"{base_target}.ts",
+                    f"{base_target}.tsx",
+                    f"{base_target}.js",
+                    f"{base_target}.jsx",
+                    f"{base_target}/index.ts",
+                    f"{base_target}/index.tsx",
+                    f"{base_target}/index.js",
+                    f"{base_target}/index.jsx",
+                ]
+                for cand in candidate_paths:
+                    if cand in self.modules_by_path:
+                        target_mod = self.modules_by_path[cand]
+                        break
+
+                if target_mod:
+                    mod.local_dependencies.add(target_mod.module_name)
+                    mod.imported_symbols[imp.module] = target_mod.module_name
+                else:
+                    mod.external_dependencies.add(imp.module)
+            else:
+                ext_name = (
+                    imp.module.split("/")[0]
+                    if not imp.module.startswith("@")
+                    else "/".join(imp.module.split("/")[:2])
+                )
+                mod.external_dependencies.add(ext_name)
 
     def _resolve_dependencies(self, ctx: PythonASTContext) -> None:
         """Resolve import statements into local project vs external dependencies."""

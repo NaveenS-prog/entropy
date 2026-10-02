@@ -7,10 +7,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app.analyzers.jsts_context import JSTSASTContext
 from app.models.domain.enums import SupportedLanguage
 from app.models.domain.finding import CodeEvidence
 from app.models.domain.manifest import RepositoryManifest
 from app.parser.base import ParsedFile
+from app.parser.jsts.models import ParsedJSTSUnit
 from app.parser.python.models import (
     Assignment,
     CallExpression,
@@ -273,13 +275,17 @@ class AnalysisContext:
     manifest: RepositoryManifest | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    # Internal lazy-loaded Python context cache
+    # Internal lazy-loaded context caches
     _python_contexts: dict[str, PythonASTContext] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _jsts_contexts: dict[str, JSTSASTContext] = field(
         default_factory=dict, init=False, repr=False
     )
 
     def __post_init__(self) -> None:
         self._index_python_contexts()
+        self._index_jsts_contexts()
 
     @classmethod
     def from_python_units(
@@ -287,15 +293,21 @@ class AnalysisContext:
         repo_path: Path,
         units: list[ParsedPythonUnit],
         manifest: RepositoryManifest | None = None,
+        jsts_units: list[ParsedJSTSUnit] | None = None,
     ) -> AnalysisContext:
-        """Construct AnalysisContext from a collection of ParsedPythonUnits."""
+        """Construct AnalysisContext from ParsedPythonUnits and optional ParsedJSTSUnits."""
         parsed_files = [ParsedFile.from_unit(u) for u in units]
-        total_loc = sum(u.line_count for u in units)
+        if jsts_units:
+            parsed_files.extend([ParsedFile.from_unit(u) for u in jsts_units])
+        total_loc = sum(u.line_count for u in units) + (
+            sum(u.line_count for u in jsts_units) if jsts_units else 0
+        )
+        total_scanned = len(units) + (len(jsts_units) if jsts_units else 0)
         return cls(
             repo_path=repo_path,
             parsed_files=parsed_files,
             total_loc=total_loc,
-            scanned_file_count=len(units),
+            scanned_file_count=total_scanned,
             manifest=manifest,
         )
 
@@ -327,6 +339,12 @@ class AnalysisContext:
                     )
                     self._python_contexts[pf.relative_path] = PythonASTContext(unit)
 
+    def _index_jsts_contexts(self) -> None:
+        for pf in self.parsed_files:
+            if pf.language in (SupportedLanguage.JAVASCRIPT, SupportedLanguage.TYPESCRIPT):
+                if isinstance(pf.unit, ParsedJSTSUnit):
+                    self._jsts_contexts[pf.relative_path] = JSTSASTContext(pf.unit)
+
     def get_files_for_language(self, language: SupportedLanguage) -> list[ParsedFile]:
         """Filter parsed files by language."""
         return [f for f in self.parsed_files if f.language == language and f.is_valid]
@@ -356,4 +374,25 @@ class AnalysisContext:
             f
             for f in self.parsed_files
             if f.language == SupportedLanguage.PYTHON and not f.is_valid
+        ]
+
+    def get_jsts_context(self, relative_path: str) -> JSTSASTContext | None:
+        """Retrieve pre-indexed JSTSASTContext for a specific JS/TS file."""
+        return self._jsts_contexts.get(relative_path)
+
+    def get_all_jsts_contexts(self) -> list[JSTSASTContext]:
+        """Return all indexed JS/TS file contexts."""
+        return list(self._jsts_contexts.values())
+
+    def get_valid_jsts_contexts(self) -> list[JSTSASTContext]:
+        """Return all valid, successfully parsed JS/TS file contexts."""
+        return [ctx for ctx in self._jsts_contexts.values() if ctx.is_valid]
+
+    def get_failed_jsts_files(self) -> list[ParsedFile]:
+        """Return all JS/TS files that failed parsing due to syntax or read errors."""
+        return [
+            f
+            for f in self.parsed_files
+            if f.language in (SupportedLanguage.JAVASCRIPT, SupportedLanguage.TYPESCRIPT)
+            and not f.is_valid
         ]

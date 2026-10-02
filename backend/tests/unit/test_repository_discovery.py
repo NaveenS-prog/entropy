@@ -61,7 +61,11 @@ def test_unsupported_language_marking():
     result = discoverer.discover_repository(project_dir)
 
     for sf in result.source_files:
-        if sf.language == SupportedLanguage.PYTHON:
+        if sf.language in {
+            SupportedLanguage.PYTHON,
+            SupportedLanguage.JAVASCRIPT,
+            SupportedLanguage.TYPESCRIPT,
+        }:
             assert sf.analysis_supported is True
             assert sf.skip_reason is None
         else:

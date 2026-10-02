@@ -31,9 +31,11 @@ EXTENSION_LANGUAGE_MAP: dict[str, SupportedLanguage] = {
     ".rs": SupportedLanguage.RUST,
 }
 
-# Currently, only Python has active AST parsers and analyzers implemented in Entropy
+# Active AST parsers and analyzers are supported for Python, JavaScript, and TypeScript
 ANALYZABLE_LANGUAGES: set[SupportedLanguage] = {
     SupportedLanguage.PYTHON,
+    SupportedLanguage.JAVASCRIPT,
+    SupportedLanguage.TYPESCRIPT,
 }
 
 UNAVAILABLE_ANALYZER_REASON = "language_detected_but_analyzer_unavailable"

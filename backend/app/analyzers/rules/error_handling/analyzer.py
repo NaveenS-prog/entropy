@@ -6,6 +6,10 @@ import logging
 from collections.abc import Sequence
 
 from app.analyzers.base import AnalysisContext, BaseAnalyzer
+from app.analyzers.jsts_rules.error_handling import (
+    JSEmptyCatchRule,
+    JSSwallowedErrorFallbackRule,
+)
 from app.analyzers.rules.base import BaseRule
 from app.analyzers.rules.error_handling.rules import (
     RULE_ERR_006_DEFERRED,
@@ -44,6 +48,10 @@ class ErrorHandlingDebtAnalyzer(BaseAnalyzer):
                 SilentlySwallowedExceptionRule(),
                 GenericFallbackReturnRule(),
             ]
+        self._js_rules = [
+            JSEmptyCatchRule(),
+            JSSwallowedErrorFallbackRule(),
+        ]
 
     @property
     def analyzer_id(self) -> str:
@@ -59,17 +67,22 @@ class ErrorHandlingDebtAnalyzer(BaseAnalyzer):
 
     @property
     def supported_languages(self) -> set[SupportedLanguage]:
-        return {SupportedLanguage.PYTHON}
+        return {
+            SupportedLanguage.PYTHON,
+            SupportedLanguage.JAVASCRIPT,
+            SupportedLanguage.TYPESCRIPT,
+        }
 
     @property
     def rules(self) -> list[RuleDefinition]:
         rule_defs = [r.definition for r in self._rules]
+        rule_defs.extend([r.definition for r in self._js_rules])
         # Include deferred rule in registry definitions so clients can inspect full taxonomy
         rule_defs.append(RULE_ERR_006_DEFERRED)
         return rule_defs
 
     def analyze(self, context: AnalysisContext) -> list[Finding]:
-        """Execute deterministic AST visitor analysis across all valid Python files in context."""
+        """Execute deterministic AST visitor analysis across all valid Python and JS/TS files in context."""
         raw_findings: list[Finding] = []
         valid_python_contexts = context.get_valid_python_contexts()
 
@@ -88,6 +101,24 @@ class ErrorHandlingDebtAnalyzer(BaseAnalyzer):
                     )
 
             # File-level suppression & deduplication
+            filtered_findings = self._deduplicate_and_suppress(file_findings)
+            raw_findings.extend(filtered_findings)
+
+        # JS/TS files analysis
+        valid_jsts_contexts = context.get_valid_jsts_contexts()
+        for js_ctx in valid_jsts_contexts:
+            file_findings = []
+            for js_rule in self._js_rules:
+                try:
+                    results = js_rule.analyze(js_ctx)
+                    file_findings.extend(results)
+                except Exception as exc:
+                    logger.warning(
+                        "JS Rule %s failed while analyzing '%s': %s",
+                        js_rule.rule_id,
+                        js_ctx.file_path,
+                        exc,
+                    )
             filtered_findings = self._deduplicate_and_suppress(file_findings)
             raw_findings.extend(filtered_findings)
 

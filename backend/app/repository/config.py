@@ -39,6 +39,7 @@ class ScannerConfig:
             "out",
             ".turbo",
             ".cache",
+            "__generated__",
         }
     )
 
@@ -46,6 +47,8 @@ class ScannerConfig:
         default_factory=lambda: {
             ".min.js",
             ".min.css",
+            ".generated.js",
+            ".generated.ts",
             ".map",
             ".lock",
             "package-lock.json",

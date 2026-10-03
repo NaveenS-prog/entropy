@@ -77,6 +77,22 @@ class Finding(BaseModel):
         default_factory=dict,
         description="Analyzer-specific metadata (AST node types, syntactic markers, etc.)",
     )
+    is_suppressed: bool = Field(
+        default=False,
+        description="Whether this finding is suppressed by inline comment or project config",
+    )
+    suppression_source: str | None = Field(
+        default=None,
+        description="Source of suppression: 'config_rule', 'config_finding', or 'inline'",
+    )
+    suppression_reason: str | None = Field(
+        default=None,
+        description="Explanation or rule reference for why the finding was suppressed",
+    )
+    status: str | None = Field(
+        default=None,
+        description="Finding status: 'active', 'suppressed', 'new', 'resolved', or 'unchanged'",
+    )
 
     @classmethod
     def generate_deterministic_id(

@@ -89,10 +89,11 @@ class PolicyService:
         self,
         scan: RepositoryScanResult,
         policy: PolicyConfig | None = None,
+        comparison: ScanComparisonResult | None = None,
     ) -> PolicyEvaluation:
         """Evaluate a concrete RepositoryScanResult against a policy."""
         cfg = policy or self.get_default_policy()
-        return PolicyEvaluator.evaluate(policy=cfg, current_scan=scan)
+        return PolicyEvaluator.evaluate(policy=cfg, current_scan=scan, comparison=comparison)
 
     def evaluate_comparison_obj(
         self,

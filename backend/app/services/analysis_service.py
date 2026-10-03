@@ -57,6 +57,54 @@ class AnalysisService:
             )
 
             findings = self.registry.analyze(context)
+
+            # Phase 15: Suppressions and project config application
+            try:
+                from app.core.project_config import load_project_config
+                from app.core.suppression import (
+                    apply_suppressions,
+                    extract_inline_suppressions,
+                    get_valid_rule_ids,
+                )
+
+                config_obj = load_project_config(root_path)
+                config_rules = set(config_obj.ignore.rules) if config_obj else set()
+                config_findings = set(config_obj.ignore.findings) if config_obj else set()
+
+                valid_rules = get_valid_rule_ids()
+                inline_suppressions = []
+                for p_unit in python_units:
+                    if p_unit.source_code:
+                        inline_suppressions.extend(
+                            extract_inline_suppressions(
+                                p_unit.source_code, p_unit.file_path, valid_rules=valid_rules
+                            )
+                        )
+                for js_unit in jsts_units:
+                    if js_unit.source_code:
+                        inline_suppressions.extend(
+                            extract_inline_suppressions(
+                                js_unit.source_code, js_unit.file_path, valid_rules=valid_rules
+                            )
+                        )
+
+                active_findings, suppressed_findings = apply_suppressions(
+                    findings=findings,
+                    suppressed_rules=config_rules,
+                    suppressed_finding_ids=config_findings,
+                    inline_suppressions=inline_suppressions,
+                )
+
+                scan.suppressed_findings_count = len(suppressed_findings)
+                if config_obj:
+                    scan.config_hash = config_obj.compute_hash()
+                    scan.project_id = config_obj.project.id or config_obj.project.name
+                    scan.repository.project_id = scan.project_id
+                    if config_obj.project.name:
+                        scan.repository.name = config_obj.project.name
+            except Exception as supp_err:
+                logger.warning("Suppression processing encountered an error: %s", supp_err)
+
             scan.findings = findings
             scan.analyzers_executed = [a.analyzer_id for a in self.registry.get_all()]
             self.repo_service.save_scan(scan)

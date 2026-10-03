@@ -142,6 +142,18 @@ class ScanDatabase:
                 except sqlite3.OperationalError:
                     pass
 
+            # Phase 15: Config and baseline columns migration
+            for col, col_type in [
+                ("config_hash", "TEXT"),
+                ("project_id", "TEXT"),
+                ("is_dirty", "INTEGER DEFAULT 0"),
+                ("suppressed_findings_count", "INTEGER DEFAULT 0"),
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE scan_snapshots ADD COLUMN {col} {col_type};")
+                except sqlite3.OperationalError:
+                    pass
+
             logger.info("Initialized scan database at %s", self.db_path)
 
     def save_scan(self, scan: RepositoryScanResult) -> None:
@@ -160,8 +172,9 @@ class ScanDatabase:
                 scan_id, repository_id, repo_name, repo_path, branch, commit_hash,
                 status, entropy_score, score_band, total_files, analyzed_files,
                 total_loc, finding_count, started_at, completed_at, duration_ms,
-                analyzer_version, scoring_version, raw_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                analyzer_version, scoring_version, raw_json,
+                config_hash, project_id, is_dirty, suppressed_findings_count
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(scan_id) DO UPDATE SET
                 status = excluded.status,
                 entropy_score = excluded.entropy_score,
@@ -172,8 +185,17 @@ class ScanDatabase:
                 finding_count = excluded.finding_count,
                 completed_at = excluded.completed_at,
                 duration_ms = excluded.duration_ms,
-                raw_json = excluded.raw_json;
+                raw_json = excluded.raw_json,
+                config_hash = excluded.config_hash,
+                project_id = excluded.project_id,
+                is_dirty = excluded.is_dirty,
+                suppressed_findings_count = excluded.suppressed_findings_count;
         """
+
+        is_dirty_val = 1 if getattr(scan.repository, "is_dirty", False) else 0
+        suppressed_count = getattr(scan, "suppressed_findings_count", 0)
+        config_hash_val = getattr(scan, "config_hash", None)
+        project_id_val = getattr(scan, "project_id", None) or getattr(scan.repository, "project_id", None)
 
         params = (
             scan.scan_id,
@@ -195,6 +217,10 @@ class ScanDatabase:
             "0.1.0",
             "1.0.0",
             raw_json,
+            config_hash_val,
+            project_id_val,
+            is_dirty_val,
+            suppressed_count,
         )
 
         with self._get_connection() as conn:
@@ -217,7 +243,8 @@ class ScanDatabase:
             SELECT scan_id, repository_id, repo_name, repo_path, branch, commit_hash,
                    status, entropy_score, score_band, total_files, analyzed_files,
                    total_loc, finding_count, analyzer_version, scoring_version,
-                   started_at, completed_at, duration_ms
+                   started_at, completed_at, duration_ms,
+                   config_hash, project_id, is_dirty, suppressed_findings_count
             FROM scan_snapshots WHERE scan_id = ?;
         """
         with self._get_connection() as conn:
@@ -257,7 +284,8 @@ class ScanDatabase:
                 SELECT scan_id, repository_id, repo_name, repo_path, branch, commit_hash,
                        status, entropy_score, score_band, total_files, analyzed_files,
                        total_loc, finding_count, analyzer_version, scoring_version,
-                       started_at, completed_at, duration_ms
+                       started_at, completed_at, duration_ms,
+                       config_hash, project_id, is_dirty, suppressed_findings_count
                 FROM scan_snapshots
                 WHERE {where_sql}
                 ORDER BY started_at DESC
@@ -274,7 +302,8 @@ class ScanDatabase:
             SELECT scan_id, repository_id, repo_name, repo_path, branch, commit_hash,
                    status, entropy_score, score_band, total_files, analyzed_files,
                    total_loc, finding_count, analyzer_version, scoring_version,
-                   started_at, completed_at, duration_ms
+                   started_at, completed_at, duration_ms,
+                   config_hash, project_id, is_dirty, suppressed_findings_count
             FROM scan_snapshots
             ORDER BY started_at DESC
             LIMIT ?;
@@ -289,7 +318,8 @@ class ScanDatabase:
             SELECT scan_id, repository_id, repo_name, repo_path, branch, commit_hash,
                    status, entropy_score, score_band, total_files, analyzed_files,
                    total_loc, finding_count, analyzer_version, scoring_version,
-                   started_at, completed_at, duration_ms
+                   started_at, completed_at, duration_ms,
+                   config_hash, project_id, is_dirty, suppressed_findings_count
             FROM scan_snapshots
             WHERE repository_id = ? AND status = 'completed'
             ORDER BY started_at ASC;
@@ -321,6 +351,7 @@ class ScanDatabase:
             with contextlib.suppress(ValueError):
                 band = DebtScoreTier(row["score_band"])
 
+        keys = row.keys()
         return ScanSnapshot(
             scan_id=row["scan_id"],
             repository_id=row["repository_id"],
@@ -342,6 +373,10 @@ class ScanDatabase:
             if row["completed_at"]
             else None,
             duration_ms=row["duration_ms"],
+            config_hash=row["config_hash"] if "config_hash" in keys else None,
+            project_id=row["project_id"] if "project_id" in keys else None,
+            is_dirty=bool(row["is_dirty"]) if "is_dirty" in keys and row["is_dirty"] is not None else False,
+            suppressed_findings_count=row["suppressed_findings_count"] if "suppressed_findings_count" in keys and row["suppressed_findings_count"] is not None else 0,
         )
 
     def save_pr_analysis(

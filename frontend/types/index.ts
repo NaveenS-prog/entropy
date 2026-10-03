@@ -107,6 +107,31 @@ export interface Finding {
   recommendation: string;
   fingerprint: string;
   metadata?: Record<string, unknown>;
+  is_suppressed?: boolean;
+  suppression_source?: "config_rule" | "config_finding" | "inline" | null;
+  suppression_reason?: string | null;
+  status?: "active" | "suppressed" | "new" | "resolved" | "unchanged" | null;
+}
+
+export interface BaselineFindingItem {
+  fingerprint: string;
+  rule_id: string;
+  file: string;
+  line_start: number;
+  severity: Severity;
+  category: DebtCategory;
+  id?: string | null;
+}
+
+export interface BaselineComparisonResult {
+  baseline_score: number;
+  current_score: number;
+  score_delta: number;
+  new_findings: Finding[];
+  resolved_findings: BaselineFindingItem[];
+  unchanged_findings: Finding[];
+  suppressed_findings: Finding[];
+  total_current: number;
 }
 
 export type CategoryAnalysisStatus = "analyzed" | "not_analyzed";

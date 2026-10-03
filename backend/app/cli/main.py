@@ -109,6 +109,9 @@ def format_scan_text(scan: RepositoryScanResult) -> str:
     if scan.repository.total_loc > 0:
         lines.append(f"Lines of code: {scan.repository.total_loc}")
     lines.append(f"Findings: {len(scan.findings)}")
+    supp_count = getattr(scan, "suppressed_findings_count", 0)
+    if supp_count > 0:
+        lines.append(f"Suppressed findings: {supp_count}")
     lines.append("")
 
     score_val = scan.score.total_score if scan.score else 0
@@ -167,6 +170,10 @@ def format_scan_json_dict(scan: RepositoryScanResult) -> dict[str, Any]:
             "symbol": f.symbol,
             "message": f.description,
             "fingerprint": f.fingerprint,
+            "is_suppressed": getattr(f, "is_suppressed", False),
+            "suppression_source": getattr(f, "suppression_source", None),
+            "suppression_reason": getattr(f, "suppression_reason", None),
+            "status": getattr(f, "status", None),
         }
         for f in sorted_findings
     ]
@@ -178,6 +185,8 @@ def format_scan_json_dict(scan: RepositoryScanResult) -> dict[str, Any]:
             "repository_id": scan.repository.repository_id,
             "branch": scan.repository.branch,
             "commit_hash": scan.repository.commit_hash,
+            "is_dirty": getattr(scan.repository, "is_dirty", False),
+            "project_id": getattr(scan.repository, "project_id", None),
         },
         "files": {
             "discovered": scan.repository.total_files,
@@ -188,7 +197,9 @@ def format_scan_json_dict(scan: RepositoryScanResult) -> dict[str, Any]:
             "total_score": scan.score.total_score if scan.score else 0,
             "band": scan.score.tier.value if scan.score else "unknown",
             "findings_count": len(scan.findings),
+            "suppressed_findings_count": getattr(scan, "suppressed_findings_count", 0),
         },
+        "config_hash": getattr(scan, "config_hash", None),
         "categories": categories_dict,
         "findings": findings_list,
     }
@@ -197,6 +208,7 @@ def format_scan_json_dict(scan: RepositoryScanResult) -> dict[str, Any]:
 def format_check_text(
     scan: RepositoryScanResult,
     evaluation: PolicyEvaluation,
+    comparison: Any = None,
 ) -> str:
     """Format check output into human-readable text."""
     lines: list[str] = [
@@ -211,7 +223,18 @@ def format_check_text(
     lines.append(f"Band: {tier_title}")
     lines.append("")
     lines.append(f"Findings: {len(scan.findings)}")
+    supp_count = getattr(scan, "suppressed_findings_count", 0)
+    if supp_count > 0:
+        lines.append(f"Suppressed findings: {supp_count}")
     lines.append("")
+
+    if comparison is not None:
+        lines.append("Baseline Comparison:")
+        lines.append("────────────────────────────")
+        lines.append(f"Baseline: {comparison.baseline_score} -> Current: {comparison.current_score} (Delta: {comparison.score_delta:+d})")
+        lines.append(f"Findings: +{comparison.new_count} new, -{comparison.resolved_count} resolved, {comparison.unchanged_count} unchanged, {comparison.suppressed_count} suppressed")
+        lines.append("")
+
     lines.append(f"Policy: {evaluation.policy_name} (status: {evaluation.status.value.upper()})")
 
     if evaluation.violations:
@@ -252,9 +275,13 @@ def format_findings_text(findings: list[Finding]) -> str:
 
     for f in sorted_findings:
         loc = f"{f.file}:{f.line_start}"
-        lines.append(f"[{f.severity.value.upper()}] {f.rule_id} ({f.category.value})")
+        status_tag = f" [{f.status.upper()}]" if getattr(f, "status", None) else ""
+        supp_tag = " (SUPPRESSED)" if getattr(f, "is_suppressed", False) else ""
+        lines.append(f"[{f.severity.value.upper()}]{status_tag}{supp_tag} {f.rule_id} ({f.category.value})")
         lines.append(f"  Location: {loc}")
         lines.append(f"  Message:  {f.title}")
+        if getattr(f, "suppression_reason", None):
+            lines.append(f"  Suppressed: {f.suppression_reason}")
         if f.symbol:
             lines.append(f"  Symbol:   {f.symbol}")
         lines.append("")
@@ -392,11 +419,25 @@ def cmd_check(args: argparse.Namespace) -> int:
         print(f"Error: Target path '{args.path}' does not exist.", file=sys.stderr)
         return EXIT_SYSTEM_ERROR
 
-    # 1. Load Policy
+    # 1. Load Project Config if present
+    from app.core.project_config import load_project_config
+
+    cfg = None
+    try:
+        cfg = load_project_config(target_path)
+    except Exception as exc:
+        print(f"Configuration error in .entropy.yml: {exc}", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    # 2. Resolve Policy
     policy: PolicyConfig
-    if getattr(args, "policy", None):
+    policy_path = getattr(args, "policy", None)
+    if not policy_path and cfg and cfg.policy.file:
+        policy_path = str(target_path / cfg.policy.file)
+
+    if policy_path:
         try:
-            policy = parse_policy_file(args.policy)
+            policy = parse_policy_file(policy_path)
         except PolicyConfigurationError as exc:
             print(f"Policy configuration error: {exc.message}", file=sys.stderr)
             return EXIT_CONFIG_ERROR
@@ -406,7 +447,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     else:
         policy = get_default_policy()
 
-    # 2. Run ONE scan pass, ONE analysis pass, ONE scoring pass
+    # 3. Run ONE scan pass, ONE analysis pass, ONE scoring pass
     try:
         scan, findings = _run_single_scan_pipeline(repo_path=target_path)
     except RepositoryError as exc:
@@ -416,28 +457,65 @@ def cmd_check(args: argparse.Namespace) -> int:
         print(f"Unexpected check error: {exc}", file=sys.stderr)
         return EXIT_SYSTEM_ERROR
 
-    # 3. Evaluate scan against policy (Pure deterministic evaluation)
-    evaluation = policy_service.evaluate_scan_obj(scan=scan, policy=policy)
+    # 4. Baseline Comparison (if enabled)
+    baseline_mode = cfg.scoring.baseline if cfg else "auto"
+    baseline_file = cfg.scoring.baseline_file if cfg else ".entropy-baseline.json"
+    baseline_path = target_path / baseline_file
 
-    # 4. Format Output
+    baseline_comp = None
+    scan_comp = None
+    if baseline_mode != "off":
+        if baseline_path.is_file():
+            try:
+                from app.core.baseline import compare_with_baseline, load_baseline_file
+
+                baseline = load_baseline_file(baseline_path)
+                baseline_comp = compare_with_baseline(scan, baseline)
+                scan_comp = baseline_comp.to_scan_comparison(scan, baseline)
+            except Exception as b_err:
+                print(f"Warning: Failed to load baseline: {b_err}", file=sys.stderr)
+                if baseline_mode == "strict":
+                    return EXIT_CONFIG_ERROR
+        elif baseline_mode == "strict":
+            print(
+                f"Error: Strict baseline mode enabled, but baseline file not found at '{baseline_path}'.",
+                file=sys.stderr,
+            )
+            return EXIT_CONFIG_ERROR
+
+    # 5. Evaluate scan against policy
+    evaluation = policy_service.evaluate_scan_obj(scan=scan, policy=policy, comparison=scan_comp)
+
+    # 6. Format Output
     fmt = getattr(args, "format", "text")
     if fmt == "json":
         out = {
             "score": scan.score.total_score if scan.score else 0,
             "band": scan.score.tier.value if scan.score else "unknown",
             "findings_count": len(findings),
+            "suppressed_findings_count": getattr(scan, "suppressed_findings_count", 0),
             "policy": evaluation.model_dump(mode="json"),
             "result": "FAIL" if evaluation.status == PolicyStatus.FAIL else "PASS",
         }
+        if baseline_comp:
+            out["baseline"] = {
+                "baseline_score": baseline_comp.baseline_score,
+                "current_score": baseline_comp.current_score,
+                "score_delta": baseline_comp.score_delta,
+                "new_count": baseline_comp.new_count,
+                "resolved_count": baseline_comp.resolved_count,
+                "unchanged_count": baseline_comp.unchanged_count,
+                "suppressed_count": baseline_comp.suppressed_count,
+            }
         print(json.dumps(out, indent=2))
     elif fmt == "sarif":
         sarif_data = generate_sarif_log(scan, findings)
         print(json.dumps(sarif_data, indent=2))
     else:
         if not getattr(args, "quiet", False):
-            print(format_check_text(scan, evaluation))
+            print(format_check_text(scan, evaluation, comparison=baseline_comp))
 
-    # 5. Exit Code Semantics
+    # 7. Exit Code Semantics
     if evaluation.status == PolicyStatus.FAIL:
         return EXIT_POLICY_FAIL
     elif evaluation.status == PolicyStatus.WARN and getattr(args, "fail_on_warn", False):
@@ -483,6 +561,30 @@ def cmd_findings(args: argparse.Namespace) -> int:
     except Exception as exc:
         print(f"Unexpected findings error: {exc}", file=sys.stderr)
         return EXIT_SYSTEM_ERROR
+
+    # Phase 15 filters: --new and --suppressed
+    is_new = getattr(args, "new", False)
+    is_suppressed = getattr(args, "suppressed", False)
+
+    if is_new:
+        from app.core.project_config import load_project_config
+
+        cfg = load_project_config(target_path)
+        baseline_file = cfg.scoring.baseline_file if cfg else ".entropy-baseline.json"
+        baseline_path = target_path / baseline_file
+        if baseline_path.is_file():
+            from app.core.baseline import compare_with_baseline, load_baseline_file
+
+            baseline = load_baseline_file(baseline_path)
+            comp_res = compare_with_baseline(scan, baseline, current_findings=findings)
+            findings = comp_res.new_findings
+        else:
+            findings = [f for f in findings if not getattr(f, "is_suppressed", False)]
+    elif is_suppressed:
+        findings = [f for f in findings if getattr(f, "is_suppressed", False)]
+    else:
+        # Default: show active findings
+        findings = [f for f in findings if not getattr(f, "is_suppressed", False)]
 
     fmt = getattr(args, "format", "text")
     if fmt == "json":
@@ -599,6 +701,213 @@ def cmd_explain(args: argparse.Namespace) -> int:
         print(f"AI service unavailable: {exc}", file=sys.stderr)
         print("Note: Entropy core static analysis and CI exit codes remain unaffected.", file=sys.stderr)
         return EXIT_PASS
+
+
+def cmd_init(args: argparse.Namespace) -> int:
+    """Initialize a minimal, clean .entropy.yml configuration."""
+    target_dir = Path(getattr(args, "path", ".")).resolve()
+    if not target_dir.exists():
+        print(f"Error: Target directory '{target_dir}' does not exist.", file=sys.stderr)
+        return EXIT_SYSTEM_ERROR
+
+    config_path = target_dir / ".entropy.yml"
+    config_alt = target_dir / ".entropy.yaml"
+    if config_path.exists() or config_alt.exists():
+        print(f"Error: Configuration file already exists at {config_path}", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    project_name = target_dir.name or "entropy-project"
+    template = f"""# Entropy Project Configuration (.entropy.yml)
+version: 1
+
+project:
+  name: {project_name}
+
+analysis:
+  languages:
+    - python
+    - javascript
+    - typescript
+  exclude:
+    - "tests/**"
+    - "docs/**"
+
+scoring:
+  baseline: auto
+  baseline_file: .entropy-baseline.json
+
+policy:
+  file: null
+
+output:
+  format: text
+
+ignore:
+  rules: []
+  findings: []
+"""
+    try:
+        config_path.write_text(template, encoding="utf-8")
+        if not getattr(args, "quiet", False):
+            print(f"Initialized Entropy project configuration at {config_path}")
+        return EXIT_PASS
+    except Exception as exc:
+        print(f"Error: Failed to write configuration file: {exc}", file=sys.stderr)
+        return EXIT_SYSTEM_ERROR
+
+
+def cmd_config_validate(args: argparse.Namespace) -> int:
+    """Validate .entropy.yml configuration strictly."""
+    target_input = Path(getattr(args, "path", ".")).resolve()
+    if target_input.is_file():
+        config_path = target_input
+    else:
+        config_path = target_input / ".entropy.yml"
+        if not config_path.exists():
+            config_path = target_input / ".entropy.yaml"
+
+    if not config_path.exists():
+        print(f"Error: Configuration file not found at '{config_path}'", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    try:
+        content = config_path.read_text(encoding="utf-8")
+        from app.core.project_config import parse_entropy_config
+
+        cfg = parse_entropy_config(content, file_path=config_path)
+        cfg_hash = cfg.compute_hash()
+        if not getattr(args, "quiet", False):
+            print(f"✓ Configuration is valid: {config_path.name}")
+            print(f"  Project: {cfg.project.name}")
+            print(f"  Hash:    {cfg_hash}")
+        return EXIT_PASS
+    except Exception as exc:
+        print(f"❌ Configuration error in '{config_path}': {exc}", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+
+def cmd_baseline_create(args: argparse.Namespace) -> int:
+    """Scan repository and create .entropy-baseline.json."""
+    target_path = Path(getattr(args, "path", ".")).resolve()
+    if not target_path.exists():
+        print(f"Error: Target path '{target_path}' does not exist.", file=sys.stderr)
+        return EXIT_SYSTEM_ERROR
+
+    from app.core.project_config import load_project_config
+
+    try:
+        cfg = load_project_config(target_path)
+    except Exception as c_err:
+        print(f"Configuration error: {c_err}", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    baseline_filename = cfg.scoring.baseline_file if cfg else ".entropy-baseline.json"
+    baseline_path = target_path / baseline_filename
+
+    try:
+        scan, findings = _run_single_scan_pipeline(repo_path=target_path)
+        from app.core.baseline import EntropyBaseline, save_baseline_file
+
+        active_f = [f for f in findings if not getattr(f, "is_suppressed", False)]
+        baseline = EntropyBaseline.from_scan(
+            scan=scan,
+            project_name=cfg.project.name if cfg else None,
+            project_id=cfg.project.id if cfg else None,
+            config_hash=cfg.compute_hash() if cfg else None,
+            active_findings=active_f,
+        )
+        save_baseline_file(baseline, baseline_path)
+        if not getattr(args, "quiet", False):
+            print(f"Baseline created at {baseline_path}")
+            print(f"  Score:    {baseline.scan.score}/100 ({baseline.scan.band})")
+            print(f"  Findings: {baseline.scan.total_findings}")
+            if baseline.scan.commit_sha:
+                print(f"  Commit:   {baseline.scan.commit_sha[:8]}")
+        return EXIT_PASS
+    except RepositoryError as exc:
+        print(f"Baseline creation failed: {exc}", file=sys.stderr)
+        return EXIT_SYSTEM_ERROR
+    except Exception as exc:
+        print(f"Unexpected baseline error: {exc}", file=sys.stderr)
+        return EXIT_SYSTEM_ERROR
+
+
+def cmd_baseline_show(args: argparse.Namespace) -> int:
+    """Inspect established baseline."""
+    target_path = Path(getattr(args, "path", ".")).resolve()
+    from app.core.project_config import load_project_config
+
+    try:
+        cfg = load_project_config(target_path)
+    except Exception as c_err:
+        print(f"Configuration error: {c_err}", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    baseline_filename = cfg.scoring.baseline_file if cfg else ".entropy-baseline.json"
+    baseline_path = target_path / baseline_filename
+
+    if not baseline_path.is_file():
+        print(f"Error: Baseline file not found at '{baseline_path}'", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    try:
+        from app.core.baseline import load_baseline_file
+
+        baseline = load_baseline_file(baseline_path)
+        fmt = getattr(args, "format", "text")
+        if fmt == "json":
+            print(baseline.to_json(indent=2))
+        else:
+            print("Entropy Baseline Summary:")
+            print(f"  Project:        {baseline.project.name}")
+            print(f"  Baseline Score: {baseline.scan.score}/100 ({baseline.scan.band})")
+            print(f"  Findings:       {baseline.scan.total_findings}")
+            print(f"  Created At:     {baseline.scan.created_at}")
+            if baseline.scan.commit_sha:
+                print(f"  Commit SHA:     {baseline.scan.commit_sha}")
+            if baseline.scan.config_hash:
+                print(f"  Config Hash:    {baseline.scan.config_hash}")
+        return EXIT_PASS
+    except Exception as exc:
+        print(f"Error loading baseline: {exc}", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+
+def cmd_baseline_update(args: argparse.Namespace) -> int:
+    """Rescan repository and update .entropy-baseline.json."""
+    return cmd_baseline_create(args)
+
+
+def cmd_baseline_clear(args: argparse.Namespace) -> int:
+    """Clear/delete the baseline file."""
+    target_path = Path(getattr(args, "path", ".")).resolve()
+    from app.core.project_config import load_project_config
+
+    try:
+        cfg = load_project_config(target_path)
+    except Exception as c_err:
+        print(f"Configuration error: {c_err}", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    baseline_filename = cfg.scoring.baseline_file if cfg else ".entropy-baseline.json"
+    baseline_path = target_path / baseline_filename
+
+    if not getattr(args, "yes", False):
+        print("Error: Use --yes to confirm deletion of baseline file.", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    if not baseline_path.is_file():
+        print(f"Notice: Baseline file '{baseline_path}' does not exist.", file=sys.stderr)
+        return EXIT_PASS
+
+    try:
+        baseline_path.unlink()
+        if not getattr(args, "quiet", False):
+            print(f"Removed baseline file: {baseline_path}")
+        return EXIT_PASS
+    except Exception as exc:
+        print(f"Error removing baseline file: {exc}", file=sys.stderr)
+        return EXIT_SYSTEM_ERROR
 
 
 def cmd_policy_validate(args: argparse.Namespace) -> int:
@@ -761,6 +1070,8 @@ def build_parser() -> argparse.ArgumentParser:
     findings_parser.add_argument("--category", help="Filter by debt category")
     findings_parser.add_argument("--rule", help="Filter by specific rule ID (e.g. ENT-ERR-001)")
     findings_parser.add_argument("--file", help="Filter by file path substring")
+    findings_parser.add_argument("--new", action="store_true", help="Show only findings introduced since baseline")
+    findings_parser.add_argument("--suppressed", action="store_true", help="Show only suppressed findings")
     findings_parser.add_argument("--format", choices=["text", "json", "sarif"], default="text", help="Output format (default: text)")
 
     # 4. compare <base> <head>
@@ -777,7 +1088,35 @@ def build_parser() -> argparse.ArgumentParser:
     # 6. version
     subparsers.add_parser("version", help="Display Entropy engine version")
 
-    # 7. policy group
+    # 7. init <path>
+    init_parser = subparsers.add_parser("init", help="Initialize a minimal .entropy.yml configuration file")
+    init_parser.add_argument("path", default=".", nargs="?", help="Target repository directory (default: current directory)")
+
+    # 8. config group
+    config_parser = subparsers.add_parser("config", help="Project configuration file management")
+    config_subparsers = config_parser.add_subparsers(dest="config_action", help="Configuration actions")
+    cfg_val_parser = config_subparsers.add_parser("validate", help="Validate .entropy.yml configuration file")
+    cfg_val_parser.add_argument("path", default=".", nargs="?", help="Target repository directory or config file (default: current directory)")
+
+    # 9. baseline group
+    baseline_parser = subparsers.add_parser("baseline", help="Baseline creation and inspection")
+    baseline_subparsers = baseline_parser.add_subparsers(dest="baseline_action", help="Baseline actions")
+
+    b_create_parser = baseline_subparsers.add_parser("create", help="Create baseline file from repository scan")
+    b_create_parser.add_argument("path", default=".", nargs="?", help="Path to repository directory (default: current directory)")
+
+    b_show_parser = baseline_subparsers.add_parser("show", help="Show established baseline metadata")
+    b_show_parser.add_argument("path", default=".", nargs="?", help="Path to repository directory (default: current directory)")
+    b_show_parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format (default: text)")
+
+    b_update_parser = baseline_subparsers.add_parser("update", help="Rescan repository and update baseline file")
+    b_update_parser.add_argument("path", default=".", nargs="?", help="Path to repository directory (default: current directory)")
+
+    b_clear_parser = baseline_subparsers.add_parser("clear", help="Delete baseline file")
+    b_clear_parser.add_argument("path", default=".", nargs="?", help="Path to repository directory (default: current directory)")
+    b_clear_parser.add_argument("--yes", action="store_true", help="Confirm deletion of baseline file")
+
+    # 10. policy group
     policy_parser = subparsers.add_parser("policy", help="Policy engine management and evaluation")
     policy_subparsers = policy_parser.add_subparsers(dest="policy_action", help="Policy actions")
 
@@ -818,6 +1157,26 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_explain(args)
     elif args.subcommand == "version":
         return cmd_version(args)
+    elif args.subcommand == "init":
+        return cmd_init(args)
+    elif args.subcommand == "config":
+        if args.config_action == "validate":
+            return cmd_config_validate(args)
+        else:
+            parser.parse_args(["config", "--help"])
+            return EXIT_CONFIG_ERROR
+    elif args.subcommand == "baseline":
+        if args.baseline_action == "create":
+            return cmd_baseline_create(args)
+        elif args.baseline_action == "show":
+            return cmd_baseline_show(args)
+        elif args.baseline_action == "update":
+            return cmd_baseline_update(args)
+        elif args.baseline_action == "clear":
+            return cmd_baseline_clear(args)
+        else:
+            parser.parse_args(["baseline", "--help"])
+            return EXIT_CONFIG_ERROR
     elif args.subcommand == "policy":
         if args.policy_action == "validate":
             return cmd_policy_validate(args)

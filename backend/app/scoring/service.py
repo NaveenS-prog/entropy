@@ -79,9 +79,12 @@ class ScoringService:
             else {a.category for a in self.analy_service.registry.get_all()}
         )
 
+        # Phase 15: Suppressed findings MUST NOT contribute to score
+        active_findings = [f for f in findings if not getattr(f, "is_suppressed", False)]
+
         # Compute deterministic score
         score_result = self.scorer.calculate_score(
-            findings=findings,
+            findings=active_findings,
             total_loc=total_loc,
             analyzed_files=analyzed_files,
             skipped_files=skipped_files,

@@ -18,9 +18,11 @@ class RepositoryMetadata(BaseModel):
     name: str = Field(..., description="Repository name or directory basename")
     path: str = Field(..., description="Root path or identifier")
     repository_id: str | None = Field(default=None, description="Stable identifier for repository history")
+    project_id: str | None = Field(default=None, description="Optional explicit project identifier")
     remote_url: str | None = Field(default=None, description="Remote Git origin URL if available")
     branch: str | None = Field(default=None, description="Active git branch if available")
     commit_hash: str | None = Field(default=None, description="Head commit hash if available")
+    is_dirty: bool | None = Field(default=None, description="Whether working tree has uncommitted modifications")
     total_files: int = Field(default=0, ge=0)
     scannable_files: int = Field(default=0, ge=0)
     total_loc: int = Field(default=0, ge=0)
@@ -56,6 +58,18 @@ class RepositoryScanResult(BaseModel):
     score: DebtScoreResult | None = Field(
         default=None,
         description="Calculated debt score if analysis succeeded",
+    )
+    config_hash: str | None = Field(
+        default=None,
+        description="Deterministic hash of the effective project configuration (.entropy.yml)",
+    )
+    project_id: str | None = Field(
+        default=None,
+        description="Project identifier the scan is associated with",
+    )
+    suppressed_findings_count: int = Field(
+        default=0,
+        description="Number of findings suppressed in this scan",
     )
     started_at: datetime = Field(..., description="UTC timestamp of scan start")
     completed_at: datetime | None = Field(

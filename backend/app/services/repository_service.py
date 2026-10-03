@@ -88,8 +88,29 @@ class RepositoryService:
         )
         self._scans[scan_id] = initial_record
 
+        config_obj = None
         try:
-            scan_result = self.scanner.scan(source)
+            from app.core.project_config import load_project_config
+
+            config_obj = load_project_config(source.get_root_path())
+        except Exception as exc:
+            logger.warning("Failed to load project config for '%s': %s", repo_path, exc)
+
+        scanner_to_use = self.scanner
+        if config_obj and config_obj.analysis.exclude:
+            cfg = self.config.model_copy()
+            cfg.custom_exclude_patterns = config_obj.analysis.exclude
+            scanner_to_use = RepositoryScanner(cfg)
+
+        try:
+            scan_result = scanner_to_use.scan(source)
+            if config_obj:
+                scan_result.config_hash = config_obj.compute_hash()
+                scan_result.project_id = config_obj.project.id or config_obj.project.name
+                scan_result.repository.project_id = scan_result.project_id
+                if config_obj.project.name:
+                    scan_result.repository.name = config_obj.project.name
+
             self._scans[scan_result.scan_id] = scan_result
             scan_db.save_scan(scan_result)
             return scan_result

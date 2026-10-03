@@ -228,6 +228,30 @@ export function FindingsViewer({
                       {finding.severity}
                     </span>
 
+                    {finding.is_suppressed && (
+                      <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded border font-mono bg-purple-950/60 text-purple-300 border-purple-800">
+                        SUPPRESSED
+                      </span>
+                    )}
+
+                    {finding.status === "new" && (
+                      <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded border font-mono bg-blue-950/60 text-blue-300 border-blue-800">
+                        NEW
+                      </span>
+                    )}
+
+                    {finding.status === "resolved" && (
+                      <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded border font-mono bg-emerald-950/60 text-emerald-300 border-emerald-800">
+                        RESOLVED
+                      </span>
+                    )}
+
+                    {finding.status === "unchanged" && (
+                      <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded border font-mono bg-slate-900 text-slate-400 border-slate-800">
+                        UNCHANGED
+                      </span>
+                    )}
+
                     <span className="text-[10px] uppercase font-mono font-medium text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
                       {finding.rule_id}
                     </span>
@@ -269,6 +293,19 @@ export function FindingsViewer({
                 {/* Expanded details */}
                 {isExpanded && (
                   <div className="p-4 pt-2 border-t border-slate-800/80 mt-1 space-y-4 text-xs">
+                    {/* Suppression metadata callout */}
+                    {finding.is_suppressed && (
+                      <div className="bg-purple-950/40 border border-purple-800/60 rounded-md p-3 text-purple-200">
+                        <div className="font-semibold text-purple-300 flex items-center gap-1.5 mb-1">
+                          <ShieldCheck className="h-4 w-4 text-purple-400" />
+                          <span>Suppressed Finding ({finding.suppression_source || "manual"})</span>
+                        </div>
+                        <p className="text-purple-200/90 text-[11px] leading-relaxed">
+                          {finding.suppression_reason || "This finding is suppressed and excluded from Entropy score and policy evaluations."}
+                        </p>
+                      </div>
+                    )}
+
                     {/* Description */}
                     <p className="text-slate-300 leading-relaxed">{finding.description}</p>
 

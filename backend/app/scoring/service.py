@@ -1,4 +1,4 @@
-"""Scoring service coordinating repository metadata, Phase 3 findings, and Phase 4 scoring."""
+"""Scoring service coordinating repository metadata, analyzer findings, and entropy scoring."""
 
 from __future__ import annotations
 

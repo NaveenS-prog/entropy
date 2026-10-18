@@ -434,6 +434,59 @@ def cmd_scan(args: argparse.Namespace) -> int:
         if not getattr(args, "quiet", False):
             print(format_scan_text(scan))
 
+    # Delta-based CI gating (--fail-on-new)
+    if getattr(args, "fail_on_new", False):
+        from app.core.baseline import compare_with_baseline, load_baseline_file
+        from app.core.project_config import load_project_config
+
+        cfg = None
+        try:
+            cfg = load_project_config(target_path)
+        except Exception:
+            pass
+
+        baseline_arg = getattr(args, "baseline", None)
+        if baseline_arg:
+            baseline_path = Path(baseline_arg)
+        else:
+            baseline_filename = cfg.scoring.baseline_file if cfg else ".entropy-baseline.json"
+            baseline_path = target_path / baseline_filename
+
+        if not baseline_path.is_file():
+            print(
+                f"Delta CI Gate Error: Baseline file not found at '{baseline_path}'. "
+                "Run 'entropy baseline create' to establish a baseline before using --fail-on-new.",
+                file=sys.stderr,
+            )
+            return EXIT_CONFIG_ERROR
+
+        try:
+            baseline = load_baseline_file(baseline_path)
+            baseline_comp = compare_with_baseline(scan, baseline, current_findings=findings)
+        except Exception as exc:
+            print(f"Failed to evaluate delta against baseline: {exc}", file=sys.stderr)
+            return EXIT_SYSTEM_ERROR
+
+        if baseline_comp.new_count > 0:
+            if not getattr(args, "quiet", False):
+                print(
+                    f"\nDelta CI Gate: FAILED - {baseline_comp.new_count} new finding(s) introduced relative to baseline.",
+                    file=sys.stderr,
+                )
+                for nf in baseline_comp.new_findings[:10]:
+                    file_loc = getattr(nf, "file", getattr(nf, "file_path", "unknown"))
+                    line_loc = getattr(nf, "line_start", getattr(nf, "line_number", 1))
+                    desc = getattr(nf, "title", getattr(nf, "description", getattr(nf, "message", "")))
+                    print(f"  - [{nf.rule_id}] {file_loc}:{line_loc} {desc}", file=sys.stderr)
+                if baseline_comp.new_count > 10:
+                    print(f"  ... and {baseline_comp.new_count - 10} more new findings.", file=sys.stderr)
+            return EXIT_POLICY_FAIL
+        else:
+            if not getattr(args, "quiet", False):
+                print(
+                    f"\nDelta CI Gate: PASSED - 0 new findings introduced (Score delta: {baseline_comp.score_delta:+d})."
+                )
+
     return EXIT_PASS
 
 
@@ -1080,6 +1133,15 @@ def build_parser() -> argparse.ArgumentParser:
     scan_parser = subparsers.add_parser("scan", help="Scan a repository, compute findings and score")
     scan_parser.add_argument("path", default=".", nargs="?", help="Path to repository directory (default: current directory)")
     scan_parser.add_argument("--format", choices=["text", "json", "sarif"], default="text", help="Output format (default: text)")
+    scan_parser.add_argument(
+        "--fail-on-new",
+        action="store_true",
+        help="Fail with exit code 1 if scan introduces new findings relative to baseline",
+    )
+    scan_parser.add_argument(
+        "--baseline",
+        help="Path to baseline file for delta gating (default: .entropy-baseline.json)",
+    )
 
     # 2. check <path>
     check_parser = subparsers.add_parser("check", help="Scan repository and evaluate against policy (primary CI gate)")

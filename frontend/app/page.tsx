@@ -375,17 +375,17 @@ export default function RepositoryIngestionDashboard() {
             <button
               type="button"
               onClick={() => {
-                setRepoPath("/home/naveen/Entropy");
+                setRepoPath(".");
                 setRepoName("entropy-workspace");
               }}
               className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded border border-slate-700 font-mono"
             >
-              /home/naveen/Entropy
+              . (Current Workspace)
             </button>
             <button
               type="button"
               onClick={() => {
-                setRepoPath("/home/naveen/Entropy/backend/tests/fixtures/clean_python_project");
+                setRepoPath("./backend/tests/fixtures/clean_python_project");
                 setRepoName("clean-python-project");
               }}
               className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded border border-slate-700 font-mono"
@@ -395,7 +395,7 @@ export default function RepositoryIngestionDashboard() {
             <button
               type="button"
               onClick={() => {
-                setRepoPath("/home/naveen/Entropy/backend/tests/fixtures/mixed_language_project");
+                setRepoPath("./backend/tests/fixtures/mixed_language_project");
                 setRepoName("mixed-language-project");
               }}
               className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded border border-slate-700 font-mono"

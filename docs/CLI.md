@@ -118,7 +118,7 @@ entropy scan . --format sarif
 ```
 Entropy Scan
 ────────────────────────────
-Repository: /home/naveen/Entropy
+Repository: /path/to/project
 
 Files discovered: 309
 Files analyzed: 276

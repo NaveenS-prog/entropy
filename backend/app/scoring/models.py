@@ -176,12 +176,12 @@ class DebtScoreResult(BaseModel):
     @computed_field
     @property
     def entropy_score(self) -> int:
-        """Alias for total_score per Phase 4 specification."""
+        """Alias for total_score for backward compatibility."""
         return self.total_score
 
     @computed_field
     @property
     def band(self) -> DebtScoreTier:
-        """Alias for tier per Phase 4 specification."""
+        """Alias for tier for backward compatibility."""
         return self.tier
 

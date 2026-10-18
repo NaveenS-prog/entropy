@@ -2,7 +2,7 @@
 set -e
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-export PATH="/home/naveen/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
 
 echo "=== Running Backend Linting (ruff) ==="
 cd "$DIR/backend"

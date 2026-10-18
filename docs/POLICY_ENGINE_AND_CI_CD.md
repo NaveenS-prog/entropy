@@ -80,22 +80,27 @@ policy:
 
 ## 3. Supported Policy Rules
 
-| Rule Name | Rule Type | Config Path | Description & Failure Semantics |
-| :--- | :--- | :--- | :--- |
-| `max_score` | Absolute | `score.max_score` | Fails if `current_score > max_score`. |
-| `warn_score` | Absolute | `score.warn_score` | Warns if `current_score > warn_score` (and `<= max_score`). |
-| `max_delta` | Delta | `score.max_delta` | Fails if `score_delta > max_delta`. Returns `NOT_APPLICABLE` without baseline. |
-| `warn_delta` | Delta | `score.warn_delta` | Warns if `score_delta > warn_delta`. Returns `NOT_APPLICABLE` without baseline. |
-| `max_new_findings` | Delta | `findings.max_new` | Fails if new findings count `> max_new`. Returns `NOT_APPLICABLE` without baseline. |
-| `max_new_high` | Delta | `findings.max_new_high` | Fails if newly introduced High-severity findings `> max_new_high`. Returns `NOT_APPLICABLE` without baseline. |
-| `max_new_critical`| Delta | `findings.max_new_critical`| Fails if newly introduced Critical-severity findings `> max_new_critical`. |
-| `max_total_findings` | Absolute | `findings.max_total` | Fails if total findings count `> max_total`. |
-| `max_total_high` | Absolute | `findings.max_total_high` | Fails if total High findings `> max_total_high`. |
-| `max_total_critical` | Absolute | `findings.max_total_critical`| Fails if total Critical findings `> max_total_critical`. |
-| `max_category_score` | Absolute | `categories.max_score[category]` | Fails if category debt score `> threshold`. |
-| `max_category_delta` | Delta | `categories.max_delta[category]` | Fails if category delta `> threshold`. Returns `NOT_APPLICABLE` without baseline. |
-| `warn_category_delta`| Delta | `categories.warn_delta[category]`| Warns if category delta `> threshold`. Returns `NOT_APPLICABLE` without baseline. |
-| `forbidden_rules` | Hybrid | `rules.forbidden_rules` | Fails if any forbidden rule is introduced (in PR) or present (in standalone scan). |
+> [!TIP]
+> **Delta-Based Gating (Recommended)** vs. **Absolute Thresholds (Experimental)**:
+> In CI/CD pipelines, **Delta-Based Gating** is the strongly recommended standard (e.g. `entropy scan --fail-on-new` or policy rules `findings.max_new`). Delta gating ensures that PRs never introduce new debt regressions without penalizing developers for pre-existing legacy debt.
+> **Absolute Thresholds** (`max_score`, `max_total`) are designated **Experimental** because fixed absolute cutoffs can create friction on existing codebases before comprehensive refactoring is scheduled.
+
+| Rule Name | Rule Type | Status | Config Path | Description & Failure Semantics |
+| :--- | :--- | :---: | :--- | :--- |
+| `max_delta` | Delta | **Stable (Recommended)** | `score.max_delta` | Fails if `score_delta > max_delta`. Returns `NOT_APPLICABLE` without baseline. |
+| `warn_delta` | Delta | **Stable (Recommended)** | `score.warn_delta` | Warns if `score_delta > warn_delta`. Returns `NOT_APPLICABLE` without baseline. |
+| `max_new_findings` | Delta | **Stable (Recommended)** | `findings.max_new` | Fails if new findings count `> max_new`. Returns `NOT_APPLICABLE` without baseline. |
+| `max_new_high` | Delta | **Stable (Recommended)** | `findings.max_new_high` | Fails if newly introduced High-severity findings `> max_new_high`. |
+| `max_new_critical`| Delta | **Stable (Recommended)** | `findings.max_new_critical`| Fails if newly introduced Critical-severity findings `> max_new_critical`. |
+| `max_category_delta` | Delta | **Stable (Recommended)** | `categories.max_delta[category]` | Fails if category delta `> threshold`. |
+| `warn_category_delta`| Delta | **Stable (Recommended)** | `categories.warn_delta[category]`| Warns if category delta `> threshold`. |
+| `forbidden_rules` | Hybrid | **Stable (Recommended)** | `rules.forbidden_rules` | Fails if any forbidden rule is introduced (in PR) or present (in scan). |
+| `max_score` | Absolute | *Experimental* | `score.max_score` | Fails if `current_score > max_score`. |
+| `warn_score` | Absolute | *Experimental* | `score.warn_score` | Warns if `current_score > warn_score` (and `<= max_score`). |
+| `max_total_findings` | Absolute | *Experimental* | `findings.max_total` | Fails if total findings count `> max_total`. |
+| `max_total_high` | Absolute | *Experimental* | `findings.max_total_high` | Fails if total High findings `> max_total_high`. |
+| `max_total_critical` | Absolute | *Experimental* | `findings.max_total_critical`| Fails if total Critical findings `> max_total_critical`. |
+| `max_category_score` | Absolute | *Experimental* | `categories.max_score[category]` | Fails if category debt score `> threshold`. |
 
 ---
 
@@ -127,6 +132,20 @@ Entropy provides an executable CLI: `entropy policy [validate|evaluate]`.
 - **`3`**: **ANALYSIS / SYSTEM ERROR** (missing comparison file, database read error).
 
 ### Commands
+
+#### 1. Delta-Based CI Gating (Recommended)
+```bash
+# 1. Establish initial baseline on main branch
+entropy baseline create
+
+# 2. Gate Pull Requests in CI (exits 1 if and only if new findings are introduced)
+entropy scan --fail-on-new
+
+# 3. Specify custom baseline file location
+entropy scan --fail-on-new --baseline .entropy/baseline.json
+```
+
+#### 2. Declarative Policy Evaluation
 ```bash
 # Validate policy configuration
 entropy policy validate policy.yaml
@@ -141,7 +160,7 @@ entropy policy evaluate --comparison-file comp.json --policy policy.yaml --fail-
 entropy policy evaluate --comparison-file comp.json --json
 ```
 
-### GitHub Actions Workflow Example
+### GitHub Actions Workflow Example (Delta-Based CI Gate)
 ```yaml
 name: Entropy Debt Gate
 on: [pull_request]
@@ -157,10 +176,8 @@ jobs:
           python-version: '3.11'
       - name: Install Entropy CLI
         run: pip install entropy-backend
-      - name: Validate Policy
-        run: entropy policy validate .entropy-policy.yaml
-      - name: Evaluate PR Comparison
-        run: entropy policy evaluate --comparison-file .entropy/pr-comparison.json --policy .entropy-policy.yaml
+      - name: Run Delta-Based CI Gate
+        run: entropy scan --fail-on-new
 ```
 
 ---

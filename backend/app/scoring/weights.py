@@ -53,8 +53,7 @@ CONFIDENCE_MULTIPLIERS = CONFIDENCE_WEIGHTS
 # Category Weights (Target 100% Architecture Distribution)
 # =============================================================================
 # Normalized distribution across the 7 Entropy debt categories.
-# In Phase 4, only active categories (Error Handling Debt) contribute to the
-# score; relative weights are computed dynamically across analyzed categories.
+# Relative weights are computed dynamically across active analyzed categories with language support.
 CATEGORY_WEIGHTS: dict[DebtCategory, float] = {
     DebtCategory.AUTHENTICATION_CONSISTENCY: 0.20,
     DebtCategory.AUTHORIZATION_CONSISTENCY: 0.20,

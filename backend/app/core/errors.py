@@ -10,8 +10,6 @@ class EntropyError(Exception):
         self.details = details or {}
 
 
-# Backwards compatibility alias
-SilentGuardError = EntropyError
 
 
 class RepositoryError(EntropyError):

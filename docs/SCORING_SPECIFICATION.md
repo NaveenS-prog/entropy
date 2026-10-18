@@ -1,6 +1,6 @@
 # Entropy Scoring Specification
 
-**Authoritative Specification for the Deterministic Entropy Scoring Engine (Phase 4)**
+**Authoritative Specification for the Deterministic Entropy Scoring Engine**
 
 > [!IMPORTANT]
 > **Core Principle & Non-Goals**  
@@ -16,17 +16,17 @@
 
 ## 1. Score Range & Product Interpretation
 
-The **Entropy Debt Score** ranges from **0 to 100**, where 0 indicates zero detected architectural debt and 100 indicates severe accumulated debt.
+The **Entropy Debt Score** ranges from **0 to 100**, where 0 indicates zero detected architectural/security debt and 100 indicates severe accumulated debt.
 
 Scores are partitioned into five official tiers with explicit boundary definitions:
 
 | Score Range | Debt Tier | Product Interpretation |
 | :---: | :---: | :--- |
-| **0 – 20** | `VERY_LOW` | Pristine or near-pristine codebase; highly consistent architecture. |
+| **0 – 20** | `VERY_LOW` | Pristine or near-pristine codebase; highly consistent architecture and security practices. |
 | **21 – 40** | `LOW` | Minor structural duplication or localized inconsistent error handling. |
-| **41 – 60** | `MODERATE` | Noticeable accumulation of silent debt; architectural patterns need attention. |
-| **61 – 80** | `HIGH` | Substantial fragmentation, swallowed errors, or missing security boundaries. |
-| **81 – 100** | `VERY_HIGH` | Severe architectural risk; elevated probability of hidden failures and bugs. |
+| **41 – 60** | `MODERATE` | Noticeable accumulation of debt; unauthenticated administrative routes or architectural patterns need attention. |
+| **61 – 80** | `HIGH` | Substantial fragmentation, swallowed errors, or missing security boundaries across critical flows. |
+| **81 – 100** | `VERY_HIGH` | Severe architectural risk; elevated probability of hidden failures, leaks, or wide-open attack surfaces. |
 
 ### Clamping & Validity Guarantees
 - The API and engine guarantee that all scores are strictly clamped to integer range `[0, 100]`.
@@ -38,17 +38,17 @@ Scores are partitioned into five official tiers with explicit boundary definitio
 
 ## 2. Centralized Severity Weights & Confidence Multipliers
 
-Scoring weights are centralized in [`app/scoring/weights.py`](file:///home/naveen/silentguard/backend/app/scoring/weights.py) to eliminate magic numbers:
+Scoring weights are centralized in [`backend/app/scoring/weights.py`](../backend/app/scoring/weights.py) to eliminate magic numbers:
 
 ### A. Severity Weights ($W_{\text{severity}}$)
 Reflects the architectural degradation hazard of the defect:
 
-| Severity | Weight | Architectural Rationale |
+| Severity | Weight | Architectural & Security Rationale |
 | :--- | :---: | :--- |
-| **`CRITICAL`** | `10.0` | System signal hijacking, catastrophic architectural degradation. |
-| **`HIGH`** | `7.0` | Silently swallowed exceptions (`ENT-ERR-004`) without logging or re-raise. |
-| **`MEDIUM`** | `4.0` | Broad catch blocks (`ENT-ERR-002`), bare except clauses (`ENT-ERR-001`), empty handlers (`ENT-ERR-003`). |
-| **`LOW`** | `1.0` | Generic falsy fallback returns (`ENT-ERR-005`). |
+| **`CRITICAL`** | `10.0` | System signal hijacking, unauthenticated state-mutating sensitive routes (POST/DELETE/PUT/PATCH admin/payment/user). |
+| **`HIGH`** | `7.0` | Silently swallowed exceptions (`ENT-ERR-004`), unauthenticated read sensitive routes (GET admin/export/token). |
+| **`MEDIUM`** | `4.0` | Broad catch blocks (`ENT-ERR-002`), bare except clauses (`ENT-ERR-001`), empty handlers (`ENT-ERR-003`), standard unprotected routes. |
+| **`LOW`** | `1.0` | Generic falsy fallback returns (`ENT-ERR-005`), minor boilerplate duplication. |
 | **`INFO`** | `0.0` | Informational notice; does not penalize score. |
 
 ### B. Confidence Multipliers ($M_{\text{confidence}}$)
@@ -56,7 +56,7 @@ Scales severity points by detection certainty, preventing low-confidence heurist
 
 | Confidence | Multiplier | Meaning |
 | :--- | :---: | :--- |
-| **`HIGH`** | `1.0` | 100% deterministic AST match. |
+| **`HIGH`** | `1.0` | 100% deterministic AST match or verified framework route taint. |
 | **`MEDIUM`** | `0.8` | Structural pattern match with contextual filtering. |
 | **`LOW`** | `0.5` | Broad heuristic or dampening factor. |
 
@@ -64,8 +64,8 @@ Scales severity points by detection certainty, preventing low-confidence heurist
 
 ## 3. Scale-Aware Density Normalization Model
 
-To prevent repository size from producing misleading scores and ensure density invariance:
-- A defect density of 1 MEDIUM defect per 100 LOC yields the same score whether in a 500-line microservice or a 500,000-line monorepo.
+To prevent repository size from distorting scores and ensure scale invariance:
+- A defect density of 1 MEDIUM defect per 100 LOC yields approximately the same score whether in a 500-line microservice or a 500,000-line monorepo.
 - Monotonicity: adding any authentic finding strictly increases (or preserves) the score.
 - A minimum LOC floor ($\text{MIN\_LOC\_FLOOR} = 200$) protects tiny repositories from mathematical score explosion.
 
@@ -82,7 +82,7 @@ $$\text{KLOC} = \frac{\text{Effective LOC}}{1000.0}$$
 $$\text{Weighted Debt Density}_c = \frac{\text{Raw Penalty}_c}{\text{KLOC}}$$
 
 ### Step 4: Asymptotic Category Saturation (0–100)
-To ensure the category score is strictly bounded and asymptotic, a saturating exponential curve with saturation constant $K = 40.0$ is applied to the density:
+To ensure the category score is strictly bounded and asymptotic, a saturating exponential curve with saturation constant $K = 40.0$ (`DENSITY_SATURATION_FACTOR`) is applied to the density:
 $$\text{Category Score}_c = 100.0 \times \left( 1.0 - e^{-\frac{\text{Weighted Debt Density}_c}{40.0}} \right)$$
 
 ### Mathematical Guarantees
@@ -92,30 +92,36 @@ $$\text{Category Score}_c = 100.0 \times \left( 1.0 - e^{-\frac{\text{Weighted D
 
 ---
 
-## 4. Category Handling: Analyzed vs. Not Analyzed
+## 4. Category Handling: Analyzed vs. Not Analyzed & Language Coverage
 
 > [!CAUTION]
-> **Data Integrity Rule**: Categories without implemented static analyzers must NEVER receive fabricated scores or dummy findings.
+> **Data Integrity Rule**: Categories without implemented static analyzers or lacking supported language files in the scanned codebase must NEVER receive fabricated scores or dummy findings.
 
-| Category | Phase 4 Status | Weight ($W_c$) | Scoring Behavior |
-| :--- | :---: | :---: | :--- |
-| **Error Handling Debt** | `ANALYZED` | `0.15` | Calculated from Phase 3 AST findings. Score $\in [0, 100]$. |
-| **Authentication Consistency** | `NOT_ANALYZED` | `0.20` | Scheduled for future phase. Score is `None`. Finding count `0`. |
-| **Authorization Consistency** | `NOT_ANALYZED` | `0.20` | Scheduled for future phase. Score is `None`. Finding count `0`. |
-| **Input Validation Debt** | `NOT_ANALYZED` | `0.15` | Scheduled for future phase. Score is `None`. Finding count `0`. |
-| **Logging & Secrets Debt** | `NOT_ANALYZED` | `0.15` | Scheduled for future phase. Score is `None`. Finding count `0`. |
-| **Architectural Consistency** | `NOT_ANALYZED` | `0.10` | Scheduled for future phase. Score is `None`. Finding count `0`. |
-| **Code Duplication / Boilerplate** | `NOT_ANALYZED` | `0.05` | Scheduled for future phase. Score is `None`. Finding count `0`. |
+The Entropy engine includes 7 distinct debt categories:
+
+| Category | Category Identifier | Weight ($W_c$) | Supported Languages | Scoring Behavior |
+| :--- | :--- | :---: | :--- | :--- |
+| **Error Handling Debt** | `error_handling` | `0.15` | Python, JavaScript, TypeScript | Calculated from AST findings; Score $\in [0, 100]$. |
+| **Authentication Consistency** | `authentication_consistency` | `0.20` | Python, JavaScript, TypeScript | Unprotected endpoints, inconsistency, duplicate auth. |
+| **Authorization Consistency** | `authorization_consistency` | `0.20` | Python, JavaScript, TypeScript | Missing role/permission checks, inconsistent policies. |
+| **Input Validation Debt** | `input_validation` | `0.15` | Python, JavaScript, TypeScript | Unvalidated request parameters reaching sensitive sinks. |
+| **Logging & Secrets Debt** | `logging_and_secrets` | `0.15` | Python, JavaScript, TypeScript | Hardcoded credentials, insecure logging, missing audit trails. |
+| **Architectural Consistency** | `architectural_consistency` | `0.10` | Python, JavaScript, TypeScript | Layering violations, circular module imports. |
+| **Code Duplication / Boilerplate** | `code_duplication` | `0.05` | Python, JavaScript, TypeScript | Repeated structural boilerplate and duplicated routines. |
 
 ### Zero Findings vs. Not Analyzed
-- **Zero Findings**: Category has an active analyzer, analyzed the files, and detected 0 issues. Status is `"analyzed"`, score is `0.0`.
-- **Not Analyzed**: Category does not yet have an analyzer. Status is `"not_analyzed"`, score is `null` (`None`).
+- **Analyzed (Zero Findings)**: The category analyzer executed against repository files in supported languages and found 0 issues. Status is `"analyzed"`, score is `0.0`.
+- **Not Analyzed**: The repository does not contain files in the languages supported by the category analyzer. Status is `"not_analyzed"`, score is `null` (`None`), and the category is excluded from weight normalization.
+
+### Partial Coverage & Status
+- If either **Authentication Consistency** or **Authorization Consistency** is marked `NOT_ANALYZED` (e.g. in a repository written in an unsupported language like Go or Ruby), the overall result `status` is set to `PARTIAL`.
+- The CLI, API, and frontend surface this as **"Partial Coverage"** to guarantee that unanalyzed security categories are never misrepresented as clean.
 
 ---
 
 ## 5. Overall Entropy Score Aggregation
 
-The overall score is derived **exclusively from analyzed categories** by normalizing active weights:
+The overall score is derived **exclusively from analyzed categories** by dynamically normalizing active weights:
 
 Let $\mathcal{A}$ be the set of analyzed categories:
 $$W_{\mathcal{A}} = \sum_{c \in \mathcal{A}} W_c$$
@@ -125,7 +131,7 @@ $$w_c^{\text{rel}} = \frac{W_c}{W_{\mathcal{A}}}$$
 
 $$\text{Entropy Score} = \text{clamp}\left( \text{round}\left( \sum_{c \in \mathcal{A}} w_c^{\text{rel}} \times \text{Category Score}_c \right) \right)$$
 
-In Phase 4, $\mathcal{A} = \{\text{Error Handling Debt}\}$, so $W_{\mathcal{A}} = 0.15$ and $w_{\text{err}}^{\text{rel}} = 1.0$. The overall score accurately reflects the analyzed error handling debt.
+If $\mathcal{A} = \emptyset$ (no categories could be analyzed), the overall score is `0` with status `NOT_APPLICABLE` or `PARTIAL`.
 
 ---
 
@@ -140,24 +146,27 @@ In Phase 4, $\mathcal{A} = \{\text{Error Handling Debt}\}$, so $W_{\mathcal{A}} 
 ## 7. Calibration Evidence & Sensitivity Tuning
 
 ### A. Sensitivity Calibration Reasoning
-In previous calibrations, an unauthenticated admin application with 3 sensitive routes (`/admin/delete-user`, `/admin/export`, `/payments/refund` with string-concatenated SQL) produced a score of only 16 (`VERY_LOW`). This false innocence occurred because:
-1. Unprotected route rules assigned generic `MEDIUM` severity (4.0 pts) regardless of whether an endpoint exposed user deletion or public metrics.
-2. The sublinear LOC damping factor diluted penalties in small codebases.
+In previous versions, an unauthenticated admin application with sensitive routes (`/admin/delete-user`, `/admin/export`, `/payments/refund` with string-concatenated SQL) produced a score of only 16 (`VERY_LOW`). This false sense of safety occurred because:
+1. Unprotected route rules assigned a generic `MEDIUM` severity (4.0 pts) regardless of whether an endpoint exposed user deletion or public metrics.
+2. The old sublinear LOC damping factor diluted penalties in small codebases.
 
 **Calibration Fixes**:
 - **Sensitive Route Term Escalation**: Routes whose path or symbol matches sensitive terms (`admin`, `payment`, `refund`, `delete`, `export`, `user`, `token`) escalate in severity:
   - Read/inspection routes: escalated to `HIGH` (7.0 pts, `Confidence.HIGH`).
   - State-mutating routes (`POST`, `PUT`, `DELETE`, `PATCH`): escalated to `CRITICAL` (10.0 pts, `Confidence.HIGH`).
+- **SQL Variable Taint Tracking**: Intermediate variables holding user inputs concatenated into queries (`req.body.id`, `f"SELECT ... WHERE id = {user_id}"`, or `db.run('DELETE ... WHERE id=' + id)`) are recognized and flagged as input validation debt.
 - **Density-Based Scoring**: Scores are driven by weighted debt per KLOC rather than total finding count dampened by $\sqrt{\text{LOC}}$.
 
 ### B. Empirical Calibration Results Table
-The calibration corpus (`backend/tests/calibration/fixtures/`) validates the expected ordering ($\text{Clean} < \text{Mildly Messy} < \text{Insecure}$) and confirms that the deliberately insecure app lands solidly in the `MODERATE` band ($\ge 41$):
+The calibration test suite (`backend/tests/calibration/test_calibration_ordering.py`) executes against a standardized corpus of fixtures (`backend/tests/calibration/fixtures/`), asserting the required ordering ($\text{Clean} < \text{Mildly Messy} < \text{Insecure}$) and calibration parity between Python and JS/TS:
 
 | Fixture Archetype | Framework / Language | LOC | Findings | Debt Score | Official Tier | Coverage Status |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
 | **Clean App** | FastAPI (Python) | 48 | 0 | **0 / 100** | `VERY_LOW` | AVAILABLE (Full) |
 | **Mildly Messy App** | FastAPI (Python) | 49 | 3 | **10 / 100** | `VERY_LOW` | AVAILABLE (Full) |
 | **Deliberately Insecure App** | FastAPI (Python) | 33 | 6 | **46 / 100** | `MODERATE` | AVAILABLE (Full) |
-| **Clean App** | Express (JavaScript) | 18 | 0 | **0 / 100** | `VERY_LOW` | PARTIAL (Partial Coverage) |
-| **Mildly Messy App** | Express (JavaScript) | 19 | 1 | **10 / 100** | `VERY_LOW` | PARTIAL (Partial Coverage) |
+| **Clean App** | Express (JavaScript) | 18 | 0 | **0 / 100** | `VERY_LOW` | AVAILABLE (Full) |
+| **Mildly Messy App** | Express (JavaScript) | 19 | 1 | **6 / 100** | `VERY_LOW` | AVAILABLE (Full) |
+| **Deliberately Insecure App** | Express (JavaScript) | 31 | 5 | **47 / 100** | `MODERATE` | AVAILABLE (Full) |
 
+Both Python (46 / 100) and JavaScript (47 / 100) insecure archetypes land firmly in the `MODERATE` risk tier, reflecting real architectural debt parity across ecosystems.

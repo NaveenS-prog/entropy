@@ -38,8 +38,18 @@ def hermetic_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "API_KEY", None)
 
     import tempfile
+
+    from app.persistence.database import scan_db
+
+    temp_root = tempfile.mkdtemp(prefix="entropy_test_scans_")
+    test_db_dir = Path(temp_root)
+    test_db_path = test_db_dir / "entropy_scans.db"
+    monkeypatch.setattr(scan_db, "db_path", test_db_path)
+    monkeypatch.setattr(settings, "SCAN_STORAGE_DIR", test_db_dir)
+    scan_db._init_db()
+
     monkeypatch.setattr(
         settings,
         "SCAN_ALLOWED_ROOTS",
-        [str(Path.cwd().resolve()), tempfile.gettempdir()],
+        [str(Path.cwd().resolve()), tempfile.gettempdir(), temp_root],
     )

@@ -390,3 +390,54 @@ def test_cli_scan_determinism(sample_repo: Path, capsys):
         assert f1["id"] == f2["id"]
         assert f1["fingerprint"] == f2["fingerprint"]
         assert f1["rule_id"] == f2["rule_id"]
+
+
+# -----------------------------------------------------------------------------
+# 11. DELTA-BASED CI GATING (--fail-on-new)
+# -----------------------------------------------------------------------------
+
+def test_cli_scan_fail_on_new_no_baseline(sample_repo: Path, capsys):
+    """--fail-on-new without an existing baseline returns EXIT_CONFIG_ERROR."""
+    exit_code = main(["scan", str(sample_repo), "--fail-on-new"])
+    assert exit_code == EXIT_CONFIG_ERROR
+    captured = capsys.readouterr()
+    assert "Baseline file not found" in captured.err
+
+
+def test_cli_scan_fail_on_new_passes_when_clean(sample_repo: Path, capsys):
+    """--fail-on-new passes (exit 0) when no new findings are introduced relative to baseline."""
+    # 1. Establish baseline
+    create_code = main(["baseline", "create", str(sample_repo)])
+    assert create_code == EXIT_PASS
+    capsys.readouterr()
+
+    # 2. Rescan without changes
+    scan_code = main(["scan", str(sample_repo), "--fail-on-new"])
+    assert scan_code == EXIT_PASS
+    captured = capsys.readouterr()
+    assert "Delta CI Gate: PASSED" in captured.out
+
+
+def test_cli_scan_fail_on_new_fails_when_new_finding_added(sample_repo: Path, capsys):
+    """--fail-on-new fails (exit 1) when a new debt finding is introduced."""
+    # 1. Establish baseline
+    create_code = main(["baseline", "create", str(sample_repo)])
+    assert create_code == EXIT_PASS
+    capsys.readouterr()
+
+    # 2. Introduce a new defect
+    (sample_repo / "new_leak.py").write_text(
+        "def another():\n"
+        "    try:\n"
+        "        pass\n"
+        "    except BaseException:\n"
+        "        pass\n",
+        encoding="utf-8",
+    )
+
+    # 3. Rescan with --fail-on-new
+    scan_code = main(["scan", str(sample_repo), "--fail-on-new"])
+    assert scan_code == EXIT_POLICY_FAIL
+    captured = capsys.readouterr()
+    assert "Delta CI Gate: FAILED" in captured.err
+

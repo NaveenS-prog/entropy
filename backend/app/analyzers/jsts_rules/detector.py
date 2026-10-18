@@ -173,6 +173,86 @@ class JSFrameworkRouteDetector:
             auth_evidence = list(file_level_auth)
             authz_evidence = list(file_level_authz)
 
+            # If NestJS route, inspect class- and method-level decorators
+            if route.framework == "nestjs":
+                enclosing_cls = None
+                cls_method = None
+                for c in context.get_classes():
+                    for m in c.methods:
+                        if m.name == route.handler_name or (m.location.line_start <= route.location.line_start <= m.location.line_end):
+                            enclosing_cls = c
+                            cls_method = m
+                            break
+                    if enclosing_cls:
+                        break
+
+                all_decs = (enclosing_cls.decorators if enclosing_cls else []) + (cls_method.decorators if cls_method else [])
+
+                # Check for @Public()
+                for d in all_decs:
+                    if re.search(r"\bpublic\b", d, re.IGNORECASE) or "ispublic" in d.lower():
+                        is_public = True
+                        public_reasons.append(f"NestJS @{d} decorator marks endpoint public")
+
+                # Check for @UseGuards(...)
+                for d in all_decs:
+                    gm = re.match(r"^UseGuards\s*\(([^)]*)\)", d)
+                    if gm:
+                        guard_args = [g.strip().strip("'\"`") for g in gm.group(1).split(",") if g.strip()]
+                        for g in guard_args:
+                            auth_evidence.append(
+                                AuthenticationEvidence(
+                                    mechanism_type=AuthMechanismType.GUARD_CALL,
+                                    source_location=loc,
+                                    endpoint=route.path,
+                                    guard_name=g,
+                                    evidence_kind="guard_decorator",
+                                    confidence=Confidence.HIGH,
+                                    details=f"NestJS guard '{g}' enforces authentication",
+                                )
+                            )
+                            if any(k in g.lower() for k in ("role", "admin", "permission", "authz")):
+                                authz_evidence.append(
+                                    AuthorizationEvidence(
+                                        mechanism_type=AuthzMechanismType.ROLE_CHECK,
+                                        source_location=loc,
+                                        endpoint=route.path,
+                                        role_or_permission=g,
+                                        evidence_kind="guard_decorator",
+                                        confidence=Confidence.HIGH,
+                                        details=f"NestJS role guard '{g}' enforces authorization",
+                                    )
+                                )
+
+                # Check for @Roles(...)
+                for d in all_decs:
+                    rm = re.match(r"^Roles\s*\(([^)]*)\)", d)
+                    if rm:
+                        roles = [r.strip().strip("'\"`") for r in rm.group(1).split(",") if r.strip()]
+                        roles_str = ", ".join(roles)
+                        authz_evidence.append(
+                            AuthorizationEvidence(
+                                mechanism_type=AuthzMechanismType.ROLE_CHECK,
+                                source_location=loc,
+                                endpoint=route.path,
+                                role_or_permission=roles_str,
+                                evidence_kind="role_decorator",
+                                confidence=Confidence.HIGH,
+                                details=f"NestJS @Roles({roles_str}) enforces authorization",
+                            )
+                        )
+                        auth_evidence.append(
+                            AuthenticationEvidence(
+                                mechanism_type=AuthMechanismType.GUARD_CALL,
+                                source_location=loc,
+                                endpoint=route.path,
+                                guard_name=f"Roles({roles_str})",
+                                evidence_kind="authz_implied_auth",
+                                confidence=Confidence.HIGH,
+                                details=f"NestJS @Roles({roles_str}) implies authenticated caller",
+                            )
+                        )
+
             # Check middleware on route
             for mw in route.middleware:
                 mw_lower = mw.lower()
@@ -304,6 +384,8 @@ class JSFrameworkRouteDetector:
             return WebFramework.NEXTJS
         if "nest" in f_lower:
             return WebFramework.NESTJS
+        if "hono" in f_lower:
+            return WebFramework.HONO
         return WebFramework.GENERIC
 
     @classmethod

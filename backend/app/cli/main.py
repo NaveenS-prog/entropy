@@ -138,6 +138,14 @@ def format_scan_text(scan: RepositoryScanResult) -> str:
     lines.append(f"Band: {tier_title}")
     if scan.score and getattr(scan.score, "score_density", None) is not None:
         lines.append(f"Density Score: {scan.score.score_density} / 100")
+    if scan.score and getattr(scan.score, "coverage", None):
+        cov = scan.score.coverage
+        if getattr(cov, "detected_frameworks", None):
+            lines.append(f"Frameworks: {', '.join(cov.detected_frameworks)}")
+        if getattr(cov, "unsupported_frameworks", None):
+            lines.append(f"Unsupported Frameworks: {', '.join(cov.unsupported_frameworks)}")
+        if getattr(cov, "total_routes_detected", None) is not None:
+            lines.append(f"HTTP Routes: {cov.total_routes_detected}")
     lines.append("")
     lines.append("Categories:")
     lines.append("")

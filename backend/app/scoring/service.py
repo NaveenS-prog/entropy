@@ -151,6 +151,170 @@ class ScoringService:
 
         loc_cov_pct = round((covered_loc / total_loc) * 100.0, 1) if total_loc > 0 else 100.0
 
+        # Framework-level coverage analysis (Python and JS/TS)
+        SUPPORTED_WEB_FRAMEWORKS = {
+            "django",
+            "express",
+            "fastapi",
+            "fastify",
+            "flask",
+            "hono",
+            "nestjs",
+            "nextjs",
+        }
+        FRAMEWORKS_WITH_ROUTE_SUPPORT = {
+            "django",
+            "express",
+            "fastapi",
+            "fastify",
+            "flask",
+            "hono",
+            "nestjs",
+            "nextjs",
+        }
+        UNSUPPORTED_FRAMEWORKS_MAP = {
+            "koa": "koa",
+            "hapi": "hapi",
+            "restify": "restify",
+            "adonis": "adonis",
+            "sails": "sails",
+            "tornado": "tornado",
+            "aiohttp": "aiohttp",
+            "bottle": "bottle",
+            "falcon": "falcon",
+            "pyramid": "pyramid",
+            "sanic": "sanic",
+            "litestar": "litestar",
+            "cherrypy": "cherrypy",
+            "web2py": "web2py",
+        }
+
+        detected_frameworks: set[str] = set()
+        unsupported_frameworks: set[str] = set()
+        total_routes_count = 0
+
+        # Parse units safely
+        py_units = self.repo_service.parse_python_files(scan_id)
+        jsts_units = self.repo_service.parse_jsts_files(scan_id)
+
+        # Inspect Python units
+        if py_units:
+            from app.analyzers.context import PythonASTContext
+            from app.analyzers.security.frameworks import FrameworkRouteDetector
+
+            for pu in py_units:
+                if not pu.structure:
+                    continue
+                # Imports
+                for imp in pu.structure.imports:
+                    mod = (imp.module or "").lower()
+                    name = (imp.name or "").lower()
+                    if "fastapi" in mod or "fastapi" in name or "apirouter" in name:
+                        detected_frameworks.add("fastapi")
+                    if "flask" in mod or "flask" in name or "blueprint" in name:
+                        detected_frameworks.add("flask")
+                    if "django" in mod:
+                        detected_frameworks.add("django")
+                    for k, unsup_name in UNSUPPORTED_FRAMEWORKS_MAP.items():
+                        if k in mod or k in name:
+                            unsupported_frameworks.add(unsup_name)
+
+                # Endpoints
+                py_ctx = PythonASTContext(pu)
+                endpoints = FrameworkRouteDetector.extract_endpoints(py_ctx)
+                total_routes_count += len(endpoints)
+                for ep in endpoints:
+                    if ep.framework and ep.framework.value in SUPPORTED_WEB_FRAMEWORKS:
+                        detected_frameworks.add(ep.framework.value)
+
+        # Inspect JS/TS units
+        if jsts_units:
+            from app.analyzers.jsts_context import JSTSASTContext
+            from app.analyzers.jsts_rules.detector import JSFrameworkRouteDetector
+
+            for ju in jsts_units:
+                if not ju.structure:
+                    continue
+                # Structure frameworks
+                for f in ju.structure.frameworks:
+                    if f in SUPPORTED_WEB_FRAMEWORKS:
+                        detected_frameworks.add(f)
+                # Imports
+                for imp in ju.structure.imports:
+                    mod = imp.module.lower()
+                    if "express" in mod:
+                        detected_frameworks.add("express")
+                    if "fastify" in mod:
+                        detected_frameworks.add("fastify")
+                    if "next" in mod or mod.startswith("next/"):
+                        detected_frameworks.add("nextjs")
+                    if "hono" in mod:
+                        detected_frameworks.add("hono")
+                    if "@nestjs" in mod:
+                        detected_frameworks.add("nestjs")
+                    for k in ("koa", "hapi", "restify", "adonis", "sails"):
+                        if k in mod or f"@{k}" in mod or f"{k}-" in mod or f"{k}/" in mod:
+                            unsupported_frameworks.add(k)
+
+                # Endpoints
+                jsts_ctx = JSTSASTContext(ju)
+                endpoints = JSFrameworkRouteDetector.extract_endpoints(jsts_ctx)
+                total_routes_count += len(endpoints)
+                for ep in endpoints:
+                    if ep.framework and ep.framework.value in SUPPORTED_WEB_FRAMEWORKS:
+                        detected_frameworks.add(ep.framework.value)
+
+                # Direct routes from structure
+                for r in ju.structure.routes:
+                    if r.framework in SUPPORTED_WEB_FRAMEWORKS:
+                        detected_frameworks.add(r.framework)
+
+        # Apply framework coverage rules for Authentication and Authorization
+        has_jsts_or_py = any(lang in present_langs_set for lang in ("python", "javascript", "typescript"))
+        if has_jsts_or_py:
+            auth_cats = (DebtCategory.AUTHENTICATION_CONSISTENCY, DebtCategory.AUTHORIZATION_CONSISTENCY)
+            if unsupported_frameworks and not (detected_frameworks and total_routes_count > 0):
+                unsup_display = ", ".join(sorted(list(unsupported_frameworks)))
+                expl = f"{unsup_display} detected, not supported"
+                for cat in auth_cats:
+                    cat_coverages[cat] = CategoryCoverage(
+                        category=cat,
+                        status=CategoryAnalysisStatus.NOT_ANALYZED,
+                        supported_languages=sorted(list(cat_to_supported_langs.get(cat, set()))),
+                        present_languages=sorted(list(present_langs_set)),
+                        is_analyzed=False,
+                        explanation=expl,
+                    )
+                    cat_explanations[cat] = expl
+                    active_supported_cats.discard(cat)
+            elif not detected_frameworks:
+                sup_display = ", ".join(sorted(list(SUPPORTED_WEB_FRAMEWORKS)))
+                expl = f"No supported web framework detected (supported: {sup_display})"
+                for cat in auth_cats:
+                    cat_coverages[cat] = CategoryCoverage(
+                        category=cat,
+                        status=CategoryAnalysisStatus.NOT_ANALYZED,
+                        supported_languages=sorted(list(cat_to_supported_langs.get(cat, set()))),
+                        present_languages=sorted(list(present_langs_set)),
+                        is_analyzed=False,
+                        explanation=expl,
+                    )
+                    cat_explanations[cat] = expl
+                    active_supported_cats.discard(cat)
+            elif total_routes_count == 0:
+                expl = "no HTTP routes detected"
+                for cat in auth_cats:
+                    cat_coverages[cat] = CategoryCoverage(
+                        category=cat,
+                        status=CategoryAnalysisStatus.NOT_ANALYZED,
+                        supported_languages=sorted(list(cat_to_supported_langs.get(cat, set()))),
+                        present_languages=sorted(list(present_langs_set)),
+                        is_analyzed=False,
+                        explanation=expl,
+                    )
+                    cat_explanations[cat] = expl
+                    active_supported_cats.discard(cat)
+
         # 5. Check if Auth or Authz categories are unanalyzed -> partial coverage
         auth_cov = cat_coverages.get(DebtCategory.AUTHENTICATION_CONSISTENCY)
         authz_cov = cat_coverages.get(DebtCategory.AUTHORIZATION_CONSISTENCY)
@@ -166,6 +330,10 @@ class ScoringService:
             covered_loc=covered_loc,
             loc_coverage_percentage=loc_cov_pct,
             is_partial=is_partial,
+            detected_frameworks=sorted(list(detected_frameworks)),
+            frameworks_with_route_support=sorted(list(detected_frameworks & FRAMEWORKS_WITH_ROUTE_SUPPORT)),
+            unsupported_frameworks=sorted(list(unsupported_frameworks)),
+            total_routes_detected=total_routes_count,
         )
 
         # 6. Restrict active categories to those supported by repository languages

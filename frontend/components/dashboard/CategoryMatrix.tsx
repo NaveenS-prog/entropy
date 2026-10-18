@@ -1,6 +1,6 @@
 "use client";
 
-import { CategoryScoreBreakdown, DebtCategory } from "@/types";
+import { CategoryScoreBreakdown, DebtCategory, ScoringCoverage } from "@/types";
 import {
   AlertTriangle,
   KeyRound,
@@ -11,10 +11,13 @@ import {
   Layers,
   Clock,
   CheckCircle2,
+  Globe,
+  Radio,
 } from "lucide-react";
 
 interface CategoryMatrixProps {
   categories: Record<DebtCategory, CategoryScoreBreakdown>;
+  coverage?: ScoringCoverage | null;
   selectedCategory?: DebtCategory | null;
   onSelectCategory?: (category: DebtCategory | null) => void;
 }
@@ -34,9 +37,14 @@ const CATEGORY_META: Record<
 
 export function CategoryMatrix({
   categories,
+  coverage,
   selectedCategory,
   onSelectCategory,
 }: CategoryMatrixProps) {
+  const frameworks = coverage?.detected_frameworks || [];
+  const unsupported = coverage?.unsupported_frameworks || [];
+  const routesCount = coverage?.total_routes_detected ?? 0;
+
   return (
     <div className="mt-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
@@ -50,6 +58,42 @@ export function CategoryMatrix({
           <p className="text-xs text-slate-400 mt-0.5">
             Only categories with implemented analyzers contribute to the Entropy Score. Unanalyzed categories never receive fabricated scores.
           </p>
+
+          {/* Framework-level coverage indicator */}
+          {(frameworks.length > 0 || unsupported.length > 0 || routesCount > 0) && (
+            <div className="flex flex-wrap items-center gap-2 mt-2 pt-1 border-t border-slate-800/60">
+              <span className="text-[10px] uppercase font-mono text-slate-400 flex items-center gap-1">
+                <Globe className="h-3 w-3 text-cyan-400" />
+                Frameworks:
+              </span>
+              {frameworks.length > 0 ? (
+                frameworks.map((fw) => (
+                  <span
+                    key={fw}
+                    className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-950/70 border border-cyan-800/80 text-cyan-300"
+                  >
+                    {fw}
+                  </span>
+                ))
+              ) : (
+                <span className="text-[10px] font-mono text-slate-500 italic">None detected</span>
+              )}
+
+              {unsupported.map((fw) => (
+                <span
+                  key={fw}
+                  className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-950/70 border border-amber-800/80 text-amber-300"
+                >
+                  {fw} (unsupported)
+                </span>
+              ))}
+
+              <span className="text-[10px] font-mono text-slate-400 ml-auto flex items-center gap-1">
+                <Radio className="h-2.5 w-2.5 text-emerald-400" />
+                Routes: {routesCount}
+              </span>
+            </div>
+          )}
         </div>
         {selectedCategory && (
           <button

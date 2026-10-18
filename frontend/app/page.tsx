@@ -530,6 +530,7 @@ export default function RepositoryIngestionDashboard() {
           {score && score.category_scores && (
             <CategoryMatrix
               categories={score.category_scores}
+              coverage={score.coverage}
               selectedCategory={selectedCategory}
               onSelectCategory={setSelectedCategory}
             />

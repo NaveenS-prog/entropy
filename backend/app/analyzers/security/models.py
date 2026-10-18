@@ -23,6 +23,7 @@ class WebFramework(StrEnum):
     FASTIFY = "fastify"
     NEXTJS = "nextjs"
     NESTJS = "nestjs"
+    HONO = "hono"
     GENERIC = "generic"
     UNKNOWN = "unknown"
 

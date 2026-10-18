@@ -113,6 +113,18 @@ class ScoringCoverage(BaseModel):
     is_partial: bool = Field(
         default=False, description="True if critical categories (auth/authz) were not analyzed"
     )
+    detected_frameworks: list[str] = Field(
+        default_factory=list, description="All web frameworks detected in repository"
+    )
+    frameworks_with_route_support: list[str] = Field(
+        default_factory=list, description="Web frameworks detected that have route analysis support"
+    )
+    unsupported_frameworks: list[str] = Field(
+        default_factory=list, description="Web frameworks detected that lack route analysis support"
+    )
+    total_routes_detected: int = Field(
+        default=0, ge=0, description="Total HTTP routes detected across all frameworks"
+    )
 
 
 class WorstCategory(BaseModel):

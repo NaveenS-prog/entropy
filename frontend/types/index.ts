@@ -182,6 +182,10 @@ export interface ScoringCoverage {
   covered_loc: number;
   loc_coverage_percentage: number;
   is_partial: boolean;
+  detected_frameworks?: string[];
+  frameworks_with_route_support?: string[];
+  unsupported_frameworks?: string[];
+  total_routes_detected?: number;
 }
 
 export interface DebtScoreResult {

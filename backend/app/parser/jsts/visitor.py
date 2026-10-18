@@ -299,26 +299,36 @@ class JSTSAstVisitor:
 
         # Decorators
         decorators = self._extract_decorators(node)
+        if getattr(node, "parent", None) and getattr(node.parent, "type", "") == "export_statement":
+            decorators.extend(self._extract_decorators(node.parent))
 
         # Methods
         methods: list[JSFunction] = []
         body_node = self._field(node, "body")
         if body_node:
-            for item in body_node.named_children:
-                if item.type == "method_definition":
+            pending_decorators: list[str] = []
+            for item in body_node.children:
+                if item.type == "decorator":
+                    pending_decorators.append(self._node_text(item).lstrip("@").strip())
+                elif item.type == "method_definition":
                     m_name_node = self._field(item, "name")
                     m_name = self._node_text(m_name_node) if m_name_node else "anonymous"
+                    m_decs = pending_decorators + self._extract_decorators(item)
+                    pending_decorators = []
                     m_fn = self._extract_function(
                         node=item,
                         name=m_name,
                         enclosing_class=class_name,
                         is_method=True,
+                        extra_decorators=m_decs,
                     )
                     methods.append(m_fn)
                     self.structure.functions.append(m_fn)
                 elif item.type == "field_definition":
                     f_name_node = self._field(item, "property") or self._field(item, "name")
                     val_node = self._field(item, "value")
+                    m_decs = pending_decorators + self._extract_decorators(item)
+                    pending_decorators = []
                     if val_node and val_node.type in ("arrow_function", "function_expression"):
                         f_name = self._node_text(f_name_node) if f_name_node else "anonymous"
                         f_fn = self._extract_function(
@@ -326,9 +336,12 @@ class JSTSAstVisitor:
                             name=f_name,
                             enclosing_class=class_name,
                             is_method=True,
+                            extra_decorators=m_decs,
                         )
                         methods.append(f_fn)
                         self.structure.functions.append(f_fn)
+                elif item.is_named:
+                    pending_decorators = []
 
         cls = JSClass(
             name=class_name,
@@ -339,6 +352,51 @@ class JSTSAstVisitor:
             methods=methods,
         )
         self.structure.classes.append(cls)
+
+        # Detect NestJS Controller routes
+        controller_prefix: str | None = None
+        for dec in decorators:
+            cm = re.match(r"^Controller\s*(?:\(\s*['\"`]([^'\"`]*)['\"`]\s*\))?", dec)
+            if cm:
+                controller_prefix = cm.group(1) or ""
+                self.structure.frameworks.add("nestjs")
+                break
+
+        if controller_prefix is not None:
+            c_prefix = controller_prefix.strip("/")
+            for m in methods:
+                for d in m.decorators:
+                    rm = re.match(
+                        r"^(Get|Post|Put|Patch|Delete)\s*(?:\(\s*['\"`]([^'\"`]*)['\"`]\s*\))?",
+                        d,
+                        re.IGNORECASE,
+                    )
+                    if rm:
+                        http_method = rm.group(1).upper()
+                        subpath = (rm.group(2) or "").strip("/")
+                        parts = [p for p in (c_prefix, subpath) if p]
+                        full_path = "/" + "/".join(parts) if parts else "/"
+
+                        # Gather guards and roles
+                        guards: list[str] = []
+                        for dec in decorators + m.decorators:
+                            gm = re.match(r"^(?:UseGuards|Roles)\s*\(([^)]*)\)", dec)
+                            if gm:
+                                guards.extend(
+                                    [g.strip().strip("'\"`") for g in gm.group(1).split(",") if g.strip()]
+                                )
+
+                        self.structure.routes.append(
+                            JSRoute(
+                                framework="nestjs",
+                                http_method=http_method,
+                                path=full_path,
+                                handler_name=m.name,
+                                middleware=guards,
+                                location=m.location,
+                            )
+                        )
+                        break
 
     def _handle_function_declaration(self, node: Any, enclosing_class: str | None) -> None:
         """Extract a standard function declaration."""
@@ -359,6 +417,7 @@ class JSTSAstVisitor:
         enclosing_class: str | None = None,
         is_arrow: bool = False,
         is_method: bool = False,
+        extra_decorators: list[str] | None = None,
     ) -> JSFunction:
         """Construct normalized JSFunction with statements, calls, handlers, returns."""
         loc = self._node_location(node)
@@ -378,7 +437,7 @@ class JSTSAstVisitor:
                     p_text = p_text.split("=", 1)[0].strip()
                 params.append(p_text)
 
-        decorators = self._extract_decorators(node)
+        decorators = (extra_decorators or []) + self._extract_decorators(node)
 
         # Body inspection
         body_node = self._field(node, "body")
@@ -857,6 +916,8 @@ class JSTSAstVisitor:
                 self.structure.frameworks.add("fastify")
             if "@nestjs" in mod:
                 self.structure.frameworks.add("nestjs")
+            if "hono" in mod:
+                self.structure.frameworks.add("hono")
             if "next" in mod or mod.startswith("next/"):
                 self.structure.frameworks.add("nextjs")
             if "react" in mod:

@@ -72,10 +72,10 @@ def test_full_pipeline_ingestion_to_scoring(tmp_path: Path):
     tier = score_data["tier"]
     assert tier in [t.value for t in DebtScoreTier]
 
-    assert score_data["status"] == "available"
+    assert score_data["status"] == "partial"
     assert "error_handling" in score_data["analyzed_categories"]
 
-    # Category checks: error_handling must be analyzed, others not_analyzed
+    # Category checks: error_handling must be analyzed, others analyzed or not_analyzed based on framework
     category_scores = score_data["category_scores"]
     err_cat = category_scores["error_handling"]
     assert err_cat["status"] == "analyzed"
@@ -83,8 +83,8 @@ def test_full_pipeline_ingestion_to_scoring(tmp_path: Path):
     assert err_cat["finding_count"] >= 3
 
     auth_cat = category_scores["authentication_consistency"]
-    assert auth_cat["status"] == "analyzed"
-    assert auth_cat["score"] == 0.0
+    assert auth_cat["status"] == "not_analyzed"
+    assert auth_cat["score"] is None
     assert auth_cat["finding_count"] == 0
 
     dup_cat = category_scores["code_duplication"]

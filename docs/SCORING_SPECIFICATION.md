@@ -85,10 +85,23 @@ $$\text{Weighted Debt Density}_c = \frac{\text{Raw Penalty}_c}{\text{KLOC}}$$
 To ensure the category score is strictly bounded and asymptotic, a saturating exponential curve with saturation constant $K = 40.0$ (`DENSITY_SATURATION_FACTOR`) is applied to the density:
 $$\text{Category Score}_c = 100.0 \times \left( 1.0 - e^{-\frac{\text{Weighted Debt Density}_c}{40.0}} \right)$$
 
+### Step 5: Severity Floor Protection (High-Impact Defect Guarantees)
+While defect density provides scale invariance for widespread architectural debt, critical isolated defects (such as a hardcoded production credential `DB_PASSWORD` or unauthenticated admin state-mutating endpoints) must never be diluted to zero in large repositories.
+
+To guarantee that severe findings visibly impact the headline score regardless of repository size:
+- **High-Severity Floor**: Any finding with `Severity.HIGH` and `Confidence.HIGH` establishes a minimum overall tier of `MODERATE` ($\text{Score} \ge 41$).
+- **Critical-Severity Floor**: Any finding with `Severity.CRITICAL` and `Confidence.HIGH` establishes a minimum overall tier of `HIGH` ($\text{Score} \ge 61$).
+- **Multiple Critical Floor**: Two or more findings ($\ge 2$) with `Severity.CRITICAL` and `Confidence.HIGH` establish a minimum overall tier of `VERY_HIGH` ($\text{Score} \ge 81$).
+
+$$\text{Final Entropy Score} = \max(\text{Score}_{\text{density}}, \text{Severity Floor})$$
+
+The floor is applied strictly on top of the density score and **never lowers it**. In repositories without high or critical findings, pure density invariance holds across all codebase scales.
+
 ### Mathematical Guarantees
-1. **Density Invariance**: At constant defect density $\frac{\text{Raw Penalty}}{\text{KLOC}} = \rho$, $\text{Category Score} = 100 \times (1 - e^{-\rho / 40.0})$ is strictly constant for any $\text{total\_loc} \ge 200$.
-2. **Scale Floor**: In tiny repositories ($\text{LOC} < 200$), the floor prevents division by near-zero.
-3. **Monotonicity**: Adding any authentic debt finding $\Delta P > 0$ strictly increases $\text{Raw Penalty}$, which increases $\text{Weighted Debt Density}$, which increases $\text{Category Score}$.
+1. **Density Invariance**: At constant defect density $\frac{\text{Raw Penalty}}{\text{KLOC}} = \rho$ without severe floor triggers, $\text{Category Score} = 100 \times (1 - e^{-\rho / 40.0})$ is strictly constant for any $\text{total\_loc} \ge 200$.
+2. **Severity Lower Bound**: Critical security boundaries and credentials cannot be hidden by padding a codebase with thousands of benign lines.
+3. **Scale Floor**: In tiny repositories ($\text{LOC} < 200$), the floor prevents division by near-zero.
+4. **Monotonicity**: Adding any authentic debt finding $\Delta P > 0$ strictly increases or preserves $\text{Score}_{\text{density}}$ and $\text{Severity Floor}$, ensuring the overall score never decreases.
 
 ---
 

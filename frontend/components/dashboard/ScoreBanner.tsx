@@ -50,6 +50,11 @@ export function ScoreBanner({ score, repository, durationMs }: ScoreBannerProps)
                 </span>
               )}
             </div>
+            {score.severity_floor_applied && score.floor_reason && (
+              <span className="text-[10px] font-medium text-amber-300 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-700/80 mt-1 text-center max-w-[140px] leading-tight">
+                raised to {score.tier.replace("_", " ").toUpperCase()} by {score.floor_reason}
+              </span>
+            )}
           </div>
 
           <div>
@@ -60,6 +65,11 @@ export function ScoreBanner({ score, repository, durationMs }: ScoreBannerProps)
               >
                 {score.tier.replace("_", " ").toUpperCase()} DEBT
               </span>
+              {score.severity_floor_applied && score.floor_reason && (
+                <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold border bg-amber-950/70 border-amber-800 text-amber-300">
+                  RAISED TO {score.tier.replace("_", " ").toUpperCase()} BY {score.floor_reason.toUpperCase()}
+                </span>
+              )}
               {isPartial && (
                 <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold border bg-amber-950/70 border-amber-800 text-amber-300">
                   PARTIAL COVERAGE

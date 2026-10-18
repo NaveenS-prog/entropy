@@ -186,6 +186,10 @@ export interface ScoringCoverage {
 
 export interface DebtScoreResult {
   total_score: number;
+  score_density?: number;
+  severity_floor_applied?: boolean;
+  floor_reason?: string | null;
+  worst_category?: { name: string; score: number } | null;
   entropy_score?: number;
   tier: DebtScoreTier;
   status?: string;

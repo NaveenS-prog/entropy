@@ -131,8 +131,13 @@ def format_scan_text(scan: RepositoryScanResult) -> str:
         or (getattr(scan.score, "coverage", None) and scan.score.coverage.is_partial)
     )
     partial_suffix = " (partial coverage)" if is_partial else ""
-    lines.append(f"Entropy Score: {score_val} / 100{partial_suffix}")
+    floor_suffix = ""
+    if scan.score and getattr(scan.score, "severity_floor_applied", False) and getattr(scan.score, "floor_reason", None):
+        floor_suffix = f" (raised to {tier_title.upper()} by {scan.score.floor_reason})"
+    lines.append(f"Entropy Score: {score_val} / 100{partial_suffix}{floor_suffix}")
     lines.append(f"Band: {tier_title}")
+    if scan.score and getattr(scan.score, "score_density", None) is not None:
+        lines.append(f"Density Score: {scan.score.score_density} / 100")
     lines.append("")
     lines.append("Categories:")
     lines.append("")
@@ -211,6 +216,14 @@ def format_scan_json_dict(scan: RepositoryScanResult) -> dict[str, Any]:
         },
         "score": {
             "total_score": scan.score.total_score if scan.score else 0,
+            "score_density": getattr(scan.score, "score_density", 0) if scan.score else 0,
+            "severity_floor_applied": getattr(scan.score, "severity_floor_applied", False) if scan.score else False,
+            "floor_reason": getattr(scan.score, "floor_reason", None) if scan.score else None,
+            "worst_category": (
+                scan.score.worst_category.model_dump()
+                if (scan.score and getattr(scan.score, "worst_category", None) and hasattr(scan.score.worst_category, "model_dump"))
+                else (scan.score.worst_category if scan.score else None)
+            ),
             "band": scan.score.tier.value if scan.score else "unknown",
             "status": scan.score.status.value if scan.score else "unknown",
             "findings_count": len(scan.findings),

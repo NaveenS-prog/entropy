@@ -311,16 +311,17 @@ def test_zero_source_lines_loc_handling():
 def test_small_vs_large_repository_normalization():
     scorer = EntropyScorer()
     findings = [
-        _create_finding(f"f-{i}", severity=Severity.HIGH) for i in range(5)
+        _create_finding(f"f-{i}", severity=Severity.MEDIUM) for i in range(5)
     ]
 
-    # In a tiny repository (100 LOC), debt density is extreme
+    # In a tiny repository (100 LOC), debt density is higher than in a massive repository
     small_repo = scorer.calculate_score(findings=findings, total_loc=100, analyzed_files=1)
 
     # In a massive repository (100,000 LOC), identical findings are amortized
     large_repo = scorer.calculate_score(findings=findings, total_loc=100_000, analyzed_files=500)
 
     assert small_repo.total_score > large_repo.total_score
+    assert small_repo.score_density > large_repo.score_density
     assert small_repo.normalization.scale_factor < large_repo.normalization.scale_factor
 
 

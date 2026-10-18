@@ -143,6 +143,7 @@ def test_phase5_full_pipeline_and_scoring_validation(tmp_path: Path):
     assert cat_scores["logging_and_secrets"]["status"] == "analyzed"
 
     initial_total_score = score_data["total_score"]
+    initial_score_density = score_data.get("score_density", score_data["total_score"])
     initial_auth_score = cat_scores["authentication_consistency"]["score"]
 
     # --- Step 4: Fix Authentication Debt and verify score decreases ---
@@ -183,8 +184,9 @@ def test_phase5_full_pipeline_and_scoring_validation(tmp_path: Path):
     assert rescore_cats["authentication_consistency"]["score"] == 0.0
     assert rescore_cats["authentication_consistency"]["finding_count"] == 0
 
-    # Total score must have decreased
-    assert rescore_data["total_score"] < initial_total_score
+    # Score density must have decreased; total score may be floor-bounded by remaining admin authorization defect
+    assert rescore_data["score_density"] < initial_score_density
+    assert rescore_data["total_score"] <= initial_total_score
 
     # --- Step 5: Fix all remaining debt and verify 0 score ---
     # Fix error handling

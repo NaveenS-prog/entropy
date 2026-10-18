@@ -115,6 +115,13 @@ class ScoringCoverage(BaseModel):
     )
 
 
+class WorstCategory(BaseModel):
+    """Details of the category with the highest debt penalty."""
+
+    name: str = Field(..., description="Debt category name")
+    score: float = Field(..., description="Debt score of the worst category")
+
+
 class DebtScoreResult(BaseModel):
     """Comprehensive, explainable Entropy Debt Score result.
 
@@ -123,6 +130,10 @@ class DebtScoreResult(BaseModel):
     """
 
     total_score: int = Field(..., ge=0, le=100, description="Final aggregated debt score (0-100)")
+    score_density: int = Field(default=0, ge=0, le=100, description="Pure density-based debt score before severity floors")
+    severity_floor_applied: bool = Field(default=False, description="Whether a severity floor raised the headline score")
+    floor_reason: str | None = Field(default=None, description="Explanation of why the severity floor was applied")
+    worst_category: WorstCategory | None = Field(default=None, description="Category with the highest debt score")
     tier: DebtScoreTier = Field(..., description="Product interpretation category")
     status: ScoringStatus = Field(default=ScoringStatus.AVAILABLE, description="Scoring availability status")
     coverage: ScoringCoverage | None = Field(

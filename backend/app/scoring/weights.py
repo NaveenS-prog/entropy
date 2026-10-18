@@ -92,3 +92,13 @@ SENSITIVE_ROUTE_TERMS: set[str] = {
     "token",
 }
 
+
+# =============================================================================
+# Severity Floor Constants
+# =============================================================================
+# High-confidence severe findings establish a lower bound on the overall score
+# and tier so that critical defects are never diluted by large codebase volume.
+SEVERITY_FLOOR_MODERATE_SCORE: int = 41    # Minimum score for MODERATE tier (>= 1 HIGH finding with HIGH confidence)
+SEVERITY_FLOOR_HIGH_SCORE: int = 61        # Minimum score for HIGH tier (>= 1 CRITICAL finding with HIGH confidence)
+SEVERITY_FLOOR_VERY_HIGH_SCORE: int = 81   # Minimum score for VERY_HIGH tier (>= 2 CRITICAL findings with HIGH confidence)
+

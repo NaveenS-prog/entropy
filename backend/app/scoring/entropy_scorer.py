@@ -13,7 +13,7 @@ Strict Invariants:
 
 from __future__ import annotations
 
-from app.models.domain.enums import DebtCategory, Severity
+from app.models.domain.enums import Confidence, DebtCategory, Severity
 from app.models.domain.finding import Finding
 from app.scoring.bands import clamp_score, classify_score_band
 from app.scoring.category_scorer import CategoryScorer, category_scorer
@@ -24,12 +24,16 @@ from app.scoring.models import (
     RuleContribution,
     ScoringCoverage,
     ScoringStatus,
+    WorstCategory,
 )
 from app.scoring.normalizer import ScoreNormalizer, normalizer
 from app.scoring.weights import (
     CATEGORY_WEIGHTS,
     DENSITY_SATURATION_FACTOR,
     MIN_LOC_FLOOR,
+    SEVERITY_FLOOR_HIGH_SCORE,
+    SEVERITY_FLOOR_MODERATE_SCORE,
+    SEVERITY_FLOOR_VERY_HIGH_SCORE,
 )
 
 # Default analyzed categories across the 7 Entropy debt categories
@@ -142,7 +146,68 @@ class EntropyScorer:
         else:
             audit_trail.append("Warning: No active analyzed categories configured. Total score set to 0.")
 
-        final_score = clamp_score(total_weighted_score)
+        score_density = clamp_score(total_weighted_score)
+
+        # Identify the worst scoring category
+        worst_category: WorstCategory | None = None
+        max_cat_score = -1.0
+        worst_cat_name = None
+        for cat in active_cats:
+            cb = category_breakdowns.get(cat)
+            if cb and cb.score is not None:
+                if cb.score > max_cat_score:
+                    max_cat_score = cb.score
+                    worst_cat_name = cat.value
+        if worst_cat_name is not None and max_cat_score >= 0:
+            worst_category = WorstCategory(name=worst_cat_name, score=round(max_cat_score, 1))
+
+        # Evaluate severity floors from high-confidence critical/high findings
+        crit_high_conf = [
+            f for f in findings
+            if f.category in active_cats and f.severity == Severity.CRITICAL and f.confidence == Confidence.HIGH
+        ]
+        high_high_conf = [
+            f for f in findings
+            if f.category in active_cats and f.severity == Severity.HIGH and f.confidence == Confidence.HIGH
+        ]
+
+        floor_score = 0
+        floor_candidate_reason = None
+
+        if len(crit_high_conf) >= 2:
+            floor_score = SEVERITY_FLOOR_VERY_HIGH_SCORE
+            rules = sorted({f.rule_id for f in crit_high_conf})
+            rules_str = ", ".join(rules[:2])
+            floor_candidate_reason = f"{len(crit_high_conf)} CRITICAL findings ({rules_str}) in {crit_high_conf[0].file}"
+        elif len(crit_high_conf) == 1:
+            floor_score = SEVERITY_FLOOR_HIGH_SCORE
+            f = crit_high_conf[0]
+            floor_candidate_reason = f"1 CRITICAL finding ({f.rule_id}) in {f.file}"
+        elif len(high_high_conf) >= 1:
+            floor_score = SEVERITY_FLOOR_MODERATE_SCORE
+            f = high_high_conf[0]
+            count_str = f"{len(high_high_conf)} HIGH finding{'s' if len(high_high_conf) > 1 else ''}"
+            rules = sorted({f.rule_id for f in high_high_conf})
+            rules_str = ", ".join(rules[:2])
+            floor_candidate_reason = f"{count_str} ({rules_str}) in {f.file}"
+
+        if floor_score > score_density:
+            final_score = floor_score
+            severity_floor_applied = True
+            floor_reason = floor_candidate_reason
+            audit_trail.append(
+                f"Severity floor applied: {floor_reason}. "
+                f"Headline score raised from density score {score_density} to {final_score}."
+            )
+        else:
+            final_score = score_density
+            severity_floor_applied = False
+            floor_reason = None
+            audit_trail.append(
+                f"Severity floor check: density score {score_density} maintained (floor: {floor_score})."
+            )
+
+        final_score = clamp_score(final_score)
         tier = classify_score_band(final_score)
 
         # Aggregate severity breakdown
@@ -174,9 +239,11 @@ class EntropyScorer:
         )
 
         formula_summary = (
-            "Entropy_Score = Round( Σ (Category_Score_i × (Weight_i / Σ Active_Weights)) ), where "
-            f"Category_Score = 100 × (1 - exp(-Weighted_Debt_Density / {DENSITY_SATURATION_FACTOR})) and "
-            f"Weighted_Debt_Density = Raw_Penalty / (max(LOC, {MIN_LOC_FLOOR}) / 1000.0)"
+            "Entropy_Score = max(Score_Density, Severity_Floor), where "
+            "Score_Density = Round( Σ (Category_Score_i × (Weight_i / Σ Active_Weights)) ), "
+            f"Category_Score = 100 × (1 - exp(-Weighted_Debt_Density / {DENSITY_SATURATION_FACTOR})), "
+            f"Weighted_Debt_Density = Raw_Penalty / (max(LOC, {MIN_LOC_FLOOR}) / 1000.0), and "
+            f"Severity_Floor = {floor_score} ({floor_candidate_reason or 'None'})"
         )
 
         # Determine if scoring is partial coverage:
@@ -194,11 +261,16 @@ class EntropyScorer:
 
         audit_trail.append(
             f"Final Aggregated Entropy Score: {final_score}/100 ({tier.label}). "
+            f"Score density: {score_density}/100. "
             f"Status: {status.value.upper()}. Fully deterministic and evidence-backed."
         )
 
         return DebtScoreResult(
             total_score=final_score,
+            score_density=score_density,
+            severity_floor_applied=severity_floor_applied,
+            floor_reason=floor_reason,
+            worst_category=worst_category,
             tier=tier,
             status=status,
             coverage=coverage,

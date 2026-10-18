@@ -111,3 +111,15 @@ With Phase 5 active:
 2. If zero auth/authz findings are detected, their category scores are strictly `0.0`.
 3. Categories not yet implemented (`input_validation`, `logging_and_secrets`, `code_duplication`, `architectural_consistency`) remain `NOT_ANALYZED` with `null` scores.
 4. Total repository entropy score monotonically scales with the weighted density of findings across all active categories.
+
+---
+
+## 7. Middleware Execution Ordering, Scoping, and Evidence Confidence
+
+Entropy enforces strict structural realism when analyzing middleware in Express, Fastify, and NestJS:
+
+1. **Ordering Realism**: `app.use()` and `router.use()` middleware calls only apply to routes registered *after* the middleware statement (determined by AST line numbers). Routes defined prior to the middleware registration are analyzed without that middleware protection.
+2. **Mount-Path Scoping**: Middleware mounted to a path (e.g. `app.use('/api', auth)`) protects only endpoints matching or nested under that path.
+3. **Pass-Through Inspection**: Middleware functions defined in the same file are inspected for actual security checks (tokens, sessions, headers, `req.user`). Functions that merely call `next()` or return without performing checks are flagged as no-op pass-throughs and discarded from authentication evidence.
+4. **Unresolved / Imported Middleware Confidence**: When middleware is imported or unresolved within the source file, name-based pattern matching assigns `Confidence.MEDIUM`. Name-only evidence is never reported as `Confidence.HIGH`.
+

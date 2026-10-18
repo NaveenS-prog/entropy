@@ -103,10 +103,25 @@ Entropy's Phase 11 rules integrate directly into the existing debt categories an
 
 ---
 
-## 4. Pipeline & Persistence Integration
+## 4. Express & Fastify Middleware Analysis
+
+Entropy inspects framework middleware registrations with deterministic AST precision:
+
+### A. Registration Ordering & Mount Path Scoping
+- **Registration Order**: In Express and similar frameworks, middleware executes strictly in registration order. Entropy tracks line numbers: `app.use(requireAuth)` only protects routes defined **after** the registration call. Routes defined prior to `app.use()` are evaluated without that middleware.
+- **Mount Scoping**: Middleware registered with a mount path prefix (e.g. `app.use('/api', auth)`) is strictly scoped to routes under `/api` (or matching `/api/*`). Routes outside that prefix are not considered protected by that middleware.
+
+### B. Pass-Through Middleware vs. Real Security Checks
+- **Trivial Pass-Through Inspection**: When a middleware identifier resolves to a local function (or arrow function), Entropy performs AST body inspection. Functions that simply call `next()` or `return next()` without inspecting headers, cookies, tokens, sessions, or `req.user` are discarded as no-op pass-throughs and do **not** constitute authentication evidence.
+- **Unresolved / Imported Middleware (MEDIUM Confidence)**: When a middleware identifier is imported from another module or cannot be resolved locally, Entropy retains name-based heuristic evidence but sets its confidence to `Confidence.MEDIUM`. Name-only evidence is never reported as `Confidence.HIGH`.
+
+---
+
+## 5. Pipeline & Persistence Integration
 
 All JS/TS findings participate identically in:
 1. **Finding Fingerprinting**: Stable SHA-256 fingerprints ensure identical findings retain consistent IDs across scans.
 2. **Entropy Scoring**: Scores are calibrated identically across Python, JavaScript, and TypeScript components based on severity and category weights.
 3. **Scan History & Diff Intelligence (Phase 10)**: Differential analysis seamlessly computes `new_findings`, `resolved_findings`, and `persisted_findings` across commits regardless of language.
 4. **AI Explanation & Remediation (Phase 7)**: Findings trigger targeted, prompt-injection-safe remediation suggestions via the unified AI service.
+

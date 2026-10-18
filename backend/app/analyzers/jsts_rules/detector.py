@@ -7,7 +7,9 @@ Express, Fastify, and Next.js applications.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from app.analyzers.jsts_context import JSTSASTContext
 from app.analyzers.security.models import (
@@ -93,8 +95,150 @@ PUBLIC_MIDDLEWARE_PATTERNS = [
 ]
 
 
+@dataclass
+class FileMiddlewareRegistration:
+    callee: str
+    caller_object: str | None
+    middleware_name: str
+    mount_path: str | None
+    line_start: int
+    line_end: int
+    is_auth: bool
+    is_authz: bool
+    confidence: Confidence
+    details: str
+
+
 class JSFrameworkRouteDetector:
     """Extracts normalized EndpointDefinitions from parsed JavaScript/TypeScript AST contexts."""
+
+    @classmethod
+    def _is_trivial_passthrough(cls, body_text: str) -> bool:
+        """Return True if function body is trivially a pass-through (only calls next()/returns without checks)."""
+        cleaned = re.sub(r"/\*.*?\*/", "", body_text, flags=re.DOTALL)
+        cleaned = re.sub(r"//.*", "", cleaned)
+        cleaned = cleaned.strip()
+
+        # Check for presence of real security, token, session, header, user access or conditionals
+        has_security_check = any(
+            term in cleaned.lower()
+            for term in (
+                "token",
+                "jwt",
+                "session",
+                "header",
+                "headers",
+                "req.user",
+                "request.user",
+                "req.auth",
+                "request.auth",
+                "status(401)",
+                "status(403)",
+                "401",
+                "403",
+                "unauthorized",
+                "forbidden",
+                "if (",
+                "if(",
+                "throw ",
+                "reject(",
+                "catch",
+                "cookie",
+                "cookies",
+                "bearer",
+            )
+        )
+        if has_security_check:
+            return False
+
+        # If no security checks or conditions, inspect if it just returns or calls next()
+        norm = re.sub(r"[\s{};()]+", "", cleaned.lower())
+        return norm in ("next", "returnnext", "return", "")
+
+    @classmethod
+    def _register_file_middleware(
+        cls,
+        context: JSTSASTContext,
+        mw_name: str,
+        call: Any,
+        mount_path: str | None,
+        registrations: list[FileMiddlewareRegistration],
+    ) -> None:
+        mw_lower = mw_name.lower()
+        is_auth_name = any(re.search(p, mw_lower) for p in AUTH_MIDDLEWARE_PATTERNS)
+        is_authz_name = any(re.search(p, mw_lower) for p in AUTHZ_MIDDLEWARE_PATTERNS)
+
+        # Check if mw is an inline function
+        is_inline_fn = mw_name.startswith("(") or mw_name.startswith("function") or "=>" in mw_name
+        if is_inline_fn:
+            if cls._is_trivial_passthrough(mw_name):
+                return
+            registrations.append(
+                FileMiddlewareRegistration(
+                    callee=call.callee,
+                    caller_object=call.caller_object,
+                    middleware_name="inline_middleware",
+                    mount_path=mount_path,
+                    line_start=call.location.line_start,
+                    line_end=call.location.line_end,
+                    is_auth=True,
+                    is_authz=is_authz_name,
+                    confidence=Confidence.HIGH,
+                    details=f"Inline middleware verified with AST inspection applied via {call.callee}",
+                )
+            )
+            return
+
+        # Check if identifier can be resolved in the same file
+        fn = context.get_function(mw_name)
+        if fn is not None:
+            if cls._is_trivial_passthrough(fn.body_text):
+                return
+            is_auth = (
+                is_auth_name
+                or any(re.search(p, fn.body_text.lower()) for p in INLINE_AUTH_PATTERNS)
+                or "jwt" in fn.body_text.lower()
+                or "token" in fn.body_text.lower()
+            )
+            is_authz = (
+                is_authz_name
+                or any(re.search(p, fn.body_text.lower()) for p in INLINE_AUTHZ_PATTERNS)
+                or "role" in fn.body_text.lower()
+                or "admin" in fn.body_text.lower()
+            )
+            if is_auth or is_authz:
+                registrations.append(
+                    FileMiddlewareRegistration(
+                        callee=call.callee,
+                        caller_object=call.caller_object,
+                        middleware_name=mw_name,
+                        mount_path=mount_path,
+                        line_start=call.location.line_start,
+                        line_end=call.location.line_end,
+                        is_auth=is_auth,
+                        is_authz=is_authz,
+                        confidence=Confidence.HIGH,
+                        details=f"Middleware '{mw_name}' verified with AST body inspection applied via {call.callee}",
+                    )
+                )
+            return
+
+        # Unresolved identifier (imported from another module)
+        if is_auth_name or is_authz_name:
+            registrations.append(
+                FileMiddlewareRegistration(
+                    callee=call.callee,
+                    caller_object=call.caller_object,
+                    middleware_name=mw_name,
+                    mount_path=mount_path,
+                    line_start=call.location.line_start,
+                    line_end=call.location.line_end,
+                    is_auth=is_auth_name,
+                    is_authz=is_authz_name,
+                    confidence=Confidence.MEDIUM,
+                    details=f"Name-only middleware '{mw_name}' (imported or unresolved in this file); confidence lowered to MEDIUM",
+                )
+            )
 
     @classmethod
     def extract_endpoints(cls, context: JSTSASTContext) -> list[EndpointDefinition]:
@@ -103,52 +247,36 @@ class JSFrameworkRouteDetector:
         if not routes:
             return []
 
-        # Check for file-level auth middleware in Express: e.g. app.use(auth) or router.use(auth)
-        file_level_auth: list[AuthenticationEvidence] = []
-        file_level_authz: list[AuthorizationEvidence] = []
+        # Collect file-level middleware registrations in order
+        file_middleware_regs: list[FileMiddlewareRegistration] = []
 
         for call in context.get_calls():
             if call.method_name == "use" and call.caller_object:
                 caller_lower = call.caller_object.lower()
                 if any(k in caller_lower for k in ("app", "router", "server")):
-                    for arg in call.arguments:
-                        arg_lower = arg.lower()
-                        if any(re.search(p, arg_lower) for p in AUTH_MIDDLEWARE_PATTERNS):
-                            loc = SourceLocation(
-                                line_start=call.location.line_start,
-                                line_end=call.location.line_end,
-                                col_offset=call.location.col_start,
-                                end_col_offset=call.location.col_end,
-                            )
-                            file_level_auth.append(
-                                AuthenticationEvidence(
-                                    mechanism_type=AuthMechanismType.MIDDLEWARE_REFERENCE,
-                                    source_location=loc,
-                                    endpoint="*",
-                                    guard_name=arg,
-                                    evidence_kind="file_middleware",
-                                    confidence=Confidence.HIGH,
-                                    details=f"File-level middleware '{arg}' applied via {call.callee}",
-                                )
-                            )
-                        if any(re.search(p, arg_lower) for p in AUTHZ_MIDDLEWARE_PATTERNS):
-                            loc = SourceLocation(
-                                line_start=call.location.line_start,
-                                line_end=call.location.line_end,
-                                col_offset=call.location.col_start,
-                                end_col_offset=call.location.col_end,
-                            )
-                            file_level_authz.append(
-                                AuthorizationEvidence(
-                                    mechanism_type=AuthzMechanismType.ROLE_CHECK,
-                                    source_location=loc,
-                                    endpoint="*",
-                                    role_or_permission=arg,
-                                    evidence_kind="file_middleware",
-                                    confidence=Confidence.HIGH,
-                                    details=f"File-level authorization middleware '{arg}' applied via {call.callee}",
-                                )
-                            )
+                    args = list(call.arguments)
+                    if not args:
+                        continue
+                    mount_path: str | None = None
+                    first_arg = args[0].strip()
+                    if (
+                        (first_arg.startswith("'") or first_arg.startswith('"') or first_arg.startswith("`"))
+                        and (first_arg.strip("'\"`").startswith("/") or first_arg.strip("'\"`") == "*")
+                    ):
+                        mount_path = first_arg.strip("'\"`")
+                        mw_args = args[1:]
+                    else:
+                        mw_args = args
+
+                    for arg in mw_args:
+                        arg_clean = arg.strip().strip("'\"`")
+                        cls._register_file_middleware(
+                            context=context,
+                            mw_name=arg_clean,
+                            call=call,
+                            mount_path=mount_path,
+                            registrations=file_middleware_regs,
+                        )
 
         for route in routes:
             framework = cls._map_framework(route.framework)
@@ -169,9 +297,63 @@ class JSFrameworkRouteDetector:
             # Route group calculation
             route_group = cls._compute_route_group(route.path, context.file_path)
 
-            # Evidence collection
-            auth_evidence = list(file_level_auth)
-            authz_evidence = list(file_level_authz)
+            # Evidence collection: apply file-level middleware only to routes registered AFTER it and within mount path
+            auth_evidence: list[AuthenticationEvidence] = []
+            authz_evidence: list[AuthorizationEvidence] = []
+
+            for reg in file_middleware_regs:
+                # Registration order check
+                if route.location.line_start <= reg.line_start:
+                    continue
+                # Mount path check
+                if reg.mount_path:
+                    m_path = reg.mount_path.rstrip("/")
+                    r_path = route.path.rstrip("/")
+                    if m_path != "*" and not (r_path == m_path or r_path.startswith(m_path + "/")):
+                        continue
+
+                mw_loc = SourceLocation(
+                    line_start=reg.line_start,
+                    line_end=reg.line_end,
+                    col_offset=0,
+                    end_col_offset=0,
+                )
+                if reg.is_auth:
+                    auth_evidence.append(
+                        AuthenticationEvidence(
+                            mechanism_type=AuthMechanismType.MIDDLEWARE_REFERENCE,
+                            source_location=mw_loc,
+                            endpoint=route.path,
+                            guard_name=reg.middleware_name,
+                            evidence_kind="file_middleware",
+                            confidence=reg.confidence,
+                            details=reg.details,
+                        )
+                    )
+                if reg.is_authz:
+                    authz_evidence.append(
+                        AuthorizationEvidence(
+                            mechanism_type=AuthzMechanismType.ROLE_CHECK,
+                            source_location=mw_loc,
+                            endpoint=route.path,
+                            role_or_permission=reg.middleware_name,
+                            evidence_kind="file_middleware",
+                            confidence=reg.confidence,
+                            details=reg.details,
+                        )
+                    )
+                    if not reg.is_auth:
+                        auth_evidence.append(
+                            AuthenticationEvidence(
+                                mechanism_type=AuthMechanismType.MIDDLEWARE_REFERENCE,
+                                source_location=mw_loc,
+                                endpoint=route.path,
+                                guard_name=reg.middleware_name,
+                                evidence_kind="authz_implied_auth",
+                                confidence=reg.confidence,
+                                details=f"Authorization middleware '{reg.middleware_name}' implies authenticated caller",
+                            )
+                        )
 
             # If NestJS route, inspect class- and method-level decorators
             if route.framework == "nestjs":
@@ -256,10 +438,93 @@ class JSFrameworkRouteDetector:
             # Check middleware on route
             for mw in route.middleware:
                 mw_lower = mw.lower()
-                is_auth_mw = any(re.search(p, mw_lower) for p in AUTH_MIDDLEWARE_PATTERNS)
-                is_authz_mw = any(re.search(p, mw_lower) for p in AUTHZ_MIDDLEWARE_PATTERNS)
+                is_auth_name = any(re.search(p, mw_lower) for p in AUTH_MIDDLEWARE_PATTERNS)
+                is_authz_name = any(re.search(p, mw_lower) for p in AUTHZ_MIDDLEWARE_PATTERNS)
 
-                if is_auth_mw:
+                is_inline_fn = mw.startswith("(") or mw.startswith("function") or "=>" in mw
+                if is_inline_fn:
+                    if cls._is_trivial_passthrough(mw):
+                        continue
+                    auth_evidence.append(
+                        AuthenticationEvidence(
+                            mechanism_type=AuthMechanismType.MIDDLEWARE_REFERENCE,
+                            source_location=loc,
+                            endpoint=route.path,
+                            guard_name="inline_middleware",
+                            evidence_kind="route_middleware",
+                            confidence=Confidence.HIGH,
+                            details="Inline route middleware verified with AST inspection",
+                        )
+                    )
+                    if is_authz_name:
+                        authz_evidence.append(
+                            AuthorizationEvidence(
+                                mechanism_type=AuthzMechanismType.ROLE_CHECK,
+                                source_location=loc,
+                                endpoint=route.path,
+                                role_or_permission="inline_middleware",
+                                evidence_kind="route_middleware",
+                                confidence=Confidence.HIGH,
+                                details="Inline authorization middleware verified with AST inspection",
+                            )
+                        )
+                    continue
+
+                fn = context.get_function(mw)
+                if fn is not None:
+                    if cls._is_trivial_passthrough(fn.body_text):
+                        continue
+                    is_auth = (
+                        is_auth_name
+                        or any(re.search(p, fn.body_text.lower()) for p in INLINE_AUTH_PATTERNS)
+                        or "jwt" in fn.body_text.lower()
+                        or "token" in fn.body_text.lower()
+                    )
+                    is_authz = (
+                        is_authz_name
+                        or any(re.search(p, fn.body_text.lower()) for p in INLINE_AUTHZ_PATTERNS)
+                        or "role" in fn.body_text.lower()
+                        or "admin" in fn.body_text.lower()
+                    )
+                    if is_auth:
+                        auth_evidence.append(
+                            AuthenticationEvidence(
+                                mechanism_type=AuthMechanismType.MIDDLEWARE_REFERENCE,
+                                source_location=loc,
+                                endpoint=route.path,
+                                guard_name=mw,
+                                evidence_kind="route_middleware",
+                                confidence=Confidence.HIGH,
+                                details=f"Route middleware '{mw}' verified with AST body inspection",
+                            )
+                        )
+                    if is_authz:
+                        authz_evidence.append(
+                            AuthorizationEvidence(
+                                mechanism_type=AuthzMechanismType.ROLE_CHECK,
+                                source_location=loc,
+                                endpoint=route.path,
+                                role_or_permission=mw,
+                                evidence_kind="route_middleware",
+                                confidence=Confidence.HIGH,
+                                details=f"Route authorization middleware '{mw}' verified with AST body inspection",
+                            )
+                        )
+                        if not is_auth:
+                            auth_evidence.append(
+                                AuthenticationEvidence(
+                                    mechanism_type=AuthMechanismType.MIDDLEWARE_REFERENCE,
+                                    source_location=loc,
+                                    endpoint=route.path,
+                                    guard_name=mw,
+                                    evidence_kind="authz_implied_auth",
+                                    confidence=Confidence.HIGH,
+                                    details=f"Authorization middleware '{mw}' implies authenticated caller",
+                                )
+                            )
+                    continue
+
+                if is_auth_name:
                     auth_evidence.append(
                         AuthenticationEvidence(
                             mechanism_type=AuthMechanismType.MIDDLEWARE_REFERENCE,
@@ -267,11 +532,11 @@ class JSFrameworkRouteDetector:
                             endpoint=route.path,
                             guard_name=mw,
                             evidence_kind="route_middleware",
-                            confidence=Confidence.HIGH,
-                            details=f"Route middleware '{mw}' enforces authentication",
+                            confidence=Confidence.MEDIUM,
+                            details=f"Name-only route middleware '{mw}' (imported or unresolved in this file); confidence lowered to MEDIUM",
                         )
                     )
-                if is_authz_mw:
+                if is_authz_name:
                     authz_evidence.append(
                         AuthorizationEvidence(
                             mechanism_type=AuthzMechanismType.ROLE_CHECK,
@@ -279,12 +544,11 @@ class JSFrameworkRouteDetector:
                             endpoint=route.path,
                             role_or_permission=mw,
                             evidence_kind="route_middleware",
-                            confidence=Confidence.HIGH,
-                            details=f"Route middleware '{mw}' enforces authorization",
+                            confidence=Confidence.MEDIUM,
+                            details=f"Name-only authorization middleware '{mw}' (imported or unresolved in this file); confidence lowered to MEDIUM",
                         )
                     )
-                    # Authz middleware (e.g. requireAdmin) also inherently verifies authentication
-                    if not is_auth_mw:
+                    if not is_auth_name:
                         auth_evidence.append(
                             AuthenticationEvidence(
                                 mechanism_type=AuthMechanismType.MIDDLEWARE_REFERENCE,
@@ -292,7 +556,7 @@ class JSFrameworkRouteDetector:
                                 endpoint=route.path,
                                 guard_name=mw,
                                 evidence_kind="authz_implied_auth",
-                                confidence=Confidence.HIGH,
+                                confidence=Confidence.MEDIUM,
                                 details=f"Authorization middleware '{mw}' implies authenticated caller",
                             )
                         )

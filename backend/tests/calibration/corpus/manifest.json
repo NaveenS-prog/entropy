@@ -1,0 +1,119 @@
+{
+  "description": "Real, independently authored calibration and held-out corpus for Entropy scoring validation.",
+  "projects": [
+    {
+      "name": "express-auth-clean",
+      "type": "clean",
+      "set": "tuning",
+      "language": "javascript",
+      "repo": "expressjs/express",
+      "commit_sha": "0dee2c52c7c873498f8ed7d8ee4ddd0a04d3ada8",
+      "license": "MIT",
+      "description": "Official Express authentication example with bcrypt hashing and session middleware.",
+      "relative_dir": "express-auth-clean",
+      "files": [
+        "index.js"
+      ]
+    },
+    {
+      "name": "fastapi-security-clean",
+      "type": "clean",
+      "set": "tuning",
+      "language": "python",
+      "repo": "fastapi/fastapi",
+      "commit_sha": "3070b5105fe02c4afdba5e3aea6c2cf2e3796c7f",
+      "license": "MIT",
+      "description": "Official FastAPI OAuth2 security tutorial module with JWT validation, password hashing, and dependency injection.",
+      "relative_dir": "fastapi-security-clean",
+      "files": [
+        "security.py"
+      ]
+    },
+    {
+      "name": "vulnerable-flask",
+      "type": "vulnerable",
+      "set": "tuning",
+      "language": "python",
+      "repo": "we45/Vulnerable-Flask-App",
+      "commit_sha": "b6a4f97afd466e83e1f60781494252dec1c37039",
+      "license": "MIT",
+      "description": "Deliberately vulnerable Flask app exhibiting SQL injection, unauthenticated routes, and command execution.",
+      "relative_dir": "vulnerable-flask",
+      "files": [
+        "app.py"
+      ]
+    },
+    {
+      "name": "dvna-vulnerable",
+      "type": "vulnerable",
+      "set": "tuning",
+      "language": "javascript",
+      "repo": "appsecco/dvna",
+      "commit_sha": "9ba473add536f66ac9007966acb2a775dd31277a",
+      "license": "MIT",
+      "description": "Damn Vulnerable NodeJS Application routes and handlers with SQL injection and missing route authorization.",
+      "relative_dir": "dvna-vulnerable",
+      "files": [
+        "app.js",
+        "main.js",
+        "appHandler.js"
+      ]
+    },
+    {
+      "name": "fastapi-clean-oauth2",
+      "type": "clean",
+      "set": "held_out",
+      "language": "python",
+      "repo": "fastapi/fastapi",
+      "commit_sha": "3070b5105fe02c4afdba5e3aea6c2cf2e3796c7f",
+      "license": "MIT",
+      "description": "Official FastAPI password flow tutorial module with OAuth2PasswordBearer and User dependency injection.",
+      "relative_dir": "fastapi-clean-oauth2",
+      "files": [
+        "tutorial.py"
+      ]
+    },
+    {
+      "name": "nestjs-auth-clean",
+      "type": "clean",
+      "set": "held_out",
+      "language": "typescript",
+      "repo": "nestjs/nest",
+      "commit_sha": "c8923bd7c9a0768593ecf623432ce2eca271c2b2",
+      "license": "MIT",
+      "description": "Official NestJS authentication JWT controller with @Public() decorator and guard enforcement.",
+      "relative_dir": "nestjs-auth-clean",
+      "files": [
+        "auth.controller.ts"
+      ]
+    },
+    {
+      "name": "hackable-flask-vulnerable",
+      "type": "vulnerable",
+      "set": "held_out",
+      "language": "python",
+      "repo": "JasonHinds13/hackable",
+      "commit_sha": "c7b971ed55b74a5695d14212a6e4df9188c3f035",
+      "license": "MIT",
+      "description": "Deliberately vulnerable Flask web API with raw SQL query concatenation and missing authentication.",
+      "relative_dir": "hackable-flask-vulnerable",
+      "files": [
+        "main.py"
+      ]
+    },
+    {
+      "name": "juice-shop-vulnerable",
+      "type": "vulnerable",
+      "set": "held_out",
+      "language": "typescript",
+      "repo": "juice-shop/juice-shop",
+      "commit_sha": "399fba76194305a312693eee44f4df64bdf0c3ce",
+      "license": "MIT",
+      "description": "OWASP Juice Shop server routes with unauthenticated administrative endpoints and privileged state mutation.",
+      "relative_dir": "juice-shop-vulnerable",
+      "files": [
+        "server.ts"
+      ]
+    }
+  ]
+}

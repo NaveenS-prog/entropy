@@ -50,7 +50,7 @@ FRAMEWORK_DEPENDENCY_TYPES = {
 
 # SQL keyword patterns for sink detection
 SQL_KEYWORDS = re.compile(
-    r"\b(SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM|DROP\s+TABLE|ALTER\s+TABLE|UNION\s+SELECT)\b",
+    r"\b(SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|UNION)\b",
     re.IGNORECASE,
 )
 
@@ -241,10 +241,14 @@ def _extract_input_profile(
                     if isinstance(tgt, ast.Name):
                         input_vars.add(tgt.id)
             elif any(re.search(rf"\b{re.escape(iv)}\b", val_str) for iv in input_vars):
-                if SQL_KEYWORDS.search(val_str) and (
+                has_sql = bool(SQL_KEYWORDS.search(val_str)) or any(k in val_str.upper() for k in ("FROM", "WHERE", "SELECT", "DELETE", "INSERT", "UPDATE"))
+                is_interpolated = (
                     isinstance(node.value, ast.JoinedStr)
                     or (isinstance(node.value, ast.BinOp) and isinstance(node.value.op, (ast.Add, ast.Mod)))
-                ):
+                    or (isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Attribute) and node.value.func.attr == "format")
+                    or (isinstance(node.value, ast.Call) and getattr(node.value.func, "id", "") in ("text", "raw", "literal", "sql"))
+                )
+                if has_sql and is_interpolated:
                     for tgt in node.targets:
                         if isinstance(tgt, ast.Name):
                             input_vars.add(tgt.id)
@@ -283,16 +287,34 @@ def _extract_input_profile(
                 continue
 
             # Sink A: SQL Query execution with string interpolation or concatenation
-            if any(method in call_expr for method in ("execute", "raw", "select")) or "cursor" in call_expr:
+            is_sql_call = (
+                any(method in call_expr for method in ("execute", "raw", "select", "query", "run", "fetch", "all", "get"))
+                or any(k in call_expr for k in ("cursor", "db", "session", "conn", "connection", "engine", "client", "sql"))
+            )
+            if is_sql_call:
+                # Target can be the arg itself or wrapped in text(...) / raw(...)
+                target_arg = call_arg
+                if isinstance(target_arg, ast.Call):
+                    fname = ast.unparse(target_arg.func).lower() if hasattr(ast, "unparse") else ""
+                    if fname in ("text", "raw", "literal", "sql") and target_arg.args:
+                        target_arg = target_arg.args[0]
+
+                target_str = ast.unparse(target_arg) if hasattr(ast, "unparse") else ""
+                has_sql_kw = bool(SQL_KEYWORDS.search(target_str)) or any(k in target_str.upper() for k in ("FROM", "WHERE", "SELECT", "DELETE", "INSERT", "UPDATE"))
+
                 is_direct_interpolated = (
-                    isinstance(call_arg, ast.JoinedStr)
-                    or (isinstance(call_arg, ast.BinOp) and isinstance(call_arg.op, (ast.Add, ast.Mod)))
-                ) and bool(SQL_KEYWORDS.search(arg_str))
-                is_tainted_var = isinstance(call_arg, ast.Name) and call_arg.id in tainted_sql_vars
+                    (
+                        isinstance(target_arg, ast.JoinedStr)
+                        or (isinstance(target_arg, ast.BinOp) and isinstance(target_arg.op, (ast.Add, ast.Mod)))
+                        or (isinstance(target_arg, ast.Call) and isinstance(target_arg.func, ast.Attribute) and target_arg.func.attr == "format")
+                    )
+                    and has_sql_kw
+                )
+                is_tainted_var = isinstance(target_arg, ast.Name) and target_arg.id in tainted_sql_vars
 
                 if is_direct_interpolated or is_tainted_var:
-                    loc_node = call_arg if not is_tainted_var else tainted_sql_vars[call_arg.id][0]
-                    detail_str = arg_str if not is_tainted_var else tainted_sql_vars[call_arg.id][1]
+                    loc_node = target_arg if not is_tainted_var else tainted_sql_vars[target_arg.id][0]
+                    detail_str = target_str if not is_tainted_var else tainted_sql_vars[target_arg.id][1]
                     sink_evidence.append(
                         InputValidationEvidence(
                             source_location=SourceLocation.from_node(loc_node),

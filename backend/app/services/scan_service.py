@@ -12,6 +12,7 @@ from app.core.logging import logger
 from app.models.domain.enums import ScanStatus, SupportedLanguage
 from app.models.domain.scan import RepositoryMetadata, RepositoryScanResult
 from app.parser.base import BaseParser, ParsedFile
+from app.parser.jsts.parser import JSTSParser
 from app.parser.python_ast import PythonAstParser
 from app.persistence.database import scan_db
 from app.repository.discoverer import RepositoryDiscoverer
@@ -36,7 +37,7 @@ class ScanService:
         self.registry = registry or default_registry
         self.scoring = scoring or scoring_engine
         self.discoverer = RepositoryDiscoverer()
-        self.parsers: list[BaseParser] = [PythonAstParser()]
+        self.parsers: list[BaseParser] = [PythonAstParser(), JSTSParser()]
         # Shared scan store
         self._scans: dict[str, RepositoryScanResult] = _scans_store
 

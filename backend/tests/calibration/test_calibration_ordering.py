@@ -1,9 +1,8 @@
-"""Calibration ordering and score sensitivity tests.
+"""Hand-written regression fixtures for rapid score monotonicity testing.
 
-Verifies:
-1. Monotonicity of architectural quality: Clean App < Mildly Messy App < Insecure App.
-2. Insecure Python FastAPI app lands in at least the MODERATE debt band (score >= 41).
-3. Parity and consistency across languages where features are analyzed.
+Note: Authoritative empirical calibration is performed against the held-out real
+open-source corpus in test_corpus_calibration.py. These small hand-written fixtures
+are preserved as fast regression sanity checks.
 """
 
 from __future__ import annotations

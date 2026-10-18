@@ -3,6 +3,7 @@ target-version = "py311"
 exclude = [
     ".venv",
     "tests/fixtures",
+    "tests/calibration/corpus",
 ]
 
 [lint]

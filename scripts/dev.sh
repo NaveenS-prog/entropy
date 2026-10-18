@@ -15,6 +15,7 @@ trap cleanup EXIT
 
 echo "Starting Backend on http://localhost:8000..."
 cd "$DIR/backend"
+export ENTROPY_ALLOW_LOCALHOST_NO_KEY=true
 PYTHONPATH=. .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload &
 BACKEND_PID=$!
 

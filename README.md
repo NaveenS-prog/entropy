@@ -69,11 +69,15 @@ Entropy provides built-in enterprise API security controls configured via enviro
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
-| `ENTROPY_API_KEY` | *(None)* | Secret API key. When set, all `/api/v1` routes (except `/health` and HMAC-validated GitHub webhooks) require the `X-API-Key` header. When unset, requests are restricted to `localhost` (`127.0.0.1`, `::1`). |
-| `SCAN_ALLOWED_ROOTS` | `["."]` | Whitelist of directory paths permitted for local repository scans. Any target path resolving outside these roots returns a `400 Bad Request` (`SECURITY_VIOLATION`). |
+| `ENTROPY_API_KEY` | *(None)* | Secret API key verified with constant-time comparison (`hmac.compare_digest`). When set, all `/api/v1` routes (except `/health` and HMAC-validated GitHub webhooks) require the `X-API-Key` header. |
+| `ENTROPY_ALLOW_LOCALHOST_NO_KEY` | `false` (server) / `true` (CLI, `dev.sh`) | When `ENTROPY_API_KEY` is not set, enables access for localhost callers (`127.0.0.1`, `::1`). When `false`, all protected requests return `401 Unauthorized`. |
+| `ENTROPY_SCAN_ALLOWED_ROOTS` | `["."]` | Whitelist of directory paths permitted for repository scanning. Accepts: (1) single plain path `/var/repos`, (2) comma-separated `/a, /b`, or (3) JSON array `'["/a", "/b"]'`. Any target path resolving outside these roots returns a `400 Bad Request` (`SECURITY_VIOLATION`) without echoing internal paths. |
 | `ENTROPY_AI_PROVIDER` | `gemini` | AI reasoning provider. Keys are transmitted via `x-goog-api-key` headers and never leaked in URLs or logs. |
 
-> **CLI Note**: The CLI runs locally as the invoking user and operates with the user's local filesystem permissions. For automated server deployments, `SCAN_ALLOWED_ROOTS` enforces strict filesystem isolation.
+> [!CAUTION]
+> **Reverse Proxy Boundary**: Behind a reverse proxy (e.g. Nginx, Traefik), the peer IP is the proxy itself (often `127.0.0.1`). Entropy does not read `X-Forwarded-For` for authentication decisions. In production behind a reverse proxy, you must set `ENTROPY_API_KEY` and keep `ENTROPY_ALLOW_LOCALHOST_NO_KEY=false`.
+
+> **CLI Note**: The CLI runs locally as the invoking user and operates with the user's local filesystem permissions. For automated server deployments, `ENTROPY_SCAN_ALLOWED_ROOTS` enforces strict filesystem isolation.
 
 ---
 

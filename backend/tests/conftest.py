@@ -18,6 +18,8 @@ ENV_VARS_TO_CLEAR = [
     "GEMINI_API_KEY",
     "API_KEY",
     "ENTROPY_API_KEY",
+    "ALLOW_LOCALHOST_NO_KEY",
+    "ENTROPY_ALLOW_LOCALHOST_NO_KEY",
     "SCAN_ALLOWED_ROOTS",
     "ENTROPY_SCAN_ALLOWED_ROOTS",
 ]
@@ -36,6 +38,7 @@ def hermetic_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "GITHUB_WEBHOOK_SECRET", None)
     monkeypatch.setattr(settings, "AI_API_KEY", None)
     monkeypatch.setattr(settings, "API_KEY", None)
+    monkeypatch.setattr(settings, "ALLOW_LOCALHOST_NO_KEY", False)
 
     import tempfile
 
@@ -53,3 +56,20 @@ def hermetic_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "SCAN_ALLOWED_ROOTS",
         [str(Path.cwd().resolve()), tempfile.gettempdir(), temp_root],
     )
+
+
+@pytest.fixture(autouse=True)
+def test_client_auth_override(request: pytest.FixtureRequest):
+    """Override verify_api_key dependency for standard test suites unless testing security specifically."""
+    from app.api.v1.security import verify_api_key
+    from app.main import app
+
+    if "test_api_security" in request.node.nodeid:
+        yield
+        return
+
+    app.dependency_overrides[verify_api_key] = lambda: True
+    try:
+        yield
+    finally:
+        app.dependency_overrides.pop(verify_api_key, None)

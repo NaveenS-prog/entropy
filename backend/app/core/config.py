@@ -1,10 +1,10 @@
 """Entropy core configuration settings."""
 
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import AliasChoices, Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -27,7 +27,12 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("API_KEY", "ENTROPY_API_KEY"),
         description="API key for securing API v1 endpoints",
     )
-    SCAN_ALLOWED_ROOTS: list[str] = Field(
+    ALLOW_LOCALHOST_NO_KEY: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("ALLOW_LOCALHOST_NO_KEY", "ENTROPY_ALLOW_LOCALHOST_NO_KEY"),
+        description="Allow localhost access without API key when no key is configured",
+    )
+    SCAN_ALLOWED_ROOTS: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: [str(Path.cwd().resolve())],
         validation_alias=AliasChoices("SCAN_ALLOWED_ROOTS", "ENTROPY_SCAN_ALLOWED_ROOTS"),
         description="Allowed root directory paths for repository scanning",
@@ -37,17 +42,22 @@ class Settings(BaseSettings):
     @classmethod
     def parse_allowed_roots(cls, v: Any) -> list[str]:
         if isinstance(v, str):
-            import json
             v_str = v.strip()
-            if v_str.startswith("[") and v_str.endswith("]"):
+            if not v_str:
+                return []
+            if v_str.startswith("["):
+                import json
                 try:
-                    return [str(p) for p in json.loads(v_str)]
-                except Exception:
-                    pass
+                    parsed = json.loads(v_str)
+                    if isinstance(parsed, list):
+                        return [str(p).strip() for p in parsed if str(p).strip()]
+                    raise ValueError(f"JSON array expected for allowed roots, got {type(parsed).__name__}")
+                except json.JSONDecodeError as exc:
+                    raise ValueError(f"Invalid JSON array for allowed roots: {exc}") from exc
             return [p.strip() for p in v_str.split(",") if p.strip()]
         if isinstance(v, (list, tuple)):
-            return [str(p) for p in v]
-        return [str(Path.cwd().resolve())]
+            return [str(p).strip() for p in v if str(p).strip()]
+        raise ValueError(f"Expected list or string for allowed roots, got {type(v).__name__}")
 
     # Analysis Defaults
     # Ingestion & Scanner Limits

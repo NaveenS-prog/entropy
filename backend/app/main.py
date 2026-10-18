@@ -38,7 +38,19 @@ setup_logging()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not settings.API_KEY:
-        logger.warning("No ENTROPY_API_KEY configured; allowing requests only from localhost")
+        if settings.ALLOW_LOCALHOST_NO_KEY:
+            logger.warning(
+                "SECURITY WARNING: ENTROPY_API_KEY is not configured! "
+                "Localhost fallback is ENABLED (ENTROPY_ALLOW_LOCALHOST_NO_KEY=true). "
+                "Requests from localhost are accepted without authentication. "
+                "CRITICAL: Behind a reverse proxy, the client peer address is the proxy, "
+                "meaning external requests may bypass authentication. DO NOT use this mode in production!"
+            )
+        else:
+            logger.warning(
+                "SECURITY NOTICE: ENTROPY_API_KEY is not configured and ENTROPY_ALLOW_LOCALHOST_NO_KEY=false. "
+                "All protected API endpoints will reject requests with 401 Unauthorized."
+            )
     yield
 
 
@@ -97,7 +109,7 @@ async def repository_security_handler(request: Request, exc: RepositorySecurityE
     logger.warning("Repository security boundary violation: %s", exc)
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
-        content={"detail": str(exc), "error_code": "SECURITY_VIOLATION"},
+        content={"detail": "path is outside the allowed scan roots", "error_code": "SECURITY_VIOLATION"},
     )
 
 

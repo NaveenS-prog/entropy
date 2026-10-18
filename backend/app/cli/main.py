@@ -16,8 +16,12 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import sys
 import time
+
+# Ensure CLI workflows allow localhost operations by default
+os.environ.setdefault("ENTROPY_ALLOW_LOCALHOST_NO_KEY", "true")
 from pathlib import Path
 from typing import Any
 

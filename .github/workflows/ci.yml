@@ -41,6 +41,15 @@ jobs:
           cd backend
           pytest -q
 
+      - name: Run Calibration Corpus Validation (if corpus present)
+        run: |
+          cd backend
+          if [ -d "tests/calibration/corpus" ] && [ -f "tests/calibration/corpus/manifest.json" ]; then
+            pytest -q tests/calibration/test_corpus_calibration.py
+          else
+            echo "Calibration corpus not present; skipping."
+          fi
+
   frontend:
     name: Frontend (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
@@ -58,7 +67,6 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
-          cache-directory: frontend
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install Frontend Dependencies

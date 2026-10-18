@@ -46,20 +46,37 @@ Entropy uses **weighted defect density per 1,000 lines of code (KLOC)** combined
 
 1. **Heuristic Indicator, Not Vulnerability Proof**:
    The Entropy score is a static heuristic measuring structural debt, inconsistency, and attack surface exposure. It is **not** a CVE vulnerability scanner, penetration testing tool, or runtime exploit verifier. Scores should not be compared directly against tools measuring different properties (such as DAST tools or dependency CVE counts).
-2. **Supported Languages**:
-   | Analyzer Category | Supported Languages | Supported Frameworks |
+
+2. **Analyzer Capabilities, Languages, and Frameworks**:
+   | Analyzer Category | Supported Languages | Supported Frameworks & Analyzed Constructs |
    | :--- | :--- | :--- |
-   | **Error Handling** | Python, JavaScript, TypeScript | Standard AST syntax |
-   | **Authentication Consistency** | Python, JavaScript, TypeScript | FastAPI, Flask, Django, Express, Fastify, Next.js |
-   | **Authorization Consistency** | Python, JavaScript, TypeScript | FastAPI, Flask, Django, Express, Fastify, Next.js |
-   | **Input Validation** | Python, JavaScript, TypeScript | Standard request params to sensitive sinks |
-   | **Logging & Secrets** | Python, JavaScript, TypeScript | Standard logging & credential patterns |
-   | **Architectural Consistency** | Python, JavaScript, TypeScript | Import dependencies, layering |
-   | **Code Duplication** | Python, JavaScript, TypeScript | Subtree fingerprinting |
+   | **Error Handling** | Python, JavaScript, TypeScript | Try/catch/except, empty catch blocks, swallowed errors, unhandled rejections |
+   | **Authentication Consistency** | Python, JavaScript, TypeScript | **Python**: FastAPI (Depends, Security), Flask (@login_required), Django (@login_required, FBVs/CBVs)<br>**JS/TS**: Express (middleware, route guards), Fastify (hooks/preHandler), Next.js (middleware, API routes), Hono (c.get('user'), middleware), NestJS (@Controller, @UseGuards, @Public) |
+   | **Authorization Consistency** | Python, JavaScript, TypeScript | **Python**: FastAPI (Scopes, role dependencies), Flask (role decorators), Django (permission checks)<br>**JS/TS**: Express (role middleware), Fastify (role hooks), Next.js (RBAC), Hono (role checks), NestJS (@Roles, @UseGuards) |
+   | **Input Validation** | Python, JavaScript, TypeScript | **Python**: Pydantic schemas, raw SQL string concatenation / f-strings / %-formatting in `cursor.execute`, `session.execute(text(...))`, `db.run`<br>**JS/TS**: Zod, Joi, Yup, SQL template string / concatenation injection detection |
+   | **Logging & Secrets** | Python, JavaScript, TypeScript | Secret regex patterns, high Shannon entropy string literals (>3.2), unredacted sensitive logging |
+   | **Architectural Consistency** | Python, JavaScript, TypeScript | Circular module dependencies, import layer violations |
+   | **Code Duplication** | Python, JavaScript, TypeScript | AST subtree fingerprinting across functions and methods |
 
    *Languages not listed above (e.g., Go, Rust, Java, C++) are not currently analyzed by the rule engine.*
-3. **Partial Coverage Transparency**:
-   When scanning a repository containing files in unsupported languages, unanalyzed categories receive a status of `NOT_ANALYZED` with a `null` score, and are excluded from weight calculation. If **Authentication** or **Authorization** cannot be analyzed, the overall result status is explicitly marked **`PARTIAL`** ("Partial Coverage") to guarantee that missing analyzer coverage is never mistaken for a clean codebase.
+
+3. **Headline Score Severity Floor**:
+   To prevent severe security findings from being obscured in large repositories (where high line counts would dilute pure defect density to near 0) or diluted by clean categories in the weighted average, Entropy enforces a **Severity Floor**:
+   - Any `HIGH`-severity finding with `HIGH` confidence sets a minimum overall tier of **MODERATE** (score $\ge 41$).
+   - Any `CRITICAL`-severity finding with `HIGH` confidence sets a minimum overall tier of **HIGH** (score $\ge 61$).
+   - Multiple `CRITICAL` findings set a minimum overall tier of **VERY_HIGH** (score $\ge 81$).
+   - The floor strictly elevates the headline score and never lowers it. Pure density is always calculated and surfaced alongside as `score_density`.
+
+4. **Middleware Analysis Limits & Realism**:
+   - **Registration Ordering**: In Express/Fastify, `app.use()` and `router.use()` only protect routes registered *after* the middleware declaration. Routes declared prior to `app.use()` are evaluated without that middleware.
+   - **Mount-Path Scoping**: Middleware registered with a mount path prefix (e.g., `app.use('/api', auth)`) applies exclusively to routes under `/api`.
+   - **Trivial Pass-Through Inspection**: When middleware is defined in the same file, Entropy inspects its AST body. Functions that trivially call `next()` or return without inspecting headers, cookies, tokens, sessions, or `req.user` are discarded as no-op pass-throughs and do not count as authentication evidence.
+   - **Imported Middleware (MEDIUM Confidence)**: When middleware is imported from external modules and cannot be AST-resolved in-file, Entropy falls back to name-based pattern matching (`auth`, `jwt`, `session`) with `Confidence.MEDIUM`. Name-only evidence is never reported as `Confidence.HIGH`.
+
+5. **Framework Coverage & Unsupported Framework Behavior (NestJS, Koa, etc.)**:
+   - **NestJS Support**: Fully supported with class-level `@Controller` prefixes, HTTP method decorators (`@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`), and guard evidence (`@UseGuards`, `@Roles`, `@Public`).
+   - **Unsupported Web Frameworks**: If a repository contains Python or JS/TS web code but imports an unsupported framework (e.g., Koa, Hapi, Restify, Adonis, Sails), Authentication and Authorization are marked `NOT_ANALYZED` with an explicit reason naming the framework (e.g., *"koa detected, not supported (supported: express, fastify, nextjs, hono, nestjs)"*) and overall scan status is set to **`PARTIAL`**.
+   - **Pure Libraries**: Repositories containing source code but no HTTP routes report *"No HTTP routes detected; authentication/authorization analysis skipped"* rather than silently reporting a clean 0 score.
 
 ---
 

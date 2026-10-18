@@ -76,8 +76,16 @@ def _run_single_scan_pipeline(
     Returns the updated RepositoryScanResult and the findings.
     """
     path_str = str(repo_path)
-    # 1. Execute ingestion / discovery
-    scan = repository_service.execute_scan(repo_path=path_str, repo_name=repo_name)
+    # 1. Execute ingestion / discovery.
+    # Architectural Decision: SCAN_ALLOWED_ROOTS boundary validation is enforced on the API
+    # server to protect the host against arbitrary directory traversal via network requests.
+    # For local CLI executions, the process runs locally with the user's explicit OS permissions,
+    # so check_allowed_roots=False is specified here.
+    scan = repository_service.execute_scan(
+        repo_path=path_str,
+        repo_name=repo_name,
+        check_allowed_roots=False,
+    )
 
     # 2. Execute static AST analysis across all registered analyzers
     findings = analysis_service.analyze_scan(

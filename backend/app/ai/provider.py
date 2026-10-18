@@ -138,6 +138,12 @@ class GeminiProvider:
         self.max_tokens = max_tokens or settings.AI_MAX_TOKENS
         self.prompt_version = settings.AI_PROMPT_VERSION
 
+    def _sanitize(self, text: str) -> str:
+        """Strip API key from log or error message string."""
+        if self.api_key and self.api_key in text:
+            return text.replace(self.api_key, "[REDACTED]")
+        return text
+
     async def generate_explanation(
         self,
         finding_id: str,
@@ -148,7 +154,11 @@ class GeminiProvider:
                 "Gemini API key is not configured. Set ENTROPY_AI_API_KEY or AI_API_KEY."
             )
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
+        headers = {
+            "x-goog-api-key": self.api_key,
+            "Content-Type": "application/json",
+        }
         user_prompt = build_user_prompt(context)
 
         payload: dict[str, Any] = {
@@ -171,7 +181,7 @@ class GeminiProvider:
 
         try:
             async with httpx.AsyncClient(timeout=float(self.timeout)) as client:
-                response = await client.post(url, json=payload)
+                response = await client.post(url, headers=headers, json=payload)
 
             if response.status_code == 429:
                 raise AIProviderUnavailableError("Gemini rate limit exceeded. Please retry later.")
@@ -180,7 +190,7 @@ class GeminiProvider:
                     f"Gemini service unavailable (HTTP {response.status_code})"
                 )
             elif response.status_code >= 400:
-                error_body = response.text
+                error_body = self._sanitize(response.text)
                 raise AIProviderError(
                     f"Gemini API returned error status {response.status_code}: {error_body}"
                 )
@@ -212,17 +222,27 @@ class GeminiProvider:
             )
 
         except httpx.TimeoutException as exc:
-            logger.warning("Gemini API call timed out after %ds: %s", self.timeout, exc)
-            raise AIProviderTimeoutError(f"AI provider request timed out after {self.timeout}s") from exc
+            msg = self._sanitize(f"Gemini API call timed out after {self.timeout}s: {exc}")
+            logger.warning("%s", msg)
+            raise AIProviderTimeoutError(f"AI provider request timed out after {self.timeout}s") from None
         except (httpx.ConnectError, httpx.NetworkError) as exc:
-            logger.warning("Gemini network error: %s", exc)
-            raise AIProviderUnavailableError(f"Network error connecting to AI provider: {exc}") from exc
+            msg = self._sanitize(f"Network error connecting to AI provider: {exc}")
+            logger.warning("%s", msg)
+            raise AIProviderUnavailableError(msg) from None
         except json.JSONDecodeError as exc:
-            logger.warning("Failed to decode JSON from Gemini output: %s", exc)
-            raise AIProviderMalformedResponseError(f"AI provider returned malformed JSON: {exc}") from exc
+            msg = self._sanitize(f"Failed to decode JSON from Gemini output: {exc}")
+            logger.warning("%s", msg)
+            raise AIProviderMalformedResponseError(msg) from None
         except ValidationError as exc:
-            logger.warning("Validation failed for AIExplanation: %s", exc)
-            raise AIProviderMalformedResponseError(f"Response validation failed: {exc}") from exc
+            msg = self._sanitize(f"Validation failed for AIExplanation: {exc}")
+            logger.warning("%s", msg)
+            raise AIProviderMalformedResponseError(msg) from None
+        except AIProviderError:
+            raise
+        except Exception as exc:
+            msg = self._sanitize(f"Unexpected error communicating with AI provider: {exc}")
+            logger.warning("%s", msg)
+            raise AIProviderError(msg) from None
 
 
 def get_ai_provider() -> AIProvider:

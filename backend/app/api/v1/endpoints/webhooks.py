@@ -77,7 +77,7 @@ async def github_webhook(
             logger.exception("Error processing pull_request webhook: %s", exc)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"PR analysis workflow failed: {exc}",
+                detail="An internal error occurred while processing the pull request webhook.",
             ) from exc
 
     return {"status": "ignored", "event": event_name}

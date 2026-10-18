@@ -4,6 +4,7 @@ import os
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+from app.core.config import settings
 from app.core.errors import (
     RepositoryNotADirectoryError,
     RepositoryNotFoundError,
@@ -38,11 +39,17 @@ class RepositorySource(ABC):
 class LocalRepositorySource(RepositorySource):
     """Local filesystem repository source with strict security validation."""
 
-    def __init__(self, path: str | Path, name: str | None = None):
+    def __init__(
+        self,
+        path: str | Path,
+        name: str | None = None,
+        check_allowed_roots: bool = True,
+    ):
         if not path or not str(path).strip():
             raise RepositoryNotFoundError("Repository path cannot be empty.")
         self.raw_path = str(path).strip()
         self.custom_name = name
+        self.check_allowed_roots = check_allowed_roots
         self._resolved_path: Path | None = None
 
     def validate(self) -> None:
@@ -61,6 +68,26 @@ class LocalRepositorySource(RepositorySource):
         # Check read access permissions
         if not os.access(resolved, os.R_OK):
             raise RepositoryPermissionError(f"Permission denied: Unable to read directory {resolved}")
+
+        # Check allowed roots boundary
+        if self.check_allowed_roots:
+            allowed_roots = [
+                Path(r).resolve()
+                for r in (settings.SCAN_ALLOWED_ROOTS or [Path.cwd()])
+            ]
+            is_allowed = False
+            for root in allowed_roots:
+                try:
+                    resolved.relative_to(root)
+                    is_allowed = True
+                    break
+                except ValueError:
+                    pass
+            if not is_allowed:
+                raise RepositorySecurityError(
+                    f"Repository path '{resolved}' is not inside allowed roots: "
+                    f"{[str(r) for r in allowed_roots]}"
+                )
 
         self._resolved_path = resolved
 

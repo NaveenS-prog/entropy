@@ -1,7 +1,6 @@
-"""API endpoints for repository ingestion and manifest operations."""
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from fastapi import APIRouter, HTTPException, Query, status
-
+from app.api.v1.security import is_authenticated_caller
 from app.comparison.models import RepositoryTrendResponse
 from app.comparison.service import comparison_service
 from app.models.domain.manifest import RepositoryManifest
@@ -58,6 +57,7 @@ def get_repository_scans(
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
     status: str | None = Query(default=None, description="Filter by status (e.g. completed, failed)"),
     branch: str | None = Query(default=None, description="Filter by branch name"),
+    is_authenticated: bool = Depends(is_authenticated_caller),
 ) -> PaginatedScanSnapshots:
     """List historical scan snapshots for a repository with pagination, newest first."""
     resolved_repo_id = _resolve_repository_id(repository_id)
@@ -70,6 +70,10 @@ def get_repository_scans(
         status=status,
         branch=branch,
     )
+
+    if not is_authenticated:
+        for item in items:
+            item.repo_path = item.repo_name
 
     total_pages = (total + page_size - 1) // page_size if total > 0 else 0
 

@@ -50,9 +50,10 @@ class RepositoryService:
         self,
         repo_path: str,
         repo_name: str | None = None,
+        check_allowed_roots: bool = True,
     ) -> RepositoryScanResult:
         """Execute a safe repository scan, record state transitions, and return the result."""
-        source = LocalRepositorySource(repo_path, repo_name)
+        source = LocalRepositorySource(repo_path, repo_name, check_allowed_roots=check_allowed_roots)
 
         # Pre-validate source to fail fast on invalid paths or permissions
         try:

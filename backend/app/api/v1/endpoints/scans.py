@@ -2,8 +2,9 @@
 
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.api.v1.security import is_authenticated_caller
 from app.comparison.models import ScanComparisonResult
 from app.comparison.service import comparison_service
 from app.models.domain.manifest import RepositoryManifest
@@ -38,15 +39,14 @@ def trigger_scan(request: ScanCreateRequest) -> ScanDetailResponse:
 
 
 @router.get("", response_model=list[ScanSummaryResponse])
-def list_scans() -> list[ScanSummaryResponse]:
+def list_scans(is_authenticated: bool = Depends(is_authenticated_caller)) -> list[ScanSummaryResponse]:
     """Retrieve all completed scans."""
-    scans = scan_service.list_scans()
     scans = repository_service.list_scans()
     return [
         ScanSummaryResponse(
             scan_id=s.scan_id,
             repo_name=s.repository.name,
-            repo_path=s.repository.path,
+            repo_path=s.repository.path if is_authenticated else s.repository.name,
             branch=s.repository.branch,
             commit_hash=s.repository.commit_hash,
             status=s.status,

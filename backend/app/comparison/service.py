@@ -21,10 +21,9 @@ from app.comparison.models import (
 from app.models.domain.enums import DebtCategory, DebtScoreTier
 from app.models.domain.finding import Finding
 from app.models.domain.scan import RepositoryScanResult
-from app.persistence.database import ScanDatabase, scan_db
 
 if TYPE_CHECKING:
-    pass
+    from app.persistence.database import ScanDatabase
 
 logger = logging.getLogger("entropy.comparison")
 
@@ -43,7 +42,18 @@ class ComparisonService:
     """Deterministic comparison engine comparing two persisted repository scans."""
 
     def __init__(self, db: ScanDatabase | None = None) -> None:
-        self.db = db or scan_db
+        self._db = db
+
+    @property
+    def db(self) -> ScanDatabase:
+        if self._db is None:
+            from app.persistence.database import scan_db
+            return scan_db
+        return self._db
+
+    @db.setter
+    def db(self, val: ScanDatabase | None) -> None:
+        self._db = val
 
     def compare_scans(
         self,

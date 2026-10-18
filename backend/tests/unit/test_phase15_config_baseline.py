@@ -244,12 +244,20 @@ def test_config_rule_suppression(clean_repo: Path):
     assert score.total_score == 0
 
 
-def test_invalid_rule_id_in_inline_suppression_raises():
-    """Unrecognized rule ID in inline suppression must raise ValueError."""
-    code = "try:\n    pass\nexcept Exception:  # entropy: ignore[NON_EXISTENT_RULE]\n    pass\n"
+def test_invalid_rule_id_in_inline_suppression_does_not_abort(caplog):
+    """Unrecognized rule ID in inline suppression must log a warning and not abort valid suppressions."""
+    code = (
+        "try:\n"
+        "    pass\n"
+        "except Exception:  # entropy: ignore[NON_EXISTENT_RULE, ENT-ERR-001]\n"
+        "    pass\n"
+    )
     valid_rules = get_valid_rule_ids()
-    with pytest.raises(ValueError, match="Unknown rule ID 'NON_EXISTENT_RULE'"):
-        extract_inline_suppressions(code, "test.py", valid_rules=valid_rules)
+    with caplog.at_level("WARNING"):
+        suppressions = extract_inline_suppressions(code, "test.py", valid_rules=valid_rules)
+    assert len(suppressions) == 1
+    assert suppressions[0].rule_ids == ["ENT-ERR-001"]
+    assert "NON_EXISTENT_RULE" in caplog.text
 
 
 # -----------------------------------------------------------------------------

@@ -1,11 +1,14 @@
 """Main FastAPI application entrypoint for Entropy."""
 
-from fastapi import FastAPI, HTTPException, Query, Request, status
+from contextlib import asynccontextmanager
+
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.endpoints.repositories import _resolve_repository_id
 from app.api.v1.router import api_router
+from app.api.v1.security import is_authenticated_caller, verify_api_key
 from app.comparison.models import RepositoryTrendResponse, ScanComparisonResult
 from app.comparison.service import comparison_service
 from app.core.config import settings
@@ -31,6 +34,14 @@ from app.services.repository_service import repository_service
 
 setup_logging()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if not settings.API_KEY:
+        logger.warning("No ENTROPY_API_KEY configured; allowing requests only from localhost")
+    yield
+
+
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.VERSION,
@@ -40,6 +51,7 @@ app = FastAPI(
     ),
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # Configure CORS for local development and dashboard communication
@@ -129,6 +141,7 @@ app.include_router(api_router, prefix=settings.API_V1_PREFIX)
     response_model=ScanDetailResponse,
     status_code=status.HTTP_201_CREATED,
     tags=["Repositories"],
+    dependencies=[Depends(verify_api_key)],
 )
 def root_scan_repository(request: ScanCreateRequest) -> ScanDetailResponse:
     """Ingest a repository via top-level endpoint."""
@@ -151,7 +164,7 @@ def root_scan_repository(request: ScanCreateRequest) -> ScanDetailResponse:
     )
 
 
-@app.get("/scans/{scan_id}", response_model=ScanDetailResponse, tags=["Scans"])
+@app.get("/scans/{scan_id}", response_model=ScanDetailResponse, tags=["Scans"], dependencies=[Depends(verify_api_key)])
 def root_get_scan(scan_id: str) -> ScanDetailResponse:
     """Retrieve scan details via top-level endpoint."""
     scan_result = repository_service.get_scan(scan_id)
@@ -175,7 +188,7 @@ def root_get_scan(scan_id: str) -> ScanDetailResponse:
     )
 
 
-@app.get("/scans/{scan_id}/manifest", response_model=RepositoryManifest, tags=["Scans"])
+@app.get("/scans/{scan_id}/manifest", response_model=RepositoryManifest, tags=["Scans"], dependencies=[Depends(verify_api_key)])
 def root_get_manifest(scan_id: str) -> RepositoryManifest:
     """Retrieve repository manifest via top-level endpoint."""
     manifest = repository_service.get_manifest(scan_id)
@@ -187,7 +200,7 @@ def root_get_manifest(scan_id: str) -> RepositoryManifest:
     return manifest
 
 
-@app.get("/scans/{scan_id}/findings", response_model=list[Finding], tags=["Scans"])
+@app.get("/scans/{scan_id}/findings", response_model=list[Finding], tags=["Scans"], dependencies=[Depends(verify_api_key)])
 def root_get_findings(
     scan_id: str,
     category: DebtCategory | None = None,
@@ -205,19 +218,20 @@ def root_get_findings(
     )
 
 
-@app.get("/scans/{scan_id}/score", response_model=DebtScoreResult, tags=["Scans"])
+@app.get("/scans/{scan_id}/score", response_model=DebtScoreResult, tags=["Scans"], dependencies=[Depends(verify_api_key)])
 def root_get_score(scan_id: str) -> DebtScoreResult:
     """Retrieve or compute the Entropy Debt Score via top-level endpoint."""
     return scoring_service.get_score(scan_id)
 
 
-@app.get("/repositories/{repository_id}/scans", response_model=PaginatedScanSnapshots, tags=["Repositories"])
+@app.get("/repositories/{repository_id}/scans", response_model=PaginatedScanSnapshots, tags=["Repositories"], dependencies=[Depends(verify_api_key)])
 def root_get_repository_scans(
     repository_id: str,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     status: str | None = Query(default=None),
     branch: str | None = Query(default=None),
+    is_authenticated: bool = Depends(is_authenticated_caller),
 ) -> PaginatedScanSnapshots:
     """Retrieve paginated scan history for a repository."""
     resolved_id = _resolve_repository_id(repository_id)
@@ -229,6 +243,9 @@ def root_get_repository_scans(
         status=status,
         branch=branch,
     )
+    if not is_authenticated:
+        for item in items:
+            item.repo_path = item.repo_name
     total_pages = (total + page_size - 1) // page_size if total > 0 else 0
     return PaginatedScanSnapshots(
         items=items,
@@ -239,14 +256,14 @@ def root_get_repository_scans(
     )
 
 
-@app.get("/repositories/{repository_id}/trend", response_model=RepositoryTrendResponse, tags=["Repositories"])
+@app.get("/repositories/{repository_id}/trend", response_model=RepositoryTrendResponse, tags=["Repositories"], dependencies=[Depends(verify_api_key)])
 def root_get_repository_trend(repository_id: str) -> RepositoryTrendResponse:
     """Retrieve chronological score trend for a repository."""
     resolved_id = _resolve_repository_id(repository_id)
     return comparison_service.build_repository_trend(resolved_id)
 
 
-@app.get("/scans/{current_scan_id}/compare/{previous_scan_id}", response_model=ScanComparisonResult, tags=["Scans"])
+@app.get("/scans/{current_scan_id}/compare/{previous_scan_id}", response_model=ScanComparisonResult, tags=["Scans"], dependencies=[Depends(verify_api_key)])
 def root_compare_scans(current_scan_id: str, previous_scan_id: str) -> ScanComparisonResult:
     """Compare two scans via top-level endpoint."""
     current_scan = repository_service.get_scan(current_scan_id)

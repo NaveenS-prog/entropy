@@ -1,8 +1,9 @@
 """Entropy core configuration settings."""
 
 from pathlib import Path
+from typing import Any
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,6 +20,34 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ]
+
+    # API Security & Ingestion Boundaries
+    API_KEY: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("API_KEY", "ENTROPY_API_KEY"),
+        description="API key for securing API v1 endpoints",
+    )
+    SCAN_ALLOWED_ROOTS: list[str] = Field(
+        default_factory=lambda: [str(Path.cwd().resolve())],
+        validation_alias=AliasChoices("SCAN_ALLOWED_ROOTS", "ENTROPY_SCAN_ALLOWED_ROOTS"),
+        description="Allowed root directory paths for repository scanning",
+    )
+
+    @field_validator("SCAN_ALLOWED_ROOTS", mode="before")
+    @classmethod
+    def parse_allowed_roots(cls, v: Any) -> list[str]:
+        if isinstance(v, str):
+            import json
+            v_str = v.strip()
+            if v_str.startswith("[") and v_str.endswith("]"):
+                try:
+                    return [str(p) for p in json.loads(v_str)]
+                except Exception:
+                    pass
+            return [p.strip() for p in v_str.split(",") if p.strip()]
+        if isinstance(v, (list, tuple)):
+            return [str(p) for p in v]
+        return [str(Path.cwd().resolve())]
 
     # Analysis Defaults
     # Ingestion & Scanner Limits

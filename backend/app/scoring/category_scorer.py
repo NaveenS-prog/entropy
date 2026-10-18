@@ -35,6 +35,7 @@ class CategoryScorer:
         is_analyzed: bool,
         total_loc: int = 0,
         analyzed_files: int = 0,
+        unanalyzed_explanation: str | None = None,
     ) -> CategoryScoreBreakdown:
         """Score a single debt category.
 
@@ -45,6 +46,10 @@ class CategoryScorer:
 
         # Unanalyzed Category: Never fabricate data
         if not is_analyzed:
+            explanation = unanalyzed_explanation or (
+                f"No static analyzer implemented for {category.display_name} yet (scheduled for future phase). "
+                f"Does not contribute to current Entropy score."
+            )
             return CategoryScoreBreakdown(
                 category=category,
                 status=CategoryAnalysisStatus.NOT_ANALYZED,
@@ -55,10 +60,7 @@ class CategoryScorer:
                 weighted_score=0.0,
                 raw_deduction=0.0,
                 normalized_penalty=0.0,
-                explanation=(
-                    f"No static analyzer implemented for {category.display_name} yet (scheduled for future phase). "
-                    f"Does not contribute to current Entropy score."
-                ),
+                explanation=explanation,
                 top_rules=[],
             )
 
@@ -98,7 +100,7 @@ class CategoryScorer:
             )
         top_rules.sort(key=lambda r: (r.weighted_points, r.finding_count), reverse=True)
 
-        # Normalize score
+        # Normalize score via density model
         norm_result = self.normalizer.normalize_category_penalty(
             raw_penalty=raw_penalty,
             total_loc=total_loc,
@@ -120,7 +122,7 @@ class CategoryScorer:
                 f"Med: {severity_counts[Severity.MEDIUM]}, "
                 f"Low: {severity_counts[Severity.LOW]}). "
                 f"Raw penalty: {raw_penalty:.2f} pts; "
-                f"Scale-normalized penalty: {norm_result.normalized_penalty:.2f} pts. "
+                f"Weighted debt density: {norm_result.weighted_debt_density:.2f} pts/KLOC. "
                 f"Category score: {category_score:.1f}/100."
             )
 

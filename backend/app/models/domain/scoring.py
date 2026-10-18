@@ -5,18 +5,23 @@ Re-exports models from app.scoring.models for clean architecture and backwards c
 
 from app.scoring.models import (
     CategoryAnalysisStatus,
+    CategoryCoverage,
     CategoryScoreBreakdown,
     DebtScoreResult,
     NormalizationMetrics,
     RuleContribution,
+    ScoringCoverage,
     ScoringStatus,
 )
 
 __all__ = [
     "CategoryAnalysisStatus",
+    "CategoryCoverage",
     "CategoryScoreBreakdown",
     "DebtScoreResult",
     "NormalizationMetrics",
     "RuleContribution",
+    "ScoringCoverage",
     "ScoringStatus",
 ]
+

@@ -21,6 +21,7 @@ interface ScoreBannerProps {
 
 export function ScoreBanner({ score, repository, durationMs }: ScoreBannerProps) {
   const tierStyle = getTierColor(score.tier);
+  const isPartial = score.status === "partial" || Boolean(score.coverage?.is_partial);
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 shadow-xl relative overflow-hidden space-y-6">
@@ -43,6 +44,11 @@ export function ScoreBanner({ score, repository, durationMs }: ScoreBannerProps)
               <span className="text-[11px] uppercase tracking-wider text-slate-400 font-medium">
                 / 100
               </span>
+              {isPartial && (
+                <span className="text-[9px] font-semibold uppercase tracking-wider text-amber-400 bg-amber-950/80 px-1 py-0.5 rounded border border-amber-800">
+                  partial
+                </span>
+              )}
             </div>
           </div>
 
@@ -54,8 +60,13 @@ export function ScoreBanner({ score, repository, durationMs }: ScoreBannerProps)
               >
                 {score.tier.replace("_", " ").toUpperCase()} DEBT
               </span>
+              {isPartial && (
+                <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold border bg-amber-950/70 border-amber-800 text-amber-300">
+                  PARTIAL COVERAGE
+                </span>
+              )}
               <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-emerald-950/70 border border-emerald-800 text-emerald-300">
-                Phase 4 Deterministic Engine
+                Deterministic Scoring
               </span>
             </div>
 
@@ -113,7 +124,9 @@ export function ScoreBanner({ score, repository, durationMs }: ScoreBannerProps)
       <div>
         <div className="flex items-center justify-between text-xs text-slate-400 mb-1.5">
           <span>Entropy Debt Scale (0 = Pristine Architecture, 100 = Severe Architectural Risk)</span>
-          <span className="font-mono font-medium text-slate-300">{score.total_score} / 100</span>
+          <span className="font-mono font-medium text-slate-300">
+            {score.total_score} / 100 {isPartial ? "(partial coverage)" : ""}
+          </span>
         </div>
         <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden flex">
           <div
@@ -129,6 +142,18 @@ export function ScoreBanner({ score, repository, durationMs }: ScoreBannerProps)
           <span>80 (High)</span>
           <span>100 (Very High)</span>
         </div>
+        {score.coverage && (
+          <div className="mt-2 text-[11px] text-slate-400 font-mono flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-800/60">
+            <span>
+              Language Coverage: <strong className="text-white">{score.coverage.loc_coverage_percentage}%</strong> of LOC covered ({score.coverage.covered_loc.toLocaleString()} / {score.coverage.total_loc.toLocaleString()} LOC)
+            </span>
+            {isPartial && (
+              <span className="text-amber-400">
+                ⚠ Auth/Authz analyzers not available for repo languages
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Top Contributing Rules and Severity Breakdown */}

@@ -192,6 +192,7 @@ def _extract_input_profile(
     # 2. Body Traversal for Request Access & Validation Checks
     has_explicit_check = False
     has_form_or_serializer = False
+    tainted_sql_vars: dict[str, tuple[ast.AST, str]] = {}
 
     for node in ast.walk(ast_node):
         # Explicit validation checks: isinstance, len(), custom validate_*, form.is_valid()
@@ -224,8 +225,6 @@ def _extract_input_profile(
                     )
                 )
                 input_sources.append(src)
-                # Check enclosing assignment to record variable name
-                # Walk will find targets in Assign
             elif attr in ("args", "GET", "query_params"):
                 src = (
                     InputSourceType.DJANGO_REQUEST_GET
@@ -234,13 +233,22 @@ def _extract_input_profile(
                 )
                 input_sources.append(src)
 
-        # Record assigned variables from request
+        # Record assigned variables from request or input concatenation
         if isinstance(node, ast.Assign):
             val_str = ast.unparse(node.value) if hasattr(ast, "unparse") else ""
             if "request." in val_str:
                 for tgt in node.targets:
                     if isinstance(tgt, ast.Name):
                         input_vars.add(tgt.id)
+            elif any(re.search(rf"\b{re.escape(iv)}\b", val_str) for iv in input_vars):
+                if SQL_KEYWORDS.search(val_str) and (
+                    isinstance(node.value, ast.JoinedStr)
+                    or (isinstance(node.value, ast.BinOp) and isinstance(node.value.op, (ast.Add, ast.Mod)))
+                ):
+                    for tgt in node.targets:
+                        if isinstance(tgt, ast.Name):
+                            input_vars.add(tgt.id)
+                            tainted_sql_vars[tgt.id] = (node.value, val_str)
 
     # If endpoint uses Flask/Django request data in a sensitive route without schema/serializer/explicit check
     if is_sensitive and (InputSourceType.FLASK_REQUEST_JSON in input_sources or InputSourceType.DJANGO_REQUEST_DATA in input_sources or InputSourceType.FLASK_REQUEST_FORM in input_sources):
@@ -276,20 +284,27 @@ def _extract_input_profile(
 
             # Sink A: SQL Query execution with string interpolation or concatenation
             if any(method in call_expr for method in ("execute", "raw", "select")) or "cursor" in call_expr:
-                if isinstance(call_arg, ast.JoinedStr) or (isinstance(call_arg, ast.BinOp) and isinstance(call_arg.op, (ast.Add, ast.Mod))):
-                    if SQL_KEYWORDS.search(arg_str):
-                        sink_evidence.append(
-                            InputValidationEvidence(
-                                source_location=SourceLocation.from_node(call_arg),
-                                endpoint=endpoint.symbol,
-                                input_source=InputSourceType.FASTAPI_PARAM if endpoint.framework == WebFramework.FASTAPI else InputSourceType.FLASK_REQUEST_JSON,
-                                param_or_field_name=arg_str,
-                                validation_mechanism=ValidationMechanismType.NONE,
-                                sink="sql_query",
-                                confidence=Confidence.HIGH,
-                                details=f"External input formatted directly into SQL query: {arg_str[:60]}",
-                            )
+                is_direct_interpolated = (
+                    isinstance(call_arg, ast.JoinedStr)
+                    or (isinstance(call_arg, ast.BinOp) and isinstance(call_arg.op, (ast.Add, ast.Mod)))
+                ) and bool(SQL_KEYWORDS.search(arg_str))
+                is_tainted_var = isinstance(call_arg, ast.Name) and call_arg.id in tainted_sql_vars
+
+                if is_direct_interpolated or is_tainted_var:
+                    loc_node = call_arg if not is_tainted_var else tainted_sql_vars[call_arg.id][0]
+                    detail_str = arg_str if not is_tainted_var else tainted_sql_vars[call_arg.id][1]
+                    sink_evidence.append(
+                        InputValidationEvidence(
+                            source_location=SourceLocation.from_node(loc_node),
+                            endpoint=endpoint.symbol,
+                            input_source=InputSourceType.FASTAPI_PARAM if endpoint.framework == WebFramework.FASTAPI else InputSourceType.FLASK_REQUEST_JSON,
+                            param_or_field_name=detail_str,
+                            validation_mechanism=ValidationMechanismType.NONE,
+                            sink="sql_query",
+                            confidence=Confidence.HIGH,
+                            details=f"External input formatted directly into SQL query: {detail_str[:60]}",
                         )
+                    )
 
             # Sink B: Subprocess execution with shell=True or unquoted command
             if any(sub in call_expr for sub in ("subprocess.run", "subprocess.popen", "os.system", "os.popen")):

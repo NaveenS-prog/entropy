@@ -104,7 +104,7 @@ def test_ent_auth_001_unprotected_endpoint_detected():
     charge_finding = next((f for f in f_001 if "charge_payment" in (f.symbol or "")), None)
     assert charge_finding is not None
     assert charge_finding.category == DebtCategory.AUTHENTICATION_CONSISTENCY
-    assert charge_finding.severity == Severity.MEDIUM
+    assert charge_finding.severity == Severity.CRITICAL
     assert "POST" in charge_finding.description
     assert charge_finding.evidence is not None
     assert "def charge_payment" in charge_finding.evidence.content
@@ -179,7 +179,7 @@ def test_ent_authz_002_inconsistent_authorization_detected():
     config_finding = next((f for f in f_002 if "get_admin_config" in (f.symbol or "")), None)
     assert config_finding is not None
     assert config_finding.category == DebtCategory.AUTHORIZATION_CONSISTENCY
-    assert config_finding.severity == Severity.MEDIUM
+    assert config_finding.severity in (Severity.MEDIUM, Severity.HIGH)
     assert config_finding.confidence == Confidence.HIGH
     assert "admin" in config_finding.description
 

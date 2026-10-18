@@ -126,7 +126,12 @@ def format_scan_text(scan: RepositoryScanResult) -> str:
     tier_val = scan.score.tier.value if scan.score else "Unknown"
     # Pretty title for band
     tier_title = " ".join(word.capitalize() for word in tier_val.replace("_", " ").split())
-    lines.append(f"Entropy Score: {score_val} / 100")
+    is_partial = scan.score and (
+        getattr(scan.score, "status", None) == "partial"
+        or (getattr(scan.score, "coverage", None) and scan.score.coverage.is_partial)
+    )
+    partial_suffix = " (partial coverage)" if is_partial else ""
+    lines.append(f"Entropy Score: {score_val} / 100{partial_suffix}")
     lines.append(f"Band: {tier_title}")
     lines.append("")
     lines.append("Categories:")
@@ -135,11 +140,13 @@ def format_scan_text(scan: RepositoryScanResult) -> str:
     for cat in CATEGORY_ORDER:
         label = CATEGORY_LABELS.get(cat, cat.value)
         cat_breakdown = scan.score.category_scores.get(cat) if scan.score else None
-        if cat_breakdown and cat_breakdown.score is not None:
+        if cat_breakdown and getattr(cat_breakdown.status, "value", str(cat_breakdown.status)) == "not_analyzed":
+            score_str = "NOT ANALYZED"
+        elif cat_breakdown and cat_breakdown.score is not None:
             score_str = f"{cat_breakdown.score:.1f}"
         else:
             score_str = "0.0"
-        lines.append(f"  {label:<24} {score_str:>6}")
+        lines.append(f"  {label:<24} {score_str:>12}")
 
     return "\n".join(lines)
 
@@ -151,10 +158,11 @@ def format_scan_json_dict(scan: RepositoryScanResult) -> dict[str, Any]:
         cat_breakdown = scan.score.category_scores.get(cat) if scan.score else None
         categories_dict[cat.value] = {
             "name": CATEGORY_LABELS.get(cat, cat.value),
-            "score": round(cat_breakdown.score, 1) if (cat_breakdown and cat_breakdown.score is not None) else 0.0,
+            "score": round(cat_breakdown.score, 1) if (cat_breakdown and cat_breakdown.score is not None) else None,
             "status": cat_breakdown.status.value if cat_breakdown else "not_analyzed",
             "findings_count": cat_breakdown.finding_count if cat_breakdown else 0,
             "weight": round(cat_breakdown.weight, 2) if cat_breakdown else 0.0,
+            "explanation": cat_breakdown.explanation if cat_breakdown else None,
         }
 
     # Deterministically order findings by file, line_start, line_end, id
@@ -204,8 +212,10 @@ def format_scan_json_dict(scan: RepositoryScanResult) -> dict[str, Any]:
         "score": {
             "total_score": scan.score.total_score if scan.score else 0,
             "band": scan.score.tier.value if scan.score else "unknown",
+            "status": scan.score.status.value if scan.score else "unknown",
             "findings_count": len(scan.findings),
             "suppressed_findings_count": getattr(scan, "suppressed_findings_count", 0),
+            "coverage": scan.score.coverage.model_dump() if (scan.score and scan.score.coverage) else None,
         },
         "config_hash": getattr(scan, "config_hash", None),
         "categories": categories_dict,
@@ -227,9 +237,16 @@ def format_check_text(
     tier_val = scan.score.tier.value if scan.score else "Unknown"
     tier_title = " ".join(word.capitalize() for word in tier_val.replace("_", " ").split())
 
-    lines.append(f"Score: {score_val} / 100")
+    is_partial = scan.score and (
+        getattr(scan.score, "status", None) == "partial"
+        or (getattr(scan.score, "coverage", None) and scan.score.coverage.is_partial)
+    )
+    partial_suffix = " (partial coverage)" if is_partial else ""
+
+    lines.append(f"Score: {score_val} / 100{partial_suffix}")
     lines.append(f"Band: {tier_title}")
     lines.append("")
+
     lines.append(f"Findings: {len(scan.findings)}")
     supp_count = getattr(scan, "suppressed_findings_count", 0)
     if supp_count > 0:

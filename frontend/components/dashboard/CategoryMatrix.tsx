@@ -138,9 +138,9 @@ export function CategoryMatrix({
                       <span>ANALYZED ({breakdown.finding_count} findings)</span>
                     </span>
                   ) : (
-                    <span className="text-[10px] text-slate-400 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded font-mono flex items-center gap-1">
-                      <Clock className="h-2.5 w-2.5 text-slate-500" />
-                      <span>NOT ANALYZED YET</span>
+                    <span className="text-[10px] text-amber-400 bg-amber-950/60 border border-amber-900 px-1.5 py-0.5 rounded font-mono flex items-center gap-1">
+                      <Clock className="h-2.5 w-2.5 text-amber-500" />
+                      <span>NOT ANALYZED</span>
                     </span>
                   )}
                 </div>
@@ -163,8 +163,8 @@ export function CategoryMatrix({
                     Base Weight: {(breakdown.weight * 100).toFixed(0)}% • Contributes to overall score
                   </span>
                 ) : (
-                  <span className="text-slate-500 italic">
-                    Scheduled for future phase. Zero score fabricated.
+                  <span className="text-amber-400/90 italic">
+                    {breakdown.explanation || "No supported-language files for this analyzer."}
                   </span>
                 )}
               </div>

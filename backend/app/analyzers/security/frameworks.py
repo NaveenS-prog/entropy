@@ -45,6 +45,8 @@ SENSITIVE_ROUTE_TERMS = {
     "tokens",
     "payment",
     "payments",
+    "refund",
+    "refunds",
     "billing",
     "checkout",
     "finance",
@@ -741,6 +743,25 @@ class FrameworkRouteDetector:
                         evidence_kind="AUTHZ_DECORATOR",
                         confidence=Confidence.HIGH,
                         details=f"Authorization decorator @{dec.name}",
+                    )
+                )
+
+        # 1b. Route Decorator Dependencies with role/perm check (FastAPI)
+        if route_decorator and "dependencies" in route_decorator.keyword_arguments:
+            dep_val = route_decorator.keyword_arguments["dependencies"]
+            dep_lower = dep_val.lower()
+            if any(guard in dep_lower for guard in KNOWN_AUTHZ_GUARDS) or any(
+                term in dep_lower for term in ("admin", "role", "perm", "authz", "superuser", "staff")
+            ):
+                evidences.append(
+                    AuthorizationEvidence(
+                        mechanism_type=AuthzMechanismType.AUTHORIZATION_HELPER,
+                        source_location=route_decorator.location,
+                        endpoint=func.name,
+                        role_or_permission=dep_val,
+                        evidence_kind="FASTAPI_ROUTE_AUTHZ_DEPENDENCY",
+                        confidence=Confidence.HIGH,
+                        details=f"Route-level authorization dependency: {dep_val}",
                     )
                 )
 

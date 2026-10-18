@@ -165,11 +165,31 @@ export interface CategoryScoreBreakdown {
   top_rules?: RuleContribution[];
 }
 
+export interface CategoryCoverage {
+  category: DebtCategory;
+  status: CategoryAnalysisStatus;
+  supported_languages: string[];
+  present_languages: string[];
+  is_analyzed: boolean;
+  explanation?: string | null;
+}
+
+export interface ScoringCoverage {
+  categories: Record<DebtCategory, CategoryCoverage>;
+  present_languages: string[];
+  supported_languages: string[];
+  total_loc: number;
+  covered_loc: number;
+  loc_coverage_percentage: number;
+  is_partial: boolean;
+}
+
 export interface DebtScoreResult {
   total_score: number;
   entropy_score?: number;
   tier: DebtScoreTier;
   status?: string;
+  coverage?: ScoringCoverage | null;
   analyzed_categories?: DebtCategory[];
   category_scores: Record<DebtCategory, CategoryScoreBreakdown>;
   total_findings: number;

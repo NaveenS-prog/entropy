@@ -12,6 +12,7 @@ from app.analyzers.security.models import (
 )
 from app.models.domain.enums import Confidence, DebtCategory, Severity
 from app.models.domain.finding import Finding
+from app.scoring.weights import SENSITIVE_ROUTE_TERMS
 
 # =============================================================================
 # Authentication Rules (ENT-AUTH-001, ENT-AUTH-002, ENT-AUTH-003)
@@ -93,13 +94,27 @@ class PotentiallyUnprotectedEndpointRule(BaseRule):
             f"is statically present."
         )
 
-        # High confidence if mutating method AND sensitive keyword
-        conf = (
-            Confidence.HIGH
-            if any(m in ("POST", "PUT", "DELETE", "PATCH") for m in ep.http_methods)
-            and len(ep.sensitivity_reasons) >= 2
-            else self.default_confidence
-        )
+        # Sensitivity and mutating method escalation
+        path_lower = (ep.route_path or "").lower()
+        sym_lower = (ep.symbol or "").lower()
+        combined = f"{path_lower} {sym_lower}"
+
+        is_sensitive = any(term in combined for term in SENSITIVE_ROUTE_TERMS)
+        is_mutating = any(m in ("POST", "PUT", "DELETE", "PATCH") for m in ep.http_methods)
+
+        if is_sensitive and is_mutating:
+            severity = Severity.CRITICAL
+            conf = Confidence.HIGH
+        elif is_sensitive:
+            severity = Severity.HIGH
+            conf = Confidence.HIGH
+        else:
+            severity = self.default_severity
+            conf = (
+                Confidence.HIGH
+                if is_mutating and len(ep.sensitivity_reasons) >= 2
+                else self.default_confidence
+            )
 
         sig = f"{ep.file_path}:{ep.symbol}:{ep.display_route}:unprotected"
         fid = Finding.generate_deterministic_id(
@@ -115,7 +130,7 @@ class PotentiallyUnprotectedEndpointRule(BaseRule):
             id=fid,
             category=self.category,
             rule_id=self.rule_id,
-            severity=self.default_severity,
+            severity=severity,
             confidence=conf,
             file=ep.file_path,
             line_start=ep.location.line_start,
@@ -238,12 +253,18 @@ class InconsistentAuthenticationRule(BaseRule):
                         evidence_signature=sig,
                     )
 
+                    path_lower = (ep.route_path or "").lower()
+                    sym_lower = (ep.symbol or "").lower()
+                    combined = f"{path_lower} {sym_lower}"
+                    is_sens = any(term in combined for term in SENSITIVE_ROUTE_TERMS)
+                    sev = Severity.HIGH if is_sens else self.default_severity
+
                     findings.append(
                         Finding(
                             id=fid,
                             category=self.category,
                             rule_id=self.rule_id,
-                            severity=self.default_severity,
+                            severity=sev,
                             confidence=self.default_confidence,
                             file=ep.file_path,
                             line_start=ep.location.line_start,
@@ -534,11 +555,25 @@ class PotentiallyMissingAuthorizationRule(BaseRule):
             context_after=1,
         )
 
-        # High severity for admin routes
+        # Sensitivity and mutating method escalation
         path_lower = (ep.route_path or "").lower()
-        is_admin = "/admin" in path_lower or "admin" in ep.symbol.lower()
-        severity = Severity.HIGH if is_admin else self.default_severity
-        confidence = Confidence.HIGH if is_admin else self.default_confidence
+        sym_lower = (ep.symbol or "").lower()
+        combined = f"{path_lower} {sym_lower}"
+
+        is_sensitive = any(term in combined for term in SENSITIVE_ROUTE_TERMS) or (
+            "/admin" in path_lower or "admin" in sym_lower
+        )
+        is_mutating = any(m in ("POST", "PUT", "DELETE", "PATCH") for m in ep.http_methods)
+
+        if is_sensitive and is_mutating:
+            severity = Severity.CRITICAL
+            confidence = Confidence.HIGH
+        elif is_sensitive:
+            severity = Severity.HIGH
+            confidence = Confidence.HIGH
+        else:
+            severity = self.default_severity
+            confidence = self.default_confidence
 
         desc = (
             f"Privileged endpoint '{ep.display_route}' contains no recognizable authorization "
@@ -681,12 +716,18 @@ class InconsistentAuthorizationRule(BaseRule):
                         evidence_signature=sig,
                     )
 
+                    path_lower = (ep.route_path or "").lower()
+                    sym_lower = (ep.symbol or "").lower()
+                    combined = f"{path_lower} {sym_lower}"
+                    is_sens = any(term in combined for term in SENSITIVE_ROUTE_TERMS)
+                    sev = Severity.HIGH if is_sens else self.default_severity
+
                     findings.append(
                         Finding(
                             id=fid,
                             category=self.category,
                             rule_id=self.rule_id,
-                            severity=self.default_severity,
+                            severity=sev,
                             confidence=self.default_confidence,
                             file=ep.file_path,
                             line_start=ep.location.line_start,

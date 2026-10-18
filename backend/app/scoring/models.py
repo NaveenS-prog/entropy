@@ -16,6 +16,8 @@ class ScoringStatus(StrEnum):
     PENDING = "pending"
     NOT_ANALYZABLE = "not_analyzable"
     FAILED = "failed"
+    PARTIAL = "partial"
+
 
 
 class CategoryAnalysisStatus(StrEnum):
@@ -71,6 +73,48 @@ class NormalizationMetrics(BaseModel):
     formula: str = Field(..., description="Mathematical description of normalization step")
 
 
+class CategoryCoverage(BaseModel):
+    """Language coverage status for a single debt category."""
+
+    category: DebtCategory = Field(..., description="Debt category")
+    status: CategoryAnalysisStatus = Field(..., description="Analysis status for this category")
+    supported_languages: list[str] = Field(
+        default_factory=list,
+        description="Languages supported by category analyzers",
+    )
+    present_languages: list[str] = Field(
+        default_factory=list,
+        description="Languages present in codebase",
+    )
+    is_analyzed: bool = Field(..., description="True if category analyzer supported codebase language")
+    explanation: str | None = Field(default=None, description="Human-readable explanation of coverage status")
+
+
+class ScoringCoverage(BaseModel):
+    """Aggregate language and category coverage metadata for repository scan."""
+
+    categories: dict[DebtCategory, CategoryCoverage] = Field(
+        default_factory=dict,
+        description="Coverage breakdown per category",
+    )
+    present_languages: list[str] = Field(
+        default_factory=list,
+        description="All languages detected in repository",
+    )
+    supported_languages: list[str] = Field(
+        default_factory=list,
+        description="All languages supported by active analyzers",
+    )
+    total_loc: int = Field(default=0, ge=0, description="Total source lines of code")
+    covered_loc: int = Field(default=0, ge=0, description="Lines of code covered by at least one analyzer")
+    loc_coverage_percentage: float = Field(
+        default=0.0, ge=0.0, le=100.0, description="Percentage of LOC covered by analyzers"
+    )
+    is_partial: bool = Field(
+        default=False, description="True if critical categories (auth/authz) were not analyzed"
+    )
+
+
 class DebtScoreResult(BaseModel):
     """Comprehensive, explainable Entropy Debt Score result.
 
@@ -81,6 +125,10 @@ class DebtScoreResult(BaseModel):
     total_score: int = Field(..., ge=0, le=100, description="Final aggregated debt score (0-100)")
     tier: DebtScoreTier = Field(..., description="Product interpretation category")
     status: ScoringStatus = Field(default=ScoringStatus.AVAILABLE, description="Scoring availability status")
+    coverage: ScoringCoverage | None = Field(
+        default=None,
+        description="Language and category coverage metadata",
+    )
     analyzed_categories: list[DebtCategory] = Field(
         default_factory=list,
         description="Categories currently implemented and contributing to score",

@@ -23,7 +23,7 @@ from app.parser.jsts.models import (
 FALLBACK_LITERALS = {"null", "undefined", "false", "0", "''", '""', "[]", "{}"}
 
 # Route methods to recognize
-HTTP_METHODS = {"get", "post", "put", "delete", "patch", "all", "use"}
+HTTP_METHODS = {"get", "post", "put", "delete", "patch", "all", "use", "route"}
 
 
 class JSTSAstVisitor:
@@ -38,6 +38,7 @@ class JSTSAstVisitor:
     def extract(self, root_node: Any) -> JSTSModuleStructure:
         """Walk the AST root and populate the normalized module structure."""
         self._visit_node(root_node, enclosing_function=None, enclosing_class=None)
+        self._detect_nextjs_routes()
         self._detect_frameworks()
         return self.structure
 
@@ -642,6 +643,42 @@ class JSTSAstVisitor:
                 decs.append(self._node_text(child).lstrip("@").strip())
         return decs
 
+    @staticmethod
+    def _extract_middleware_list(raw_args: list[str]) -> list[str]:
+        """Extract and normalize middleware identifiers/calls from route arguments."""
+        result: list[str] = []
+        for raw in raw_args:
+            text = raw.strip()
+            if not text:
+                continue
+            # Fastify options object: { preHandler: [auth, role] } or { preHandler: auth }
+            if text.startswith("{") and ("preHandler" in text or "preValidation" in text):
+                match = re.search(
+                    r"(?:preHandler|preValidation)\s*:\s*(\[[^\]]+\]|[A-Za-z0-9_$.]+(?:\([^)]*\))?)",
+                    text,
+                )
+                if match:
+                    inner = match.group(1).strip()
+                    if inner.startswith("[") and inner.endswith("]"):
+                        for item in inner[1:-1].split(","):
+                            it = item.strip().strip("'\"`")
+                            if it:
+                                result.append(it)
+                    else:
+                        result.append(inner.strip("'\"`"))
+                continue
+            # Array literal: [auth, requireAdmin]
+            if text.startswith("[") and text.endswith("]"):
+                for item in text[1:-1].split(","):
+                    it = item.strip().strip("'\"`")
+                    if it:
+                        result.append(it)
+                continue
+            # Single middleware identifier or call (e.g. auth, requireRole('admin'))
+            if not (text.startswith("(") and "=>" in text) and not text.startswith("function"):
+                result.append(text.strip("'\"`"))
+        return result
+
     def _check_route(self, call: JSCall) -> None:
         """Check if a call represents an Express or Fastify route definition."""
         if not call.caller_object or not call.method_name:
@@ -660,18 +697,74 @@ class JSTSAstVisitor:
         if not call.arguments:
             return
 
-        route_path = call.arguments[0].strip("'\"`")
-        if not (route_path.startswith("/") or route_path == "*"):
+        # Fastify object route: fastify.route({ method: 'GET', url: '/path', preHandler: auth, handler: ... })
+        if method == "route" and ("fastify" in obj or "server" in obj):
+            arg_text = call.arguments[0]
+            url_match = re.search(r"(?:url|path)\s*:\s*['\"`]([^'\"`]+)['\"`]", arg_text)
+            if not url_match:
+                return
+            route_path = url_match.group(1)
+            method_match = re.search(
+                r"method\s*:\s*(?:['\"`]([A-Za-z]+)['\"`]|\[([^\]]+)\])",
+                arg_text,
+            )
+            methods: list[str] = []
+            if method_match:
+                if method_match.group(1):
+                    methods = [method_match.group(1).upper()]
+                elif method_match.group(2):
+                    methods = [
+                        m.strip().strip("'\"`").upper()
+                        for m in method_match.group(2).split(",")
+                        if m.strip()
+                    ]
+            if not methods:
+                methods = ["GET"]
+
+            pre_match = re.search(
+                r"(?:preHandler|preValidation)\s*:\s*(\[[^\]]+\]|[A-Za-z0-9_$.]+(?:\([^)]*\))?)",
+                arg_text,
+            )
+            mw_list: list[str] = []
+            if pre_match:
+                inner = pre_match.group(1).strip()
+                if inner.startswith("[") and inner.endswith("]"):
+                    mw_list = [m.strip().strip("'\"`") for m in inner[1:-1].split(",") if m.strip()]
+                else:
+                    mw_list = [inner.strip("'\"`")]
+
+            for m in methods:
+                self.structure.routes.append(
+                    JSRoute(
+                        framework="fastify",
+                        http_method=m,
+                        path=route_path,
+                        handler_name="route_handler",
+                        middleware=mw_list,
+                        location=call.location,
+                    )
+                )
             return
 
-        framework = "fastify" if "fastify" in obj else "express"
-        middleware: list[str] = []
-        handler_name = None
+        # Chained route in Express: router.route('/path').get(...).post(...)
+        route_path = None
+        if ".route(" in call.caller_object:
+            route_match = re.search(r"\.route\(\s*['\"`]([^'\"`]+)['\"`]\s*\)", call.caller_object)
+            if route_match:
+                route_path = route_match.group(1)
 
-        if len(call.arguments) > 1:
-            for arg in call.arguments[1:-1]:
-                middleware.append(arg)
-            handler_name = call.arguments[-1]
+        if not route_path:
+            route_path = call.arguments[0].strip("'\"`")
+            if not (route_path.startswith("/") or route_path == "*"):
+                return
+            raw_middleware = call.arguments[1:-1] if len(call.arguments) > 1 else []
+            handler_name = call.arguments[-1] if len(call.arguments) > 1 else None
+        else:
+            raw_middleware = call.arguments[:-1] if len(call.arguments) > 1 else []
+            handler_name = call.arguments[-1] if call.arguments else None
+
+        framework = "fastify" if "fastify" in obj else "express"
+        middleware = self._extract_middleware_list(raw_middleware)
 
         self.structure.routes.append(
             JSRoute(
@@ -683,6 +776,75 @@ class JSTSAstVisitor:
                 location=call.location,
             )
         )
+
+    def _detect_nextjs_routes(self) -> None:
+        """Extract Next.js App Router and Pages Router route definitions from file path and exports."""
+        norm_path = self.file_path.replace("\\", "/")
+
+        # 1. App Router route handlers: e.g. app/api/.../route.ts or src/app/api/.../route.js
+        app_match = re.search(r"(?:^|/)(?:src/)?app/(.+)/route\.[jt]sx?$", norm_path)
+        if app_match:
+            route_subpath = app_match.group(1)
+            # Normalize Next.js route path: replace [id] with :id, [...slug] with *
+            route_path = "/" + re.sub(
+                r"\[\.\.\.[^\]]+\]", "*", re.sub(r"\[([^\]]+)\]", r":\1", route_subpath)
+            )
+            next_methods = {"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"}
+
+            for exp in self.structure.exports:
+                up_name = exp.name.upper()
+                if up_name in next_methods:
+                    self.structure.routes.append(
+                        JSRoute(
+                            framework="nextjs",
+                            http_method=up_name,
+                            path=route_path,
+                            handler_name=exp.name,
+                            middleware=[],
+                            location=exp.location,
+                        )
+                    )
+            return
+
+        # 2. Pages Router API routes: e.g. pages/api/users.ts or src/pages/api/admin/users.ts
+        pages_match = re.search(r"(?:^|/)(?:src/)?pages/api/(.+)\.[jt]sx?$", norm_path)
+        if pages_match:
+            route_subpath = pages_match.group(1)
+            if route_subpath.endswith("/index"):
+                route_subpath = route_subpath[:-6]
+            route_path = "/api/" + re.sub(
+                r"\[\.\.\.[^\]]+\]", "*", re.sub(r"\[([^\]]+)\]", r":\1", route_subpath)
+            )
+
+            has_default = any(e.is_default for e in self.structure.exports)
+            handler_exp = next(
+                (
+                    e
+                    for e in self.structure.exports
+                    if e.name in ("handler", "default") or e.is_default
+                ),
+                None,
+            )
+            if has_default or handler_exp:
+                loc = (
+                    handler_exp.location
+                    if handler_exp
+                    else (
+                        self.structure.exports[0].location
+                        if self.structure.exports
+                        else JSSourceLocation(1, 1)
+                    )
+                )
+                self.structure.routes.append(
+                    JSRoute(
+                        framework="nextjs",
+                        http_method="ALL",
+                        path=route_path,
+                        handler_name=handler_exp.name if handler_exp else "handler",
+                        middleware=[],
+                        location=loc,
+                    )
+                )
 
     def _detect_frameworks(self) -> None:
         """Infer active frameworks from static indicators."""

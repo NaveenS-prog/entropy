@@ -121,15 +121,32 @@ class TestCalibrationOrdering:
         )
 
     def test_jsts_apps_score_ordering(self):
-        """Clean <= Mildly Messy in JS/TS."""
+        """Clean < Mildly Messy < Deliberately Insecure in JS/TS."""
         clean_file = FIXTURES_DIR / "jsts" / "clean" / "app.js"
         messy_file = FIXTURES_DIR / "jsts" / "mildly_messy" / "app.js"
+        insecure_file = FIXTURES_DIR / "jsts" / "insecure" / "app.js"
 
         clean_score = _scan_single_file(clean_file, SupportedLanguage.JAVASCRIPT, "calib-js-clean")
         messy_score = _scan_single_file(messy_file, SupportedLanguage.JAVASCRIPT, "calib-js-messy")
+        insecure_score = _scan_single_file(insecure_file, SupportedLanguage.JAVASCRIPT, "calib-js-insecure")
 
         print("\n--- JS/TS Calibration Results ---")
         print(f"Clean App:      Score = {clean_score.total_score} ({clean_score.tier.label})")
         print(f"Mildly Messy:   Score = {messy_score.total_score} ({messy_score.tier.label})")
+        print(f"Insecure App:   Score = {insecure_score.total_score} ({insecure_score.tier.label})")
 
-        assert clean_score.total_score <= messy_score.total_score
+        # 1. Zero debt for clean app
+        assert clean_score.total_score == 0
+
+        # 2. Score strictly increases with defect severity
+        assert clean_score.total_score < messy_score.total_score < insecure_score.total_score
+
+        # 3. Deliberately insecure app MUST land in at least the MODERATE band (score >= 41)
+        assert insecure_score.total_score >= 41, (
+            f"Expected insecure JS app score >= 41 (MODERATE+), but got {insecure_score.total_score}"
+        )
+        assert insecure_score.tier in (
+            DebtScoreTier.MODERATE,
+            DebtScoreTier.HIGH,
+            DebtScoreTier.VERY_HIGH,
+        )

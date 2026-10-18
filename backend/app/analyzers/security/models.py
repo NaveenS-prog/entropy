@@ -14,11 +14,15 @@ if TYPE_CHECKING:
 
 
 class WebFramework(StrEnum):
-    """Supported Python web application frameworks for route detection."""
+    """Supported web application frameworks for route detection."""
 
     FASTAPI = "fastapi"
     FLASK = "flask"
     DJANGO = "django"
+    EXPRESS = "express"
+    FASTIFY = "fastify"
+    NEXTJS = "nextjs"
+    NESTJS = "nestjs"
     GENERIC = "generic"
     UNKNOWN = "unknown"
 
@@ -108,3 +112,33 @@ class EndpointDefinition:
         methods_str = "/".join(self.http_methods) if self.http_methods else "ANY"
         path_str = self.route_path or f"[{self.symbol}]"
         return f"{methods_str} {path_str}"
+
+
+# Public endpoints that are intentionally unauthenticated
+PUBLIC_EXACT_PATHS = {
+    "",
+    "/",
+    "/health",
+    "/healthz",
+    "/live",
+    "/ready",
+    "/ping",
+    "/status",
+    "/metrics",
+    "/info",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/favicon.ico",
+    "/login",
+    "/signin",
+    "/register",
+    "/signup",
+    "/token",
+    "/auth/token",
+    "/oauth/token",
+    "/forgot-password",
+    "/reset-password",
+    "/auth/login",
+    "/api/login",
+}

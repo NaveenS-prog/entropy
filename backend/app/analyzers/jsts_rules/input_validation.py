@@ -33,7 +33,11 @@ VALIDATION_METHODS = {
 SENSITIVE_SINKS = {
     "query",
     "execute",
+    "run",
+    "all",
+    "get",
     "$queryrawunsafe",
+    "$executerawunsafe",
     "raw",
     "exec",
     "execsync",
@@ -43,13 +47,30 @@ SENSITIVE_SINKS = {
     "writefilesync",
 }
 
+DB_CALLER_NAMES = {
+    "db",
+    "database",
+    "sqlite",
+    "pool",
+    "client",
+    "conn",
+    "connection",
+    "cursor",
+    "knex",
+    "prisma",
+    "sequelize",
+}
+
 EXTERNAL_INPUT_PATTERNS = [
     r"req\.body",
     r"req\.query",
     r"req\.params",
+    r"req\.headers",
     r"request\.body",
     r"request\.query",
     r"request\.params",
+    r"request\.headers",
+    r"request\.nexturl",
 ]
 
 
@@ -95,24 +116,57 @@ class JSUnvalidatedInputRule:
             for c in all_calls
         )
 
+        # 2. Track tainted variables assigned from external input
+        tainted_vars: dict[str, str] = {}
+        for assign in context.get_assignments():
+            val = assign.value_text
+            for pattern in EXTERNAL_INPUT_PATTERNS:
+                if re.search(pattern, val):
+                    tainted_vars[assign.target] = val
+                    break
+
         for call in all_calls:
             method = (call.method_name or "").lower()
             callee = call.callee.lower()
+            caller_obj = (call.caller_object or "").lower()
 
             # Check if this call is a sensitive sink
-            is_sink = method in SENSITIVE_SINKS or any(
-                sink in callee for sink in ("exec", "eval", "queryrawunsafe")
+            is_generic_sink = method in (
+                "query",
+                "execute",
+                "$queryrawunsafe",
+                "$executerawunsafe",
+                "raw",
+                "exec",
+                "execsync",
+                "spawn",
+                "eval",
+                "writefile",
+                "writefilesync",
+            ) or any(sink in callee for sink in ("exec", "eval", "queryrawunsafe", "executerawunsafe"))
+
+            is_db_sink = method in ("run", "all", "get") and (
+                any(db_name in caller_obj for db_name in DB_CALLER_NAMES)
+                or any(term in callee for term in ("db", "database", "sqlite", "query"))
+                or any(
+                    any(sql_k in arg.upper() for sql_k in ("SELECT", "INSERT", "UPDATE", "DELETE", "DROP"))
+                    for arg in call.arguments
+                )
             )
+
+            is_sink = is_generic_sink or is_db_sink
             if not is_sink:
                 continue
 
-            # Check if any argument contains external input
+            # Check if any argument contains external input or tainted variable
             matched_input: str | None = None
             for arg in call.arguments:
                 for pattern in EXTERNAL_INPUT_PATTERNS:
                     if re.search(pattern, arg):
                         matched_input = arg
                         break
+                if not matched_input and arg in tainted_vars:
+                    matched_input = f"{arg} ({tainted_vars[arg]})"
                 if matched_input:
                     break
 
@@ -125,8 +179,13 @@ class JSUnvalidatedInputRule:
                 continue
 
             # Check if parameterized query: e.g. db.query(sql, [params]) where sql is a constant template
-            if len(call.arguments) >= 2 and ("$" in call.arguments[0] or "?" in call.arguments[0]):
-                # Parameterized SQL query placeholder
+            if (
+                len(call.arguments) >= 2
+                and ("$" in call.arguments[0] or "?" in call.arguments[0])
+                and "+" not in call.arguments[0]
+                and "${" not in call.arguments[0]
+            ):
+                # Parameterized SQL query placeholder without concatenation
                 continue
 
             snippet = context.extract_snippet(

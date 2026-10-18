@@ -12,6 +12,7 @@ from pathlib import Path
 
 from app.analyzers.context import PythonASTContext
 from app.analyzers.security.models import (
+    PUBLIC_EXACT_PATHS,
     AuthenticationEvidence,
     AuthMechanismType,
     AuthorizationEvidence,
@@ -80,35 +81,6 @@ SENSITIVE_ROUTE_TERMS = {
     "grant",
     "revoke",
     "transfer",
-}
-
-# Public endpoints that are intentionally unauthenticated
-PUBLIC_EXACT_PATHS = {
-    "",
-    "/",
-    "/health",
-    "/healthz",
-    "/live",
-    "/ready",
-    "/ping",
-    "/status",
-    "/metrics",
-    "/info",
-    "/docs",
-    "/redoc",
-    "/openapi.json",
-    "/favicon.ico",
-    "/login",
-    "/signin",
-    "/register",
-    "/signup",
-    "/token",
-    "/auth/token",
-    "/oauth/token",
-    "/forgot-password",
-    "/reset-password",
-    "/auth/login",
-    "/api/login",
 }
 
 PUBLIC_PREFIXES = ("/public/", "/static/", "/assets/", "/docs/", "/redoc/")

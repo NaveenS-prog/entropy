@@ -1,0 +1,33 @@
+const express = require('express');
+const app = express();
+
+const authMiddleware = (req, res, next) => next();
+const requireAdmin = (req, res, next) => next();
+
+// Public route
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok' });
+});
+
+// Public login route
+app.post('/login', (req, res) => {
+    res.json({ token: 'jwt' });
+});
+
+// Protected sensitive route with auth & role middleware
+app.post('/admin/delete-user', authMiddleware, requireAdmin, (req, res) => {
+    res.json({ status: 'deleted' });
+});
+
+// Protected route with array middleware
+app.post('/payments/refund', [authMiddleware, requireAdmin], (req, res) => {
+    res.json({ status: 'refunded' });
+});
+
+// Protected route with inline user verification
+app.get('/user/profile', (req, res) => {
+    const user = req.user;
+    res.json({ user });
+});
+
+module.exports = app;

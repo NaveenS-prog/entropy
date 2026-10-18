@@ -6,6 +6,11 @@ import logging
 from collections.abc import Sequence
 
 from app.analyzers.base import AnalysisContext, BaseAnalyzer
+from app.analyzers.jsts_rules.authentication import (
+    JSDuplicatedAuthenticationRule,
+    JSInconsistentAuthenticationRule,
+    JSUnprotectedEndpointRule,
+)
 from app.analyzers.rules.base import BaseRule
 from app.analyzers.security.auth.rules import (
     DuplicatedAuthenticationRule,
@@ -21,7 +26,7 @@ logger = logging.getLogger("entropy.analyzers.security.authentication")
 
 
 class AuthenticationConsistencyAnalyzer(BaseAnalyzer):
-    """Analyzer detecting Authentication Consistency Debt in Python web applications.
+    """Analyzer detecting Authentication Consistency Debt in Python and JS/TS web applications.
 
     Enforces deterministic AST checks for:
     - ENT-AUTH-001: Potentially Unprotected Security-Sensitive Endpoint
@@ -41,6 +46,11 @@ class AuthenticationConsistencyAnalyzer(BaseAnalyzer):
                 self.rule_inconsistent,
                 self.rule_duplicated,
             ]
+        self._js_rules = [
+            JSUnprotectedEndpointRule(),
+            JSInconsistentAuthenticationRule(),
+            JSDuplicatedAuthenticationRule(),
+        ]
 
     @property
     def analyzer_id(self) -> str:
@@ -56,14 +66,20 @@ class AuthenticationConsistencyAnalyzer(BaseAnalyzer):
 
     @property
     def supported_languages(self) -> set[SupportedLanguage]:
-        return {SupportedLanguage.PYTHON}
+        return {
+            SupportedLanguage.PYTHON,
+            SupportedLanguage.JAVASCRIPT,
+            SupportedLanguage.TYPESCRIPT,
+        }
 
     @property
     def rules(self) -> list[RuleDefinition]:
-        return [r.definition for r in self._rules]
+        rule_defs = [r.definition for r in self._rules]
+        rule_defs.extend([r.definition for r in self._js_rules])
+        return rule_defs
 
     def analyze(self, context: AnalysisContext) -> list[Finding]:
-        """Execute deterministic static analysis across all valid Python files in context."""
+        """Execute deterministic static analysis across all valid Python and JS/TS files in context."""
         raw_findings: list[Finding] = []
         valid_python_contexts = context.get_valid_python_contexts()
 
@@ -101,6 +117,21 @@ class AuthenticationConsistencyAnalyzer(BaseAnalyzer):
                 logger.warning(
                     "Authentication analyzer failed on '%s': %s",
                     py_ctx.file_path,
+                    exc,
+                )
+
+        valid_jsts_contexts = context.get_valid_jsts_contexts()
+        for js_ctx in valid_jsts_contexts:
+            try:
+                file_findings = []
+                for js_rule in self._js_rules:
+                    file_findings.extend(js_rule.analyze(js_ctx))
+                suppressed = self._suppress_overlapping_findings(file_findings)
+                raw_findings.extend(suppressed)
+            except Exception as exc:
+                logger.warning(
+                    "Authentication analyzer failed on JS file '%s': %s",
+                    js_ctx.file_path,
                     exc,
                 )
 

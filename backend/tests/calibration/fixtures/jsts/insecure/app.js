@@ -4,6 +4,7 @@ app.use(express.json());
 
 app.post('/admin/delete-user', (req, res) => {
     const query = 'DELETE FROM users WHERE id=' + req.body.id;
+    db.run(query);
     res.json({ deleted: true, query });
 });
 

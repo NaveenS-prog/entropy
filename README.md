@@ -6,6 +6,9 @@ Entropy is an architectural security-debt analyzer for AI-assisted codebases. It
 
 Entropy does **NOT** claim to detect whether code was written by AI. Instead, Entropy analyzes observable codebase structure and architectural patterns deterministically without executing repository code.
 
+> [!NOTE]
+> **Status**: The Entropy Debt Score is experimental and is not yet calibrated on real-world repositories. It measures statically observable structural and architectural debt patterns as a heuristic of code health, not runtime vulnerability exploitability. Full-repo real-world calibration is currently in progress.
+
 ---
 
 ## The Non-Attribution Covenant

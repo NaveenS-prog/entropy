@@ -1,12 +1,11 @@
-"""Calibration corpus validation test suite.
+"""Calibration corpus regression smoke test suite.
 
-Evaluates Entropy's scoring calibration against real, independently authored open-source
-applications recorded in corpus/manifest.json.
+Verifies basic scoring dynamics against 8 pinned open-source code snippets recorded in corpus/manifest.json.
 
 Invariants verified:
-1. Strict Rank Ordering: Every vulnerable application scores higher than every clean application.
+1. Smoke-test Rank Ordering: Vulnerable code snippets score higher than clean snippets.
 2. Separation Gap: Mean vulnerable score exceeds mean clean score by at least 30 points.
-3. Held-Out Generalization: The held-out set preserves strict rank ordering without prior tuning.
+3. Clean snippets land in VERY_LOW debt tier.
 """
 
 from __future__ import annotations

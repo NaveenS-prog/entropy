@@ -29,7 +29,7 @@ from app.comparison.models import ScanComparisonResult
 from app.comparison.service import comparison_service
 from app.core.config import settings
 from app.core.errors import RepositoryError
-from app.models.domain.enums import DebtCategory, Severity
+from app.models.domain.enums import Confidence, DebtCategory, Severity
 from app.models.domain.finding import Finding
 from app.models.domain.scan import RepositoryScanResult
 from app.policy.evaluator import PolicyEvaluator
@@ -111,26 +111,80 @@ def _run_single_scan_pipeline(
 
 
 def format_scan_text(scan: RepositoryScanResult) -> str:
-    """Format RepositoryScanResult into human-readable text output."""
+    """Format RepositoryScanResult into human-readable text output.
+
+    Category breakdown and top findings are the primary outputs,
+    followed by the experimental 0-100 debt score with coverage and exclusion metrics.
+    """
     lines: list[str] = [
         "Entropy Scan",
         "────────────────────────────",
         f"Repository: {scan.repository.path}",
         "",
-        f"Files discovered: {scan.repository.total_files}",
-        f"Files analyzed: {scan.repository.scannable_files}",
+        "Category Breakdown (Primary Output)",
+        "────────────────────────────",
+        "Categories:",
     ]
-    if scan.repository.total_loc > 0:
-        lines.append(f"Lines of code: {scan.repository.total_loc}")
-    lines.append(f"Findings: {len(scan.findings)}")
-    supp_count = getattr(scan, "suppressed_findings_count", 0)
-    if supp_count > 0:
-        lines.append(f"Suppressed findings: {supp_count}")
+
+    for cat in CATEGORY_ORDER:
+        label = CATEGORY_LABELS.get(cat, cat.value)
+        cat_breakdown = scan.score.category_scores.get(cat) if scan.score else None
+        if cat_breakdown and getattr(cat_breakdown.status, "value", str(cat_breakdown.status)) == "not_analyzed":
+            score_str = "NOT ANALYZED"
+            findings_str = "0 findings"
+        elif cat_breakdown and cat_breakdown.score is not None:
+            score_str = f"Score: {cat_breakdown.score:.1f}"
+            findings_str = f"{cat_breakdown.finding_count} finding{'s' if cat_breakdown.finding_count != 1 else ''}"
+        else:
+            score_str = "Score: 0.0"
+            findings_str = "0 findings"
+        lines.append(f"  {label:<26} {score_str:<16} ({findings_str})")
+
     lines.append("")
+    lines.append("Top Findings (Primary Output)")
+    lines.append("────────────────────────────")
+
+    sev_rank = {
+        Severity.CRITICAL: 0,
+        Severity.HIGH: 1,
+        Severity.MEDIUM: 2,
+        Severity.LOW: 3,
+        Severity.INFO: 4,
+    }
+    conf_rank = {
+        Confidence.HIGH: 0,
+        Confidence.MEDIUM: 1,
+        Confidence.LOW: 2,
+    }
+    sorted_findings = sorted(
+        scan.findings,
+        key=lambda f: (
+            sev_rank.get(f.severity, 99),
+            conf_rank.get(f.confidence, 99),
+            f.file,
+            f.line_start,
+        ),
+    )
+
+    if not sorted_findings:
+        lines.append("  No findings detected.")
+    else:
+        top_slice = sorted_findings[:10]
+        for idx, f in enumerate(top_slice, 1):
+            sev_badge = f.severity.value.upper()
+            lines.append(f"  {idx}. [{sev_badge}] {f.rule_id}: {f.title}")
+            lines.append(f"     Location: {f.file}:{f.line_start}")
+            if f.description:
+                lines.append(f"     Detail: {f.description}")
+        if len(sorted_findings) > 10:
+            lines.append(f"  ... and {len(sorted_findings) - 10} more finding(s)")
+
+    lines.append("")
+    lines.append("Entropy Score & Scope [EXPERIMENTAL]")
+    lines.append("────────────────────────────")
 
     score_val = scan.score.total_score if scan.score else 0
     tier_val = scan.score.tier.value if scan.score else "Unknown"
-    # Pretty title for band
     tier_title = " ".join(word.capitalize() for word in tier_val.replace("_", " ").split())
     is_partial = scan.score and (
         getattr(scan.score, "status", None) == "partial"
@@ -140,34 +194,26 @@ def format_scan_text(scan: RepositoryScanResult) -> str:
     floor_suffix = ""
     if scan.score and getattr(scan.score, "severity_floor_applied", False) and getattr(scan.score, "floor_reason", None):
         floor_suffix = f" (raised to {tier_title.upper()} by {scan.score.floor_reason})"
-    lines.append(f"Entropy Score: {score_val} / 100{partial_suffix}{floor_suffix}")
-    lines.append(f"Band: {tier_title}")
-    if scan.score and getattr(scan.score, "score_density", None) is not None:
-        lines.append(f"Density Score: {scan.score.score_density} / 100")
+
+    lines.append(f"Entropy Score: {score_val} / 100 [EXPERIMENTAL] (Band: {tier_title}){partial_suffix}{floor_suffix}")
+
+    cov_str = "Coverage: N/A"
     if scan.score and getattr(scan.score, "coverage", None):
         cov = scan.score.coverage
-        if getattr(cov, "detected_frameworks", None):
-            lines.append(f"Frameworks: {', '.join(cov.detected_frameworks)}")
-        if getattr(cov, "unsupported_frameworks", None):
-            lines.append(f"Unsupported Frameworks: {', '.join(cov.unsupported_frameworks)}")
-        if getattr(cov, "total_routes_detected", None) is not None:
-            lines.append(f"HTTP Routes: {cov.total_routes_detected}")
-    if scan.repository and (getattr(scan.repository, "excluded_files", 0) > 0 or getattr(scan.repository, "excluded_loc", 0) > 0):
-        lines.append(f"Scope Exclusions: {scan.repository.excluded_files} files ({scan.repository.excluded_loc} LOC excluded)")
-    lines.append("")
-    lines.append("Categories:")
-    lines.append("")
+        cov_str = f"Coverage: {cov.loc_coverage_percentage:.1f}% LOC analyzed"
+    lines.append(cov_str)
 
-    for cat in CATEGORY_ORDER:
-        label = CATEGORY_LABELS.get(cat, cat.value)
-        cat_breakdown = scan.score.category_scores.get(cat) if scan.score else None
-        if cat_breakdown and getattr(cat_breakdown.status, "value", str(cat_breakdown.status)) == "not_analyzed":
-            score_str = "NOT ANALYZED"
-        elif cat_breakdown and cat_breakdown.score is not None:
-            score_str = f"{cat_breakdown.score:.1f}"
-        else:
-            score_str = "0.0"
-        lines.append(f"  {label:<24} {score_str:>12}")
+    excl_files = getattr(scan.repository, "excluded_files", 0)
+    excl_loc = getattr(scan.repository, "excluded_loc", 0)
+    lines.append(f"Scope Exclusions: {excl_files} files ({excl_loc} LOC excluded)")
+
+    lines.append(f"Files discovered: {scan.repository.total_files}, Files analyzed: {scan.repository.scannable_files}")
+    if scan.repository.total_loc > 0:
+        lines.append(f"Lines of code: {scan.repository.total_loc}")
+    lines.append(f"Findings: {len(scan.findings)}")
+    supp_count = getattr(scan, "suppressed_findings_count", 0)
+    if supp_count > 0:
+        lines.append(f"Suppressed findings: {supp_count}")
 
     return "\n".join(lines)
 
@@ -215,6 +261,29 @@ def format_scan_json_dict(scan: RepositoryScanResult) -> dict[str, Any]:
         for f in sorted_findings
     ]
 
+    sev_rank = {
+        Severity.CRITICAL: 0,
+        Severity.HIGH: 1,
+        Severity.MEDIUM: 2,
+        Severity.LOW: 3,
+        Severity.INFO: 4,
+    }
+    conf_rank = {
+        Confidence.HIGH: 0,
+        Confidence.MEDIUM: 1,
+        Confidence.LOW: 2,
+    }
+    top_findings_sorted = sorted(
+        findings_list,
+        key=lambda f: (
+            sev_rank.get(Severity(f["severity"]), 99),
+            conf_rank.get(Confidence(f["confidence"]), 99),
+            f["file"],
+            f["line_start"],
+        ),
+    )
+    top_findings_list = top_findings_sorted[:10]
+
     return {
         "repository": {
             "name": scan.repository.name,
@@ -225,6 +294,8 @@ def format_scan_json_dict(scan: RepositoryScanResult) -> dict[str, Any]:
             "is_dirty": getattr(scan.repository, "is_dirty", False),
             "project_id": getattr(scan.repository, "project_id", None),
         },
+        "categories": categories_dict,
+        "top_findings": top_findings_list,
         "files": {
             "discovered": scan.repository.total_files,
             "analyzed": scan.repository.scannable_files,
@@ -234,6 +305,8 @@ def format_scan_json_dict(scan: RepositoryScanResult) -> dict[str, Any]:
         },
         "score": {
             "total_score": scan.score.total_score if scan.score else 0,
+            "experimental": True,
+            "is_experimental": True,
             "score_density": getattr(scan.score, "score_density", 0) if scan.score else 0,
             "severity_floor_applied": getattr(scan.score, "severity_floor_applied", False) if scan.score else False,
             "floor_reason": getattr(scan.score, "floor_reason", None) if scan.score else None,
@@ -249,7 +322,6 @@ def format_scan_json_dict(scan: RepositoryScanResult) -> dict[str, Any]:
             "coverage": scan.score.coverage.model_dump() if (scan.score and scan.score.coverage) else None,
         },
         "config_hash": getattr(scan, "config_hash", None),
-        "categories": categories_dict,
         "findings": findings_list,
     }
 

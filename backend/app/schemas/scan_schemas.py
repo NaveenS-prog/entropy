@@ -1,10 +1,11 @@
 """Pydantic API DTO schemas for scans and repository ingestion."""
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.models.domain.enums import DebtScoreTier, ScanStatus
+from app.models.domain.enums import Confidence, DebtScoreTier, ScanStatus, Severity
 from app.models.domain.finding import Finding
 from app.models.domain.manifest import RepositoryManifest
 from app.models.domain.scan import RepositoryMetadata
@@ -44,6 +45,7 @@ class ScanSummaryResponse(BaseModel):
     status: ScanStatus
     total_score: int | None = None
     tier: DebtScoreTier | None = None
+    is_experimental: bool = Field(default=True, description="Indicates the 0-100 score is experimental")
     total_findings: int = 0
     total_loc: int = 0
     analyzed_files: int = 0
@@ -62,8 +64,43 @@ class ScanDetailResponse(BaseModel):
     manifest: RepositoryManifest | None = None
     findings: list[Finding] = Field(default_factory=list)
     score: DebtScoreResult | None = None
+    is_experimental: bool = Field(default=True, description="Indicates the 0-100 score is experimental")
+    categories: dict[str, Any] = Field(default_factory=dict, description="Primary per-category breakdown")
+    top_findings: list[Finding] = Field(default_factory=list, description="Primary top findings list")
     started_at: datetime
     completed_at: datetime | None = None
     duration_ms: float | None = None
     analyzers_executed: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def populate_primary_outputs(self) -> "ScanDetailResponse":
+        if not self.categories and self.score and getattr(self.score, "category_scores", None):
+            self.categories = {
+                cat.value if hasattr(cat, "value") else str(cat): breakdown
+                for cat, breakdown in self.score.category_scores.items()
+            }
+        if not self.top_findings and self.findings:
+            sev_rank = {
+                Severity.CRITICAL: 0,
+                Severity.HIGH: 1,
+                Severity.MEDIUM: 2,
+                Severity.LOW: 3,
+                Severity.INFO: 4,
+            }
+            conf_rank = {
+                Confidence.HIGH: 0,
+                Confidence.MEDIUM: 1,
+                Confidence.LOW: 2,
+            }
+            sorted_f = sorted(
+                self.findings,
+                key=lambda f: (
+                    sev_rank.get(f.severity, 99),
+                    conf_rank.get(f.confidence, 99),
+                    f.file,
+                    f.line_start,
+                ),
+            )
+            self.top_findings = sorted_f[:10]
+        return self

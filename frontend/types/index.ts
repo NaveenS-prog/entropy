@@ -215,6 +215,7 @@ export interface DebtScoreResult {
   audit_trail: string[];
   is_explainable: boolean;
   disclaimer?: string;
+  is_experimental?: boolean;
 }
 
 export interface RepositoryMetadata {
@@ -236,6 +237,8 @@ export interface RepositoryScanResult {
   repository: RepositoryMetadata;
   status: ScanStatus;
   manifest?: RepositoryManifest | null;
+  categories?: Record<string, CategoryScoreBreakdown>;
+  top_findings?: Finding[];
   findings: Finding[];
   score?: DebtScoreResult | null;
   started_at: string;

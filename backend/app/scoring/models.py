@@ -142,6 +142,7 @@ class DebtScoreResult(BaseModel):
     """
 
     total_score: int = Field(..., ge=0, le=100, description="Final aggregated debt score (0-100)")
+    is_experimental: bool = Field(default=True, description="Indicates that the 0-100 score is experimental")
     score_density: int = Field(default=0, ge=0, le=100, description="Pure density-based debt score before severity floors")
     severity_floor_applied: bool = Field(default=False, description="Whether a severity floor raised the headline score")
     floor_reason: str | None = Field(default=None, description="Explanation of why the severity floor was applied")

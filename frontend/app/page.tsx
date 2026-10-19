@@ -526,7 +526,7 @@ export default function RepositoryIngestionDashboard() {
                 />
               )}
 
-          {/* Architectural Debt Categories Breakdown */}
+          {/* Architectural Debt Categories Breakdown (Primary Analysis) */}
           {score && score.category_scores && (
             <CategoryMatrix
               categories={score.category_scores}
@@ -535,6 +535,14 @@ export default function RepositoryIngestionDashboard() {
               onSelectCategory={setSelectedCategory}
             />
           )}
+
+          {/* Debt Findings & Top Detections (Primary Output) */}
+          <FindingsViewer
+            scanId={activeScan?.scan_id || ""}
+            findings={findings}
+            selectedCategory={selectedCategory}
+            isLoading={isLoadingFindings}
+          />
 
           {/* Summary Stat Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -650,14 +658,6 @@ export default function RepositoryIngestionDashboard() {
               </div>
             )}
           </div>
-
-          {/* Error Handling Debt Findings (Phase 3 Engine) */}
-          <FindingsViewer
-            scanId={activeScan?.scan_id || ""}
-            findings={findings}
-            selectedCategory={selectedCategory}
-            isLoading={isLoadingFindings}
-          />
 
           {/* Source Files Explorer */}
           <div className="bg-card border border-border rounded-xl p-6">

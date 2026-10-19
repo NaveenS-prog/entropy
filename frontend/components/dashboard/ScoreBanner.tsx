@@ -44,6 +44,9 @@ export function ScoreBanner({ score, repository, durationMs }: ScoreBannerProps)
               <span className="text-[11px] uppercase tracking-wider text-slate-400 font-medium">
                 / 100
               </span>
+              <span className="text-[8px] font-bold uppercase tracking-wider text-amber-300 bg-amber-950/90 px-1 py-0.5 rounded border border-amber-700 mt-0.5">
+                experimental
+              </span>
               {isPartial && (
                 <span className="text-[9px] font-semibold uppercase tracking-wider text-amber-400 bg-amber-950/80 px-1 py-0.5 rounded border border-amber-800">
                   partial
@@ -65,6 +68,9 @@ export function ScoreBanner({ score, repository, durationMs }: ScoreBannerProps)
               >
                 {score.tier.replace("_", " ").toUpperCase()} DEBT
               </span>
+              <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold border bg-amber-950/80 border-amber-700 text-amber-300">
+                EXPERIMENTAL SCORE
+              </span>
               {score.severity_floor_applied && score.floor_reason && (
                 <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold border bg-amber-950/70 border-amber-800 text-amber-300">
                   RAISED TO {score.tier.replace("_", " ").toUpperCase()} BY {score.floor_reason.toUpperCase()}
@@ -81,6 +87,20 @@ export function ScoreBanner({ score, repository, durationMs }: ScoreBannerProps)
             </div>
 
             <p className="text-xs text-slate-400 mt-1 font-mono break-all">{repository.path}</p>
+
+            {/* Prominent Coverage & Exclusion Counts next to score */}
+            <div className="flex items-center gap-2.5 mt-2.5 text-xs font-mono text-slate-300 flex-wrap">
+              {score.coverage && (
+                <span className="bg-slate-900/90 px-2.5 py-1 rounded border border-slate-700/80">
+                  Coverage: <strong className="text-emerald-400">{score.coverage.loc_coverage_percentage}%</strong> ({score.coverage.covered_loc.toLocaleString()} / {score.coverage.total_loc.toLocaleString()} LOC)
+                </span>
+              )}
+              {(Boolean(score.excluded_files) || Boolean(repository.excluded_files)) && (
+                <span className="bg-slate-900/90 px-2.5 py-1 rounded border border-slate-700/80">
+                  Excluded: <strong className="text-amber-400">{(score.excluded_files ?? repository.excluded_files ?? 0).toLocaleString()}</strong> files (<strong className="text-amber-400">{(score.excluded_loc ?? repository.excluded_loc ?? 0).toLocaleString()}</strong> LOC)
+                </span>
+              )}
+            </div>
 
             <div className="flex items-center gap-4 mt-3 text-xs text-slate-400 flex-wrap">
               {repository.branch && (

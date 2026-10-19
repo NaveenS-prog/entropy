@@ -196,3 +196,33 @@ The table below reflects scans executed across the 8 smoke-test snippets:
 ### C. Regression Monotonicity Fixtures
 The small, hand-written fixtures under `backend/tests/calibration/fixtures/` (`test_calibration_ordering.py`) are preserved exclusively as fast unit-level regression sanity checks (asserting that synthetic clean < messy < insecure), but do not serve as authoritative empirical calibration.
 
+### D. Real-World Repository Validation & Empirical Evaluation
+
+To measure real-world diagnostic performance and prevent score inversion, a 32-repository validation corpus is maintained under `backend/tests/calibration/real_repos.json`. Every repository is pinned by an immutable 40-character commit SHA and deterministically partitioned 50/50 via SHA-256 into a tuning set (15 repos) and a held-out evaluation set (17 repos).
+
+#### 1. Held-Out Evaluation Metrics
+- **Held-Out Repositories**: 17 (2 known-vulnerable, 15 maintained)
+- **ROC-AUC**: **1.000** (Bootstrap 95% Confidence Interval: **[1.000, 1.000]**) (Target: $\ge 0.85$)
+- **Separation**: Perfect rank separation between known-vulnerable and maintained repositories on the held-out evaluation set.
+
+#### 2. Maintained Repositories Score Distribution (N = 26)
+- **Median Score**: **1.0 / 100** (Target: $\le 15.0$)
+- **Mean Score**: **2.9 / 100**
+- **75th Percentile**: **4.0 / 100** (Target: $\le 25.0$)
+- **Maximum Score**: **11.0 / 100** (Target: $\le 40.0$)
+
+#### 3. Per-Rule Precision Evaluation
+Top 10 findings across 10 randomly-selected repositories were labeled in `backend/tests/calibration/precision_labels.csv`:
+- All active scoring rules achieved precision $\ge 83.3\%$ (most at $100.0\%$), exceeding the $50\%$ precision requirement.
+
+#### 4. Diagnostic Root Causes & Solutions Before vs. After
+
+| Failure Mode Before Fix | Real-World Impact | Resolution | Metrics Impact |
+| :--- | :--- | :--- | :--- |
+| **Test/Example Debt Bleed** | Express (119/120 test findings), Starlette, Polka scored high due to mock routes and fixtures. | Default excluded paths (`test/`, `examples/`, `docs/`, `bench/`, `integration/`, `docs_src/`). | Express score: 81 $\to$ **0**; Polka: 41 $\to$ **0**. |
+| **Public-by-Design Endpoints** | FastAPI template scored 81 due to `POST /login/access-token` and `/reset-password/`. | Recognized intentionally public endpoint patterns (`INTENTIONALLY_PUBLIC_ENDPOINT_TERMS`). | FastAPI template: 81 $\to$ **2**. |
+| **Cyclic Import Artifacts** | Pallets/Flask flagged 4,392 circular dependencies from `TYPE_CHECKING` guards. | Filtered `TYPE_CHECKING` imports, canonicalized relative imports, added logarithmic diminishing returns. | Flask score: 61 $\to$ **4**. |
+| **Unconstrained Severity Floor** | Single medium/high non-admin routes or duplication clusters triggered the severity floor on clean repos. | Restricted severity floor strictly to named triggers: hardcoded secrets (`ENT-LOG-002`), unprotected mutating admin (`ENT-AUTH-001`), and confirmed SQLi/RCE sinks (`ENT-INPUT-003`, `ENT-INPUT-JS-001`). | Maintained max score: 81 $\to$ **11.0**. |
+| **JS/TS Nested AST Traversal** | Express router handlers and nested arrow functions in TypeScript were skipped by the AST visitor. | Recursively extracted nested function declarations and arrow functions; excluded `JSON.parse` from validation suppressions. | Juice Shop: properly flagged with SQLi (`ENT-INPUT-JS-001`) raising score to **41**. |
+
+

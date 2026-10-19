@@ -539,18 +539,17 @@ class JSTSAstVisitor:
                     handlers.append(catch_obj)
                     self.structure.all_handlers.append(catch_obj)
 
-        # Recurse children (skip nested function definitions for this function's scope)
+        # Recurse children
         for child in node.children:
-            if child.type not in ("function_declaration", "arrow_function", "function_expression"):
-                self._inspect_function_body(
-                    child,
-                    enclosing_name=enclosing_name,
-                    calls=calls,
-                    handlers=handlers,
-                    returns=returns,
-                    assigns=assigns,
-                    tokens=tokens,
-                )
+            self._inspect_function_body(
+                child,
+                enclosing_name=enclosing_name,
+                calls=calls,
+                handlers=handlers,
+                returns=returns,
+                assigns=assigns,
+                tokens=tokens,
+            )
 
     def _handle_try_statement(self, node: Any, enclosing_function: str | None) -> None:
         """Direct try-statement handler."""

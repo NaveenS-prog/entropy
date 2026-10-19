@@ -95,7 +95,6 @@ class JSMissingAuthorizationRule:
 
         path_lower = (ep.route_path or "").lower()
         sym_lower = ep.symbol.lower()
-        combined = f"{path_lower} {sym_lower}"
 
         is_admin = any(
             seg in path_lower
@@ -111,8 +110,11 @@ class JSMissingAuthorizationRule:
         )
 
         is_sensitive_delete = (
-            "delete" in combined
-            and any(term in combined for term in ("user", "account", "data", "file", "all"))
+            any(m == "DELETE" for m in ep.http_methods)
+            and (
+                any(seg in path_lower for seg in ("/users/", "/accounts/", "/system/", "/purge"))
+                or any(term in sym_lower for term in ("delete_user", "purge_data", "delete_account"))
+            )
         )
 
         return is_admin or is_payment_mutation or is_sensitive_delete

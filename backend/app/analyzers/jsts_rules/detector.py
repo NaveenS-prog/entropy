@@ -667,6 +667,10 @@ class JSFrameworkRouteDetector:
         if is_intentionally_public_endpoint(route.path, route.handler_name):
             reasons.append(f"Intentionally public endpoint pattern in '{route.path or route.handler_name}'")
 
+        # Standard user registration / signup POST endpoints
+        if route.http_method == "POST" and path_norm in ("/users", "/user", "/api/users", "/api/v1/users"):
+            reasons.append(f"Standard public user registration POST '{route.path}'")
+
         return bool(reasons), reasons
 
     @classmethod

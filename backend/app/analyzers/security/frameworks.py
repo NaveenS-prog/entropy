@@ -586,28 +586,38 @@ class FrameworkRouteDetector:
         # 1. Parameter Dependencies (FastAPI)
         for param in func.parameters:
             default_val = param.default_value or ""
-            if "Depends(" in default_val or "Security(" in default_val:
-                # Check if param name or dependency target matches auth indicators
-                p_lower = param.name.lower()
-                def_lower = default_val.lower()
+            type_ann = (param.annotation or "").lower()
+            p_lower = param.name.lower()
+            def_lower = default_val.lower()
+
+            is_auth_dep = False
+            guard_label = default_val or param.annotation or param.name
+
+            if "depends(" in def_lower or "security(" in def_lower:
                 is_auth_dep = (
                     any(term in p_lower for term in ("user", "auth", "token", "jwt", "cred", "admin", "principal", "actor", "account", "identity", "caller"))
                     or any(guard in def_lower for guard in KNOWN_AUTH_GUARDS)
                     or any(term in def_lower for term in ("require_", "verify_", "check_", "get_admin", "admin", "perm"))
                     or "security(" in def_lower
                 )
-                if is_auth_dep:
-                    evidences.append(
-                        AuthenticationEvidence(
-                            mechanism_type=AuthMechanismType.DEPENDENCY,
-                            source_location=param.location or func.location,
-                            endpoint=func.name,
-                            guard_name=default_val,
-                            evidence_kind="FASTAPI_PARAM_DEPENDENCY",
-                            confidence=Confidence.HIGH,
-                            details=f"Authentication dependency on parameter '{param.name}': {default_val}",
-                        )
+            elif (
+                any(term in p_lower for term in ("current_user", "authenticated_user", "auth_user", "session_user", "caller_user", "token_data"))
+                or any(term in type_ann for term in ("currentuser", "sessiondep", "tokendep", "authuser", "depends("))
+            ):
+                is_auth_dep = True
+
+            if is_auth_dep:
+                evidences.append(
+                    AuthenticationEvidence(
+                        mechanism_type=AuthMechanismType.DEPENDENCY,
+                        source_location=param.location or func.location,
+                        endpoint=func.name,
+                        guard_name=guard_label,
+                        evidence_kind="FASTAPI_PARAM_DEPENDENCY",
+                        confidence=Confidence.HIGH,
+                        details=f"Authentication dependency on parameter '{param.name}': {guard_label}",
                     )
+                )
 
         # 2. Route Decorator Dependencies (FastAPI)
         if route_decorator and "dependencies" in route_decorator.keyword_arguments:

@@ -42,6 +42,11 @@ EXCLUDED_PATH_SUBSTRINGS = (
 
 def is_excluded_path(file_path: str) -> bool:
     """Return True if the file path belongs to tests, fixtures, or generated code."""
+    from app.repository.config import is_scope_excluded
+
+    if is_scope_excluded(file_path):
+        return True
+
     path_lower = file_path.lower().replace("\\", "/")
     return any(p in path_lower for p in EXCLUDED_PATH_SUBSTRINGS)
 

@@ -141,9 +141,8 @@ def create_finding_for_cluster(cluster: DuplicationCluster) -> Finding:
     # Select appropriate rule based on cluster properties
     if cluster.occurrence_count >= 3:
         rule = RULE_ENT_DUP_005
-        # Higher severity if widespread across 4+ files or 5+ occurrences
-        severity = Severity.HIGH if (len(cluster.files) >= 4 or cluster.occurrence_count >= 5) else Severity.MEDIUM
-        confidence = Confidence.HIGH
+        severity = Severity.MEDIUM
+        confidence = Confidence.HIGH if cluster.is_exact else Confidence.MEDIUM
         title = (
             f"Duplication Cluster: {cluster.occurrence_count} Similar Functions "
             f"Across {len(cluster.files)} File(s)"

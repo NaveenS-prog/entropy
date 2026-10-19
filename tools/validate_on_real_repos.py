@@ -23,15 +23,15 @@ BACKEND_DIR = ROOT_DIR / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.models.domain.enums import FindingSeverity  # noqa: E402
+from app.models.domain.enums import Severity  # noqa: E402
 from app.services.scan_service import ScanService  # noqa: E402
 
 SEVERITY_ORDER = {
-    FindingSeverity.CRITICAL: 4,
-    FindingSeverity.HIGH: 3,
-    FindingSeverity.MEDIUM: 2,
-    FindingSeverity.LOW: 1,
-    FindingSeverity.INFO: 0,
+    Severity.CRITICAL: 4,
+    Severity.HIGH: 3,
+    Severity.MEDIUM: 2,
+    Severity.LOW: 1,
+    Severity.INFO: 0,
 }
 
 
@@ -163,8 +163,8 @@ def run_validation(
                 "severity": f.severity.value,
                 "confidence": f.confidence.value,
                 "file": f.file,
-                "line": f.line,
-                "message": f.message[:100],
+                "line": f.line_start,
+                "message": f.description[:100],
             }
             for f in top_10
         ]

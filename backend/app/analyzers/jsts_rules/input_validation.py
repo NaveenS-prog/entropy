@@ -112,7 +112,9 @@ class JSUnvalidatedInputRule:
 
         all_calls = context.get_calls()
         has_schema_parse_call = any(
-            c.method_name and c.method_name.lower() in VALIDATION_METHODS
+            c.method_name
+            and c.method_name.lower() in VALIDATION_METHODS
+            and (c.caller_object or "").lower() != "json"
             for c in all_calls
         )
 
@@ -165,8 +167,11 @@ class JSUnvalidatedInputRule:
                     if re.search(pattern, arg):
                         matched_input = arg
                         break
-                if not matched_input and arg in tainted_vars:
-                    matched_input = f"{arg} ({tainted_vars[arg]})"
+                if not matched_input:
+                    for t_var, t_source in tainted_vars.items():
+                        if re.search(rf"\b{re.escape(t_var)}\b", arg):
+                            matched_input = f"{arg} ({t_source})"
+                            break
                 if matched_input:
                     break
 

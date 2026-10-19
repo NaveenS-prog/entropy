@@ -34,6 +34,7 @@ from app.scoring.weights import (
     SEVERITY_FLOOR_HIGH_SCORE,
     SEVERITY_FLOOR_MODERATE_SCORE,
     SEVERITY_FLOOR_VERY_HIGH_SCORE,
+    is_severity_floor_trigger,
 )
 
 # Default analyzed categories across the 7 Entropy debt categories
@@ -172,6 +173,7 @@ class EntropyScorer:
             and f.severity == Severity.CRITICAL
             and f.confidence == Confidence.HIGH
             and not is_scope_excluded(f.file)
+            and is_severity_floor_trigger(f)
         ]
         high_high_conf = [
             f for f in findings
@@ -179,6 +181,7 @@ class EntropyScorer:
             and f.severity == Severity.HIGH
             and f.confidence == Confidence.HIGH
             and not is_scope_excluded(f.file)
+            and is_severity_floor_trigger(f)
         ]
 
         floor_score = 0

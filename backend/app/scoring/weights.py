@@ -9,6 +9,9 @@ static-analysis rules. It does not measure vulnerability exploitability or AI au
 
 from __future__ import annotations
 
+import math
+import re
+
 from app.models.domain.enums import Confidence, DebtCategory, Severity
 
 # =============================================================================
@@ -99,6 +102,9 @@ INTENTIONALLY_PUBLIC_ENDPOINT_TERMS: set[str] = {
     "signin",
     "signup",
     "register",
+    "register-user",
+    "create-user",
+    "new-user",
     "logout",
     "token",
     "refresh",
@@ -152,8 +158,6 @@ def is_intentionally_public_endpoint(
     terms: set[str] | None = None,
 ) -> bool:
     """Check if a route path or handler name matches configured intentionally public terms."""
-    import re
-
     check_terms = terms if terms is not None else INTENTIONALLY_PUBLIC_ENDPOINT_TERMS
     path_lower = (route_path or "").lower()
 
@@ -203,13 +207,92 @@ def drop_severity_one_level(severity: Severity) -> Severity:
 
 
 # =============================================================================
-# Severity Floor Constants
+# Severity Floor Constants & Named Triggers
 # =============================================================================
 # High-confidence severe findings establish a lower bound on the overall score
 # and tier so that critical defects are never diluted by large codebase volume.
 SEVERITY_FLOOR_MODERATE_SCORE: int = 41    # Minimum score for MODERATE tier (>= 1 HIGH finding with HIGH confidence)
 SEVERITY_FLOOR_HIGH_SCORE: int = 61        # Minimum score for HIGH tier (>= 1 CRITICAL finding with HIGH confidence)
 SEVERITY_FLOOR_VERY_HIGH_SCORE: int = 81   # Minimum score for VERY_HIGH tier (>= 2 CRITICAL findings with HIGH confidence)
+
+SEVERITY_FLOOR_ADMIN_PATH_TERMS: set[str] = {"admin", "manage", "internal"}
+SEVERITY_FLOOR_MUTATING_METHODS: set[str] = {"POST", "PUT", "DELETE", "PATCH"}
+SEVERITY_FLOOR_CREDENTIAL_RULES: set[str] = {"ENT-LOG-002"}
+SEVERITY_FLOOR_INJECTION_RULES: set[str] = {"ENT-INPUT-003", "ENT-INPUT-JS-001"}
+SEVERITY_FLOOR_MIN_CREDENTIAL_CONFIDENCE_WEIGHT: float = 0.8
+
+
+def is_severity_floor_trigger(finding: object) -> bool:
+    """Check if a finding matches a named trigger permitted to establish a severity floor.
+
+    Permitted named triggers per specification:
+    1. Hardcoded credentials (rule ENT-LOG-002 with confidence >= 0.8).
+    2. Unprotected mutating admin endpoint (ENT-AUTH-001 on POST/PUT/DELETE/PATCH with
+       path containing admin/manage/internal and not in test/example).
+    3. Confirmed unauthenticated SQLi or RCE sink (ENT-INPUT-003 or ENT-INPUT-JS-001).
+    """
+    sev = getattr(finding, "severity", None)
+    if sev not in (Severity.CRITICAL, Severity.HIGH):
+        return False
+
+    rule_id = getattr(finding, "rule_id", "")
+
+    # 1. Hardcoded credentials
+    if rule_id in SEVERITY_FLOOR_CREDENTIAL_RULES:
+        conf = getattr(finding, "confidence", None)
+        conf_weight = CONFIDENCE_WEIGHTS.get(conf, 0.0) if hasattr(conf, "value") else 1.0
+        return conf_weight >= SEVERITY_FLOOR_MIN_CREDENTIAL_CONFIDENCE_WEIGHT
+
+    # 2. Unprotected mutating admin endpoint
+    if rule_id == "ENT-AUTH-001":
+        methods: set[str] = set()
+        route_path = ""
+        meta = getattr(finding, "metadata", None) or {}
+        if meta:
+            m = meta.get("http_methods")
+            if isinstance(m, list):
+                methods = {str(x).upper() for x in m}
+            elif isinstance(m, str):
+                methods = {m.upper()}
+            route_path = str(meta.get("route_path", "")).lower()
+
+        desc = getattr(finding, "description", "") or ""
+        evidence_content = ""
+        ev = getattr(finding, "evidence", None)
+        if ev and hasattr(ev, "content") and ev.content:
+            evidence_content = ev.content.lower()
+
+        if not methods or not route_path:
+            m_match = re.search(r"'(POST|PUT|DELETE|PATCH)\s+([^']+)'", desc, re.IGNORECASE)
+            if m_match:
+                methods.add(m_match.group(1).upper())
+                route_path = m_match.group(2).lower()
+
+        title_lower = (getattr(finding, "title", "") or "").lower()
+        sym_lower = (getattr(finding, "symbol", "") or "").lower()
+
+        is_mutating = (
+            bool(methods & SEVERITY_FLOOR_MUTATING_METHODS)
+            or any(f"mutating method {m.lower()}" in desc.lower() for m in SEVERITY_FLOOR_MUTATING_METHODS)
+            or "mutating" in title_lower
+            or "mutat" in desc.lower()
+            or any(k in sym_lower for k in ("delete", "remove", "update", "create", "post", "put", "patch"))
+            or any(f".{m.lower()}(" in evidence_content for m in SEVERITY_FLOOR_MUTATING_METHODS)
+            or any(f".{m.lower()}" in evidence_content for m in SEVERITY_FLOOR_MUTATING_METHODS)
+        )
+        has_admin = any(term in route_path for term in SEVERITY_FLOOR_ADMIN_PATH_TERMS) or any(
+            f"/{term}" in desc.lower() or f"/{term}" in evidence_content or term in desc.lower() for term in SEVERITY_FLOOR_ADMIN_PATH_TERMS
+        )
+        return is_mutating and has_admin
+
+    # 3. Confirmed unauthenticated SQLi or RCE sink
+    if rule_id in SEVERITY_FLOOR_INJECTION_RULES:
+        desc = (getattr(finding, "description", "") or "").lower()
+        title = (getattr(finding, "title", "") or "").lower()
+        combined = f"{desc} {title}"
+        return any(term in combined for term in ("sql", "subprocess", "command execution", "eval", "exec", "system"))
+
+    return False
 
 
 # =============================================================================
@@ -232,8 +315,6 @@ def calculate_rule_penalty(finding_weights: list[float]) -> float:
     Subsequent findings contribute with logarithmic diminishing returns:
     excess_penalty = avg_weight * RULE_LOG_SCALE_FACTOR * ln(1 + excess / RULE_LOG_SCALE_DIVISOR).
     """
-    import math
-
     if not finding_weights:
         return 0.0
 

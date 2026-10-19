@@ -125,9 +125,28 @@ def _is_logging_call(node: ast.Call) -> tuple[bool, str, str]:
     return False, "", ""
 
 
+SAFE_IDENTIFIER_SUBSTRINGS = (
+    "obscure",
+    "masked",
+    "redact",
+    "redacted",
+    "hash",
+    "hashed",
+    "safe",
+    "clean",
+    "anonymized",
+    "obfuscated",
+    "censored",
+    "filter",
+    "filtered",
+)
+
+
 def _is_sensitive_identifier(name: str) -> bool:
     """Check whether a variable or attribute name indicates sensitive data."""
     norm = name.lower()
+    if any(safe in norm for safe in SAFE_IDENTIFIER_SUBSTRINGS):
+        return False
     return any(sens in norm for sens in SENSITIVE_IDENTIFIERS)
 
 

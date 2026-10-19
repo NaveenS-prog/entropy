@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from app.analyzers.jsts_context import JSTSASTContext
 from app.analyzers.jsts_rules.detector import JSFrameworkRouteDetector
-from app.analyzers.security.models import EndpointDefinition
+from app.analyzers.security.models import AuthMechanismType, EndpointDefinition
 from app.models.domain.enums import Confidence, DebtCategory, Severity, SupportedLanguage
 from app.models.domain.finding import Finding
 from app.models.domain.rule import RuleDefinition
@@ -407,7 +407,11 @@ class JSDuplicatedAuthenticationRule:
         inline_eps = [
             e
             for e in endpoints
-            if any(ev.evidence_kind == "inline_auth_check" for ev in e.auth_evidence)
+            if not any(
+                ev.mechanism_type == AuthMechanismType.MIDDLEWARE_REFERENCE
+                for ev in e.auth_evidence
+            )
+            and any(ev.evidence_kind == "inline_auth_check" for ev in e.auth_evidence)
         ]
 
         if len(inline_eps) >= 2:

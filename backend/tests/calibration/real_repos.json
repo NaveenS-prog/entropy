@@ -1,0 +1,261 @@
+{
+  "description": "Benchmark suite of 32 real-world repositories with pinned commit SHAs split into tuning and held-out sets.",
+  "repositories": [
+    {
+      "repo": "appsecco/dvna",
+      "commit_sha": "9ba473add536f66ac9007966acb2a775dd31277a",
+      "language": "javascript",
+      "type": "vulnerable",
+      "set": "tuning",
+      "description": "Damn Vulnerable NodeJS Application"
+    },
+    {
+      "repo": "we45/Vulnerable-Flask-App",
+      "commit_sha": "b6a4f97afd466e83e1f60781494252dec1c37039",
+      "language": "python",
+      "type": "vulnerable",
+      "set": "tuning",
+      "description": "Deliberately vulnerable Flask web application"
+    },
+    {
+      "repo": "OWASP/NodeGoat",
+      "commit_sha": "c5cb68a7084e4ae7dcc60e6a98768720a81841e8",
+      "language": "javascript",
+      "type": "vulnerable",
+      "set": "tuning",
+      "description": "OWASP NodeGoat insecure Node.js application"
+    },
+    {
+      "repo": "payatu/Tiredful-API",
+      "commit_sha": "0134124496b3c4f1b969e51a24fd8a059104fb98",
+      "language": "python",
+      "type": "vulnerable",
+      "set": "tuning",
+      "description": "Deliberately flawed Django REST API"
+    },
+    {
+      "repo": "pallets/flask",
+      "commit_sha": "d086db856be187255b8ec61ef409357393020f32",
+      "language": "python",
+      "type": "maintained",
+      "set": "tuning",
+      "description": "Maintained lightweight WSGI web framework"
+    },
+    {
+      "repo": "encode/starlette",
+      "commit_sha": "dc20b216f065af3a487722141da9a29dcac388d1",
+      "language": "python",
+      "type": "maintained",
+      "set": "tuning",
+      "description": "Lightweight ASGI framework/toolkit"
+    },
+    {
+      "repo": "encode/httpx",
+      "commit_sha": "b5addb64f0161ff6bfe94c124ef76f6a1fba5254",
+      "language": "python",
+      "type": "maintained",
+      "set": "tuning",
+      "description": "Next generation HTTP client for Python"
+    },
+    {
+      "repo": "pallets/click",
+      "commit_sha": "2247b35ea1c47c727d7a06e51fa280e12a863ff6",
+      "language": "python",
+      "type": "maintained",
+      "set": "tuning",
+      "description": "Composable command line interface toolkit"
+    },
+    {
+      "repo": "marshmallow-code/marshmallow",
+      "commit_sha": "d08471b17880c62b789971ada638707a11d3f8d4",
+      "language": "python",
+      "type": "maintained",
+      "set": "tuning",
+      "description": "Simplified object serialization library"
+    },
+    {
+      "repo": "tiangolo/sqlmodel",
+      "commit_sha": "462b59d9cd1cc3d9072735435330ef9ab6d15cbf",
+      "language": "python",
+      "type": "maintained",
+      "set": "tuning",
+      "description": "SQL databases in Python, designed for simplicity and compatibility"
+    },
+    {
+      "repo": "encode/databases",
+      "commit_sha": "ae3fb16f40201d9ed0ed31bea31a289127169568",
+      "language": "python",
+      "type": "maintained",
+      "set": "tuning",
+      "description": "Async database support for Python"
+    },
+    {
+      "repo": "expressjs/express",
+      "commit_sha": "0dee2c52c7c873498f8ed7d8ee4ddd0a04d3ada8",
+      "language": "javascript",
+      "type": "maintained",
+      "set": "tuning",
+      "description": "Fast, unopinionated, minimalist web framework for node"
+    },
+    {
+      "repo": "pillarjs/router",
+      "commit_sha": "4064f28a6cfa7ccb311c5c59b4bcb0fea4a18398",
+      "language": "javascript",
+      "type": "maintained",
+      "set": "tuning",
+      "description": "Node.js router implementation"
+    },
+    {
+      "repo": "expressjs/cors",
+      "commit_sha": "5317ebe670db2aaebc1d496eb5d33493deefb3ed",
+      "language": "javascript",
+      "type": "maintained",
+      "set": "tuning",
+      "description": "Node.js CORS middleware"
+    },
+    {
+      "repo": "motdotla/dotenv",
+      "commit_sha": "6d6e6c58074adc12131ec6ab6eac92fb92484dbc",
+      "language": "javascript",
+      "type": "maintained",
+      "set": "tuning",
+      "description": "Loads environment variables from .env"
+    },
+    {
+      "repo": "juice-shop/juice-shop",
+      "commit_sha": "399fba76194305a312693eee44f4df64bdf0c3ce",
+      "language": "typescript",
+      "type": "vulnerable",
+      "set": "held_out",
+      "description": "OWASP Juice Shop: An intentionally insecure web app"
+    },
+    {
+      "repo": "JasonHinds13/hackable",
+      "commit_sha": "c7b971ed55b74a5695d14212a6e4df9188c3f035",
+      "language": "python",
+      "type": "vulnerable",
+      "set": "held_out",
+      "description": "Intentionally vulnerable Flask application"
+    },
+    {
+      "repo": "psf/requests",
+      "commit_sha": "611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60",
+      "language": "python",
+      "type": "maintained",
+      "set": "held_out",
+      "description": "A simple, yet elegant, HTTP library"
+    },
+    {
+      "repo": "fastapi/full-stack-fastapi-template",
+      "commit_sha": "b1125d8839482cb7bbae603ddc6d0081bf87532e",
+      "language": "python",
+      "type": "maintained",
+      "set": "held_out",
+      "description": "Full stack, modern web application template"
+    },
+    {
+      "repo": "miguelgrinberg/microblog",
+      "commit_sha": "a975ef64864354867c88e0ed3a17ba7d17dca752",
+      "language": "python",
+      "type": "maintained",
+      "set": "held_out",
+      "description": "Microblogging web application developed in Flask Mega-Tutorial"
+    },
+    {
+      "repo": "pallets/werkzeug",
+      "commit_sha": "665e760ca6325a348ce03e5cf780b17e4be01848",
+      "language": "python",
+      "type": "maintained",
+      "set": "held_out",
+      "description": "The comprehensive WSGI web application library"
+    },
+    {
+      "repo": "pallets/jinja",
+      "commit_sha": "5ef70112a1ff19c05324ff889dd30405b1002044",
+      "language": "python",
+      "type": "maintained",
+      "set": "held_out",
+      "description": "A very fast and expressive template engine"
+    },
+    {
+      "repo": "bottlepy/bottle",
+      "commit_sha": "8ec5fe29420d14998c0d86885083983eaea8b839",
+      "language": "python",
+      "type": "maintained",
+      "set": "held_out",
+      "description": "Fast and simple WSGI-framework for small web applications"
+    },
+    {
+      "repo": "gothinkster/node-express-realworld-example-app",
+      "commit_sha": "30b68e1e881462b2f4164ea09ab4c4f5699c7b0b",
+      "language": "javascript",
+      "type": "maintained",
+      "set": "held_out",
+      "description": "Exemplary real world Node/Express backend"
+    },
+    {
+      "repo": "fastify/fastify",
+      "commit_sha": "2cbb98e25f75e23cf8dafedc9a111943f2888669",
+      "language": "javascript",
+      "type": "maintained",
+      "set": "held_out",
+      "description": "Fast and low overhead web framework for Node.js"
+    },
+    {
+      "repo": "koajs/koa",
+      "commit_sha": "2fecd029c6ce6b79d65158d28a76538f7f6b0378",
+      "language": "javascript",
+      "type": "maintained",
+      "set": "held_out",
+      "description": "Next generation web framework for node.js"
+    },
+    {
+      "repo": "expressjs/session",
+      "commit_sha": "8947e169ae838b22cc1af198e50e370e6fc09f96",
+      "language": "javascript",
+      "type": "maintained",
+      "set": "held_out",
+      "description": "Session middleware for Express"
+    },
+    {
+      "repo": "auth0/node-jsonwebtoken",
+      "commit_sha": "b924272f29192e12926b5414546f7c5bfcc9579d",
+      "language": "javascript",
+      "type": "maintained",
+      "set": "held_out",
+      "description": "JsonWebToken implementation for node.js"
+    },
+    {
+      "repo": "lukeed/polka",
+      "commit_sha": "c36cf8b5d1a57164e64fdd7d4e0d0f80ab262dc0",
+      "language": "javascript",
+      "type": "maintained",
+      "set": "held_out",
+      "description": "A micro web server so fast, it'll make you dance"
+    },
+    {
+      "repo": "colinhacks/zod",
+      "commit_sha": "680d19f7d1e042e55934209caeb79bc843b94f44",
+      "language": "typescript",
+      "type": "maintained",
+      "set": "held_out",
+      "description": "TypeScript-first schema validation with static type inference"
+    },
+    {
+      "repo": "jaredhanson/passport",
+      "commit_sha": "217018dbc46dcd4118dd6f2c60c8d97010c587f8",
+      "language": "javascript",
+      "type": "maintained",
+      "set": "held_out",
+      "description": "Simple, unobtrusive authentication for Node.js"
+    },
+    {
+      "repo": "nestjs/typescript-starter",
+      "commit_sha": "a122dea65cd0610ee205d7765ed46f9d73629141",
+      "language": "typescript",
+      "type": "maintained",
+      "set": "held_out",
+      "description": "NestJS TypeScript starter repository"
+    }
+  ]
+}

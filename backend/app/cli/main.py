@@ -74,6 +74,7 @@ def _run_single_scan_pipeline(
     severity: Severity | None = None,
     rule_id: str | None = None,
     file_filter: str | None = None,
+    include_tests: bool = False,
 ) -> tuple[RepositoryScanResult, list[Finding]]:
     """Execute exactly ONE safe scan, ONE analysis pass, and ONE scoring pass.
 
@@ -89,6 +90,7 @@ def _run_single_scan_pipeline(
         repo_path=path_str,
         repo_name=repo_name,
         check_allowed_roots=False,
+        include_tests=include_tests,
     )
 
     # 2. Execute static AST analysis across all registered analyzers
@@ -150,6 +152,8 @@ def format_scan_text(scan: RepositoryScanResult) -> str:
             lines.append(f"Unsupported Frameworks: {', '.join(cov.unsupported_frameworks)}")
         if getattr(cov, "total_routes_detected", None) is not None:
             lines.append(f"HTTP Routes: {cov.total_routes_detected}")
+    if scan.repository and (getattr(scan.repository, "excluded_files", 0) > 0 or getattr(scan.repository, "excluded_loc", 0) > 0):
+        lines.append(f"Scope Exclusions: {scan.repository.excluded_files} files ({scan.repository.excluded_loc} LOC excluded)")
     lines.append("")
     lines.append("Categories:")
     lines.append("")
@@ -225,6 +229,8 @@ def format_scan_json_dict(scan: RepositoryScanResult) -> dict[str, Any]:
             "discovered": scan.repository.total_files,
             "analyzed": scan.repository.scannable_files,
             "lines_of_code": scan.repository.total_loc,
+            "excluded_files": getattr(scan.repository, "excluded_files", 0),
+            "excluded_loc": getattr(scan.repository, "excluded_loc", 0),
         },
         "score": {
             "total_score": scan.score.total_score if scan.score else 0,
@@ -433,7 +439,10 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
     start_time = time.perf_counter()
     try:
-        scan, findings = _run_single_scan_pipeline(repo_path=target_path)
+        scan, findings = _run_single_scan_pipeline(
+            repo_path=target_path,
+            include_tests=getattr(args, "include_tests", False),
+        )
     except RepositoryError as exc:
         print(f"Scan failed: {exc}", file=sys.stderr)
         return EXIT_SYSTEM_ERROR
@@ -552,7 +561,10 @@ def cmd_check(args: argparse.Namespace) -> int:
 
     # 3. Run ONE scan pass, ONE analysis pass, ONE scoring pass
     try:
-        scan, findings = _run_single_scan_pipeline(repo_path=target_path)
+        scan, findings = _run_single_scan_pipeline(
+            repo_path=target_path,
+            include_tests=getattr(args, "include_tests", False),
+        )
     except RepositoryError as exc:
         print(f"Check failed: {exc}", file=sys.stderr)
         return EXIT_SYSTEM_ERROR
@@ -657,6 +669,7 @@ def cmd_findings(args: argparse.Namespace) -> int:
             severity=sev_filter,
             rule_id=getattr(args, "rule", None),
             file_filter=getattr(args, "file", None),
+            include_tests=getattr(args, "include_tests", False),
         )
     except RepositoryError as exc:
         print(f"Findings query failed: {exc}", file=sys.stderr)
@@ -1167,12 +1180,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--baseline",
         help="Path to baseline file for delta gating (default: .entropy-baseline.json)",
     )
+    scan_parser.add_argument(
+        "--include-tests",
+        action="store_true",
+        help="Include test, example, and fixture files in scan (default: False)",
+    )
 
     # 2. check <path>
     check_parser = subparsers.add_parser("check", help="Scan repository and evaluate against policy (primary CI gate)")
     check_parser.add_argument("path", default=".", nargs="?", help="Path to repository directory (default: current directory)")
     check_parser.add_argument("--policy", "-p", help="Path to custom policy file (default: built-in policy)")
     check_parser.add_argument("--fail-on-warn", action="store_true", help="Treat policy warnings as failures (exit 1)")
+    check_parser.add_argument("--include-tests", action="store_true", help="Include test, example, and fixture files in scan (default: False)")
     check_parser.add_argument("--format", choices=["text", "json", "sarif"], default="text", help="Output format (default: text)")
 
     # 3. findings <path>
@@ -1184,6 +1203,7 @@ def build_parser() -> argparse.ArgumentParser:
     findings_parser.add_argument("--file", help="Filter by file path substring")
     findings_parser.add_argument("--new", action="store_true", help="Show only findings introduced since baseline")
     findings_parser.add_argument("--suppressed", action="store_true", help="Show only suppressed findings")
+    findings_parser.add_argument("--include-tests", action="store_true", help="Include test, example, and fixture files in scan (default: False)")
     findings_parser.add_argument("--format", choices=["text", "json", "sarif"], default="text", help="Output format (default: text)")
 
     # 4. compare <base> <head>

@@ -33,6 +33,10 @@ class AnalysisConfig(BaseModel):
         default_factory=list,
         description="Directories or file glob patterns excluded from discovery",
     )
+    include_tests: bool = Field(
+        default=False,
+        description="Opt back in to analyzing test and example files",
+    )
 
     @field_validator("languages")
     @classmethod

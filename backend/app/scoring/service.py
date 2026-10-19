@@ -77,6 +77,8 @@ class ScoringService:
         total_loc = manifest_repo.total_source_loc
         analyzed_files = len([f for f in manifest_files if f.analysis_supported])
         skipped_files = manifest_repo.skipped_files
+        excluded_files = getattr(manifest_repo, "excluded_files", 0)
+        excluded_loc = getattr(manifest_repo, "excluded_loc", 0)
 
         # 1. Discover programming languages present in codebase
         present_langs_set: set[str] = set()
@@ -351,6 +353,8 @@ class ScoringService:
             total_loc=total_loc,
             analyzed_files=analyzed_files,
             skipped_files=skipped_files,
+            excluded_files=excluded_files,
+            excluded_loc=excluded_loc,
             analyzed_categories=active_cats,
             coverage=coverage,
             category_explanations=cat_explanations,

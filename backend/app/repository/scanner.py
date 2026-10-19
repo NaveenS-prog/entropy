@@ -64,6 +64,8 @@ class RepositoryScanner:
             total_files=discovery.total_files_inspected,
             scannable_files=len(discovery.source_files),
             total_loc=discovery.total_source_loc,
+            excluded_files=discovery.excluded_files_count,
+            excluded_loc=discovery.excluded_loc,
         )
 
         duration_ms = (time.perf_counter() - start_time) * 1000.0

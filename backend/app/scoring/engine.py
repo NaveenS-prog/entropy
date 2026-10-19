@@ -20,6 +20,8 @@ class ScoringEngine:
         total_loc: int = 0,
         analyzed_files: int = 0,
         skipped_files: int = 0,
+        excluded_files: int = 0,
+        excluded_loc: int = 0,
         analyzed_categories: set[DebtCategory] | None = None,
     ) -> DebtScoreResult:
         """Calculate the comprehensive Entropy score."""
@@ -28,6 +30,8 @@ class ScoringEngine:
             total_loc=total_loc,
             analyzed_files=analyzed_files,
             skipped_files=skipped_files,
+            excluded_files=excluded_files,
+            excluded_loc=excluded_loc,
             analyzed_categories=analyzed_categories,
         )
 

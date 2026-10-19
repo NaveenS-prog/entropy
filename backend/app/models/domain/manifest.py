@@ -49,6 +49,8 @@ class RepositoryManifestSummary(BaseModel):
     skipped_files: int = Field(default=0, ge=0, description="Count of files skipped due to limits/binary/errors")
     total_source_size: int = Field(default=0, ge=0, description="Total size of source files in bytes")
     total_source_loc: int = Field(default=0, ge=0, description="Total lines of code across source files")
+    excluded_files: int = Field(default=0, ge=0, description="Count of files excluded by scope rules (tests, examples, docs, etc.)")
+    excluded_loc: int = Field(default=0, ge=0, description="Total lines of code across scope-excluded files")
 
 
 class RepositoryManifest(BaseModel):

@@ -1,6 +1,46 @@
-"""Configuration for repository file discovery, ingestion, and security boundaries."""
-
+import fnmatch
 from dataclasses import dataclass, field
+from pathlib import PurePosixPath
+
+DEFAULT_EXCLUDED_PATHS: list[str] = [
+    "test",
+    "tests",
+    "__tests__",
+    "spec",
+    "e2e",
+    "examples",
+    "example",
+    "docs",
+    "fixtures",
+    "__mocks__",
+    "vendor",
+    "third_party",
+    "node_modules",
+    "dist",
+    "build",
+    "*.test.*",
+    "*.spec.*",
+    "test_*.py",
+    "*_test.py",
+    "*.stories.*",
+]
+
+
+def is_scope_excluded(rel_path: str, excluded_patterns: list[str] | None = None) -> bool:
+    """Determine whether a relative path should be excluded based on default scope rules."""
+    patterns = excluded_patterns if excluded_patterns is not None else DEFAULT_EXCLUDED_PATHS
+    posix_path = PurePosixPath(rel_path.replace("\\", "/"))
+    dir_parts = set(posix_path.parts[:-1])
+    filename = posix_path.name
+
+    for pattern in patterns:
+        if "*" in pattern:
+            if fnmatch.fnmatch(filename, pattern) or fnmatch.fnmatch(posix_path.as_posix(), pattern):
+                return True
+        else:
+            if pattern in dir_parts or filename == pattern:
+                return True
+    return False
 
 
 @dataclass
@@ -12,6 +52,9 @@ class ScannerConfig:
     max_repo_size_bytes: int = 500 * 1024 * 1024  # 500MB
     respect_gitignore: bool = True
     follow_symlinks: bool = False
+    include_tests: bool = False
+    excluded_paths: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDED_PATHS))
+    custom_exclude_patterns: list[str] = field(default_factory=list)
 
     ignored_directories: set[str] = field(
         default_factory=lambda: {

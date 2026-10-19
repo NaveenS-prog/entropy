@@ -26,6 +26,8 @@ class RepositoryMetadata(BaseModel):
     total_files: int = Field(default=0, ge=0)
     scannable_files: int = Field(default=0, ge=0)
     total_loc: int = Field(default=0, ge=0)
+    excluded_files: int = Field(default=0, ge=0)
+    excluded_loc: int = Field(default=0, ge=0)
 
     @staticmethod
     def derive_repository_id(path: str, remote_url: str | None = None) -> str:

@@ -51,6 +51,7 @@ class RepositoryService:
         repo_path: str,
         repo_name: str | None = None,
         check_allowed_roots: bool = True,
+        include_tests: bool = False,
     ) -> RepositoryScanResult:
         """Execute a safe repository scan, record state transitions, and return the result."""
         source = LocalRepositorySource(repo_path, repo_name, check_allowed_roots=check_allowed_roots)
@@ -79,6 +80,8 @@ class RepositoryService:
                 total_files=0,
                 scannable_files=0,
                 total_loc=0,
+                excluded_files=0,
+                excluded_loc=0,
             ),
             status=ScanStatus.SCANNING,
             manifest=None,
@@ -97,11 +100,22 @@ class RepositoryService:
         except Exception as exc:
             logger.warning("Failed to load project config for '%s': %s", repo_path, exc)
 
-        scanner_to_use = self.scanner
-        if config_obj and config_obj.analysis.exclude:
-            cfg = self.config.model_copy()
-            cfg.custom_exclude_patterns = config_obj.analysis.exclude
-            scanner_to_use = RepositoryScanner(cfg)
+        effective_include_tests = include_tests or (
+            config_obj.analysis.include_tests if config_obj else False
+        )
+        custom_excludes = config_obj.analysis.exclude if config_obj else []
+
+        cfg = ScannerConfig(
+            max_file_size_bytes=self.config.max_file_size_bytes,
+            max_file_count=self.config.max_file_count,
+            max_repo_size_bytes=self.config.max_repo_size_bytes,
+            respect_gitignore=self.config.respect_gitignore,
+            follow_symlinks=self.config.follow_symlinks,
+            include_tests=effective_include_tests,
+            excluded_paths=list(self.config.excluded_paths),
+            custom_exclude_patterns=custom_excludes,
+        )
+        scanner_to_use = RepositoryScanner(cfg)
 
         try:
             scan_result = scanner_to_use.scan(source)

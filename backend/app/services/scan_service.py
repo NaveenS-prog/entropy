@@ -15,6 +15,7 @@ from app.parser.base import BaseParser, ParsedFile
 from app.parser.jsts.parser import JSTSParser
 from app.parser.python_ast import PythonAstParser
 from app.persistence.database import scan_db
+from app.repository.config import ScannerConfig
 from app.repository.discoverer import RepositoryDiscoverer
 from app.repository.git_service import GitService
 from app.repository.manifest import ManifestBuilder
@@ -52,6 +53,7 @@ class ScanService:
         self,
         repo_path: Path | str,
         repo_name: str | None = None,
+        include_tests: bool = False,
     ) -> RepositoryScanResult:
         """Run a full, deterministic scan over a local repository or directory."""
         path = Path(repo_path).resolve()
@@ -66,7 +68,12 @@ class ScanService:
         logger.info("Initiating scan %s for repo: %s", scan_id, path)
 
         # 1. Discover files & manifest
-        discovery = self.discoverer.discover_repository(path)
+        discoverer = (
+            RepositoryDiscoverer(ScannerConfig(include_tests=include_tests))
+            if include_tests
+            else self.discoverer
+        )
+        discovery = discoverer.discover_repository(path)
         discovered_files = discovery.source_files
         total_loc = discovery.total_source_loc
 
@@ -91,6 +98,8 @@ class ScanService:
             total_files=discovery.total_files_inspected,
             scannable_files=len(discovered_files),
             total_loc=total_loc,
+            excluded_files=discovery.excluded_files_count,
+            excluded_loc=discovery.excluded_loc,
         )
 
         scan_record = RepositoryScanResult(
@@ -140,6 +149,8 @@ class ScanService:
             total_loc=total_loc,
             analyzed_files=len(parsed_files),
             skipped_files=len(discovered_files) - len(parsed_files),
+            excluded_files=discovery.excluded_files_count,
+            excluded_loc=discovery.excluded_loc,
         )
         scan_record.score = score_result
 

@@ -56,6 +56,8 @@ class ManifestBuilder:
             skipped_files=len(discovery.skipped_files),
             total_source_size=discovery.total_source_bytes,
             total_source_loc=discovery.total_source_loc,
+            excluded_files=discovery.excluded_files_count,
+            excluded_loc=discovery.excluded_loc,
         )
 
         # 4. Build hierarchical directory structure

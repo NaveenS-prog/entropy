@@ -13,7 +13,7 @@ from app.core.errors import (
 from app.models.domain.enums import SupportedLanguage
 from app.models.domain.manifest import SkippedFileRecord
 from app.repository.binary import is_binary_content, is_binary_extension
-from app.repository.config import ScannerConfig
+from app.repository.config import ScannerConfig, is_scope_excluded
 from app.repository.gitignore import GitIgnoreMatcher
 from app.repository.language import (
     detect_language,
@@ -81,6 +81,8 @@ class DiscoveryResult:
     total_files_inspected: int = 0
     total_source_bytes: int = 0
     total_source_loc: int = 0
+    excluded_files_count: int = 0
+    excluded_loc: int = 0
 
 
 class RepositoryDiscoverer:
@@ -272,6 +274,29 @@ class RepositoryDiscoverer:
                             path=rel_path,
                             size=stat.st_size,
                             reason="unreadable_file",
+                        )
+                    )
+                # 9. Scope exclusions (tests, examples, docs, fixtures, mocks, etc.)
+                if not self.config.include_tests and is_scope_excluded(rel_path, self.config.excluded_paths):
+                    result.excluded_files_count += 1
+                    result.excluded_loc += line_count
+                    result.skipped_files.append(
+                        SkippedFileRecord(
+                            path=rel_path,
+                            size=stat.st_size,
+                            reason="scope_exclusion",
+                        )
+                    )
+                    continue
+
+                if self.config.custom_exclude_patterns and is_scope_excluded(rel_path, self.config.custom_exclude_patterns):
+                    result.excluded_files_count += 1
+                    result.excluded_loc += line_count
+                    result.skipped_files.append(
+                        SkippedFileRecord(
+                            path=rel_path,
+                            size=stat.st_size,
+                            reason="custom_exclude",
                         )
                     )
                     continue

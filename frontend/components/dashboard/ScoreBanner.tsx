@@ -164,6 +164,14 @@ export function ScoreBanner({ score, repository, durationMs }: ScoreBannerProps)
             )}
           </div>
         )}
+        {(Boolean(score.excluded_files) || Boolean(repository.excluded_files)) && (
+          <div className="mt-1.5 text-[11px] text-slate-400 font-mono flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-800/60">
+            <span>
+              Scope Exclusions: <strong className="text-white">{(score.excluded_files ?? repository.excluded_files ?? 0).toLocaleString()}</strong> files (<strong className="text-white">{(score.excluded_loc ?? repository.excluded_loc ?? 0).toLocaleString()}</strong> LOC excluded)
+            </span>
+            <span className="text-slate-500">tests, mocks, examples, fixtures</span>
+          </div>
+        )}
       </div>
 
       {/* Top Contributing Rules and Severity Breakdown */}

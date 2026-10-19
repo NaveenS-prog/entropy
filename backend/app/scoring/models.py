@@ -164,6 +164,8 @@ class DebtScoreResult(BaseModel):
     total_loc: int = Field(..., ge=0, description="Total lines of source code scanned")
     analyzed_files: int = Field(..., ge=0, description="Number of files parsed and analyzed")
     skipped_files: int = Field(default=0, ge=0, description="Files skipped during scan")
+    excluded_files: int = Field(default=0, ge=0, description="Files excluded by scope boundaries")
+    excluded_loc: int = Field(default=0, ge=0, description="Lines of code excluded by scope boundaries")
     severity_breakdown: dict[Severity, int] = Field(
         default_factory=lambda: {s: 0 for s in Severity},
         description="Aggregate count of findings by severity",

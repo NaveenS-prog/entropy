@@ -160,6 +160,7 @@ def root_scan_repository(request: ScanCreateRequest) -> ScanDetailResponse:
     scan_result = repository_service.execute_scan(
         repo_path=request.target_path,
         repo_name=request.repo_name,
+        include_tests=request.include_tests,
     )
     return ScanDetailResponse(
         scan_id=scan_result.scan_id,

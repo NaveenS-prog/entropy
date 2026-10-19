@@ -73,6 +73,8 @@ export interface RepositoryManifestSummary {
   skipped_files: number;
   total_source_size: number;
   total_source_loc: number;
+  excluded_files?: number;
+  excluded_loc?: number;
 }
 
 export interface RepositoryManifest {
@@ -204,6 +206,8 @@ export interface DebtScoreResult {
   total_loc: number;
   analyzed_files: number;
   skipped_files: number;
+  excluded_files?: number;
+  excluded_loc?: number;
   severity_breakdown?: Record<Severity, number>;
   top_contributing_rules?: RuleContribution[];
   normalization?: NormalizationMetrics | null;
@@ -223,6 +227,8 @@ export interface RepositoryMetadata {
   total_files: number;
   scannable_files: number;
   total_loc: number;
+  excluded_files?: number;
+  excluded_loc?: number;
 }
 
 export interface RepositoryScanResult {

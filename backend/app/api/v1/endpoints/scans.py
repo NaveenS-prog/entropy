@@ -22,6 +22,7 @@ def trigger_scan(request: ScanCreateRequest) -> ScanDetailResponse:
     scan_result = repository_service.execute_scan(
         repo_path=target,
         repo_name=request.repo_name,
+        include_tests=request.include_tests,
     )
     return ScanDetailResponse(
         scan_id=scan_result.scan_id,
@@ -55,6 +56,8 @@ def list_scans(is_authenticated: bool = Depends(is_authenticated_caller)) -> lis
             total_findings=len(s.findings),
             total_loc=s.repository.total_loc,
             analyzed_files=s.score.analyzed_files if s.score else 0,
+            excluded_files=getattr(s.repository, "excluded_files", 0),
+            excluded_loc=getattr(s.repository, "excluded_loc", 0),
             started_at=s.started_at,
             duration_ms=s.duration_ms,
         )

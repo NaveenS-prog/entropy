@@ -17,6 +17,7 @@ class ScanCreateRequest(BaseModel):
     path: str | None = Field(default=None, description="Path to local repository directory")
     repo_path: str | None = Field(default=None, description="Alias/legacy field for repository path")
     repo_name: str | None = Field(default=None, description="Optional custom display name for repository")
+    include_tests: bool = Field(default=False, description="Opt back in to analyzing test and example files")
 
     @model_validator(mode="after")
     def validate_path_provided(self) -> "ScanCreateRequest":
@@ -46,6 +47,8 @@ class ScanSummaryResponse(BaseModel):
     total_findings: int = 0
     total_loc: int = 0
     analyzed_files: int = 0
+    excluded_files: int = 0
+    excluded_loc: int = 0
     started_at: datetime
     duration_ms: float | None = None
 

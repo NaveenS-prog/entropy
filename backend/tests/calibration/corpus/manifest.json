@@ -13,7 +13,13 @@
       "relative_dir": "express-auth-clean",
       "files": [
         "index.js"
-      ]
+      ],
+      "sha256": {
+        "index.js": "4acca9f794d50f57c41967b471031f7410cc61a2b979c86ad0f264567f06e69b"
+      },
+      "file_hashes": {
+        "index.js": "4acca9f794d50f57c41967b471031f7410cc61a2b979c86ad0f264567f06e69b"
+      }
     },
     {
       "name": "fastapi-security-clean",
@@ -27,7 +33,13 @@
       "relative_dir": "fastapi-security-clean",
       "files": [
         "security.py"
-      ]
+      ],
+      "sha256": {
+        "security.py": "272d917c36eb45496a52b21c23429897a6ccbaf50df37982adb8d76ed9bbb922"
+      },
+      "file_hashes": {
+        "security.py": "272d917c36eb45496a52b21c23429897a6ccbaf50df37982adb8d76ed9bbb922"
+      }
     },
     {
       "name": "vulnerable-flask",
@@ -41,7 +53,13 @@
       "relative_dir": "vulnerable-flask",
       "files": [
         "app.py"
-      ]
+      ],
+      "sha256": {
+        "app.py": "42f7b3909fca2e040a4428b54bd18a4745def719a445b834c98bf54e4dcbb1c2"
+      },
+      "file_hashes": {
+        "app.py": "42f7b3909fca2e040a4428b54bd18a4745def719a445b834c98bf54e4dcbb1c2"
+      }
     },
     {
       "name": "dvna-vulnerable",
@@ -57,7 +75,17 @@
         "app.js",
         "main.js",
         "appHandler.js"
-      ]
+      ],
+      "sha256": {
+        "app.js": "339023b38a30dc1d79136b964092c8e35c1702a133521e0a56ce5683d6a0e9bc",
+        "main.js": "d10329f12ff7ce4f1bcd5374f37f9b43a3b6bae8dae3805425b8c1b7e85b73c6",
+        "appHandler.js": "0fc237589d5a9e73450d089f97124fb943d68222f70df0e973a8b9acfe2ebb6b"
+      },
+      "file_hashes": {
+        "app.js": "339023b38a30dc1d79136b964092c8e35c1702a133521e0a56ce5683d6a0e9bc",
+        "main.js": "d10329f12ff7ce4f1bcd5374f37f9b43a3b6bae8dae3805425b8c1b7e85b73c6",
+        "appHandler.js": "0fc237589d5a9e73450d089f97124fb943d68222f70df0e973a8b9acfe2ebb6b"
+      }
     },
     {
       "name": "fastapi-clean-oauth2",
@@ -65,13 +93,19 @@
       "set": "held_out",
       "language": "python",
       "repo": "fastapi/fastapi",
-      "commit_sha": "3070b5105fe02c4afdba5e3aea6c2cf2e3796c7f",
+      "commit_sha": "a17bd595ae17d5b8ec01f2acc291f36844d478fe",
       "license": "MIT",
       "description": "Official FastAPI password flow tutorial module with OAuth2PasswordBearer and User dependency injection.",
       "relative_dir": "fastapi-clean-oauth2",
       "files": [
         "tutorial.py"
-      ]
+      ],
+      "sha256": {
+        "tutorial.py": "2982d6ebeb11a3d83de3fb5735306151341b1a34cae8aaede5580ede9f733f5a"
+      },
+      "file_hashes": {
+        "tutorial.py": "2982d6ebeb11a3d83de3fb5735306151341b1a34cae8aaede5580ede9f733f5a"
+      }
     },
     {
       "name": "nestjs-auth-clean",
@@ -85,7 +119,13 @@
       "relative_dir": "nestjs-auth-clean",
       "files": [
         "auth.controller.ts"
-      ]
+      ],
+      "sha256": {
+        "auth.controller.ts": "6e7bc386124a43a2694766885c24a6032bfc91268eb7cf3967fe6593598762d6"
+      },
+      "file_hashes": {
+        "auth.controller.ts": "6e7bc386124a43a2694766885c24a6032bfc91268eb7cf3967fe6593598762d6"
+      }
     },
     {
       "name": "hackable-flask-vulnerable",
@@ -99,7 +139,13 @@
       "relative_dir": "hackable-flask-vulnerable",
       "files": [
         "main.py"
-      ]
+      ],
+      "sha256": {
+        "main.py": "e54ca8d614ea6f55615705967101e70ccafaa9e951c016461fc0517141b29947"
+      },
+      "file_hashes": {
+        "main.py": "e54ca8d614ea6f55615705967101e70ccafaa9e951c016461fc0517141b29947"
+      }
     },
     {
       "name": "juice-shop-vulnerable",
@@ -113,7 +159,13 @@
       "relative_dir": "juice-shop-vulnerable",
       "files": [
         "server.ts"
-      ]
+      ],
+      "sha256": {
+        "server.ts": "1aef4d60cbdfb3458a25610d017a678ab4d69fc835bb8b592db9a13aceb20cb1"
+      },
+      "file_hashes": {
+        "server.ts": "1aef4d60cbdfb3458a25610d017a678ab4d69fc835bb8b592db9a13aceb20cb1"
+      }
     }
   ]
 }

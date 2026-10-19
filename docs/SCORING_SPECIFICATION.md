@@ -182,7 +182,7 @@ The table below reflects scans executed across the 8 smoke-test snippets:
 | :--- | :--- | :---: | :---: | :--- | :---: | :---: | :---: |
 | **express-auth-clean** (`expressjs/express`) | JavaScript | Clean | 134 | 0 | **0 / 100** | `VERY_LOW` | No |
 | **fastapi-security-clean** (`fastapi/fastapi`) | Python | Clean | 30 | 0 | **0 / 100** | `VERY_LOW` | No |
-| **vulnerable-flask** (`we45/Vulnerable-Flask-App`) | Python | Vulnerable | 339 | 19 AuthN, 1 AuthZ, 1 Input | **81 / 100** | `VERY_HIGH` | Yes (CRITICAL findings) |
+| **vulnerable-flask** (`we45/Vulnerable-Flask-App`) | Python | Vulnerable | 339 | 6 Error, 7 AuthN, 5 Input, 1 Arch | **33 / 100** | `LOW` | No |
 | **dvna-vulnerable** (`appsecco/dvna`) | JavaScript | Vulnerable | 488 | 2 AuthZ, 3 Input | **41 / 100** | `MODERATE` | Yes (HIGH findings) |
 | **fastapi-clean-oauth2** (`fastapi/fastapi`) | Python | Clean | 11 | 0 | **0 / 100** | `VERY_LOW` | No |
 | **nestjs-auth-clean** (`nestjs/nest`) | TypeScript | Clean | 28 | 0 | **0 / 100** | `VERY_LOW` | No |

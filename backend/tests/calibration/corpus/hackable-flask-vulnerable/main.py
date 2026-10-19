@@ -1,8 +1,5 @@
-import hashlib
-import os
-import sqlite3
-
-from flask import Flask, g, jsonify, render_template, request
+import sqlite3, os, hashlib
+from flask import Flask, jsonify, render_template, request, g
 
 app = Flask(__name__)
 app.database = "sample.db"

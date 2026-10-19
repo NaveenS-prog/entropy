@@ -2,194 +2,135 @@
 """Fetch and build pinned calibration corpus from real, independently authored open-source projects.
 
 Downloads the smallest relevant subdirectories/files for known-vulnerable and known-clean
-projects (Python, JavaScript, TypeScript) and generates manifest.json with pinned commit SHAs
-and licenses.
+projects (Python, JavaScript, TypeScript) using the pinned commit SHAs recorded in manifest.json
+(never master or branch heads). Refuses to continue if any download fails, computes SHA256
+checksums for every file, and records them in manifest.json.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
-from pathlib import Path
 import sys
+import urllib.error
 import urllib.request
+from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 CORPUS_DIR = ROOT_DIR / "backend" / "tests" / "calibration" / "corpus"
+MANIFEST_PATH = CORPUS_DIR / "manifest.json"
 
-PROJECTS = [
-    # --- Tuning Set: Clean Projects ---
-    {
-        "name": "express-auth-clean",
-        "type": "clean",
-        "set": "tuning",
-        "language": "javascript",
-        "repo": "expressjs/express",
-        "ref": "master",
-        "license": "MIT",
-        "description": "Official Express authentication example with bcrypt hashing and session middleware.",
-        "files": {
-            "examples/auth/index.js": "index.js",
-        },
+# Remote path mappings for corpus files: project_name -> {remote_path: local_name}
+PROJECT_REMOTE_FILES: dict[str, dict[str, str]] = {
+    "express-auth-clean": {
+        "examples/auth/index.js": "index.js",
     },
-    {
-        "name": "fastapi-security-clean",
-        "type": "clean",
-        "set": "tuning",
-        "language": "python",
-        "repo": "fastapi/fastapi",
-        "ref": "master",
-        "license": "MIT",
-        "description": "Official FastAPI OAuth2 security tutorial module with JWT validation, password hashing, and dependency injection.",
-        "files": {
-            "docs_src/security/tutorial002_py310.py": "security.py",
-        },
+    "fastapi-security-clean": {
+        "docs_src/security/tutorial002_py310.py": "security.py",
     },
-    # --- Tuning Set: Vulnerable Projects ---
-    {
-        "name": "vulnerable-flask",
-        "type": "vulnerable",
-        "set": "tuning",
-        "language": "python",
-        "repo": "we45/Vulnerable-Flask-App",
-        "ref": "master",
-        "license": "MIT",
-        "description": "Deliberately vulnerable Flask app exhibiting SQL injection, unauthenticated routes, and command execution.",
-        "files": {
-            "app/app.py": "app.py",
-        },
+    "vulnerable-flask": {
+        "app/app.py": "app.py",
     },
-    {
-        "name": "dvna-vulnerable",
-        "type": "vulnerable",
-        "set": "tuning",
-        "language": "javascript",
-        "repo": "appsecco/dvna",
-        "ref": "master",
-        "license": "MIT",
-        "description": "Damn Vulnerable NodeJS Application routes and handlers with SQL injection and missing route authorization.",
-        "files": {
-            "routes/app.js": "app.js",
-            "routes/main.js": "main.js",
-            "core/appHandler.js": "appHandler.js",
-        },
+    "dvna-vulnerable": {
+        "routes/app.js": "app.js",
+        "routes/main.js": "main.js",
+        "core/appHandler.js": "appHandler.js",
     },
-    # --- Held-Out Set: Clean Projects ---
-    {
-        "name": "fastapi-clean-oauth2",
-        "type": "clean",
-        "set": "held_out",
-        "language": "python",
-        "repo": "fastapi/fastapi",
-        "ref": "master",
-        "license": "MIT",
-        "description": "Official FastAPI password flow tutorial module with OAuth2PasswordBearer and User dependency injection.",
-        "files": {
-            "docs_src/security/tutorial001_py310.py": "tutorial.py",
-        },
+    "fastapi-clean-oauth2": {
+        "docs_src/security/tutorial001_py310.py": "tutorial.py",
     },
-    {
-        "name": "nestjs-auth-clean",
-        "type": "clean",
-        "set": "held_out",
-        "language": "typescript",
-        "repo": "nestjs/nest",
-        "ref": "master",
-        "license": "MIT",
-        "description": "Official NestJS authentication JWT controller with @Public() decorator and guard enforcement.",
-        "files": {
-            "sample/19-auth-jwt/src/auth/auth.controller.ts": "auth.controller.ts",
-        },
+    "nestjs-auth-clean": {
+        "sample/19-auth-jwt/src/auth/auth.controller.ts": "auth.controller.ts",
     },
-    # --- Held-Out Set: Vulnerable Projects ---
-    {
-        "name": "hackable-flask-vulnerable",
-        "type": "vulnerable",
-        "set": "held_out",
-        "language": "python",
-        "repo": "JasonHinds13/hackable",
-        "ref": "master",
-        "license": "MIT",
-        "description": "Deliberately vulnerable Flask web API with raw SQL query concatenation and missing authentication.",
-        "files": {
-            "main.py": "main.py",
-        },
+    "hackable-flask-vulnerable": {
+        "main.py": "main.py",
     },
-    {
-        "name": "juice-shop-vulnerable",
-        "type": "vulnerable",
-        "set": "held_out",
-        "language": "typescript",
-        "repo": "juice-shop/juice-shop",
-        "ref": "master",
-        "license": "MIT",
-        "description": "OWASP Juice Shop server routes with unauthenticated administrative endpoints and privileged state mutation.",
-        "files": {
-            "server.ts": "server.ts",
-        },
+    "juice-shop-vulnerable": {
+        "server.ts": "server.ts",
     },
-]
+}
 
 
 def fetch_corpus() -> None:
-    CORPUS_DIR.mkdir(parents=True, exist_ok=True)
-    manifest_entries = []
+    if not MANIFEST_PATH.exists():
+        raise FileNotFoundError(f"Manifest file not found at {MANIFEST_PATH}. Cannot resolve pinned commit SHAs.")
 
-    for proj in PROJECTS:
+    manifest_data = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    projects = manifest_data.get("projects", [])
+    if not projects:
+        raise ValueError("No projects defined in manifest.json")
+
+    # Verify no upstream repo SHA is reused between tuning and held-out sets
+    tuning_shas: dict[str, str] = {}
+    held_out_shas: dict[str, str] = {}
+    for p in projects:
+        name = p["name"]
+        sha = p.get("commit_sha", "").strip()
+        pset = p.get("set", "")
+        if not sha or sha.lower() in ("master", "main", "head"):
+            raise ValueError(
+                f"Project '{name}' must have a pinned commit SHA in manifest.json (got: '{sha}'). Refusing 'master'."
+            )
+        if pset == "tuning":
+            tuning_shas[name] = sha
+        elif pset == "held_out":
+            held_out_shas[name] = sha
+
+    for t_name, t_sha in tuning_shas.items():
+        for h_name, h_sha in held_out_shas.items():
+            if t_sha == h_sha:
+                raise ValueError(
+                    f"Corpus integrity violation: tuning project '{t_name}' and held-out project '{h_name}' "
+                    f"share the same commit SHA: {t_sha}"
+                )
+
+    CORPUS_DIR.mkdir(parents=True, exist_ok=True)
+
+    for proj in projects:
         p_name = proj["name"]
         repo = proj["repo"]
-        ref = proj["ref"]
-        target_dir = CORPUS_DIR / p_name
+        commit_sha = proj["commit_sha"].strip()
+        target_dir = CORPUS_DIR / proj.get("relative_dir", p_name)
         target_dir.mkdir(parents=True, exist_ok=True)
 
-        print(f"Fetching {p_name} ({repo} @ {ref})...")
+        remote_mapping = PROJECT_REMOTE_FILES.get(p_name)
+        if not remote_mapping:
+            raise ValueError(f"No remote file mapping configured for project '{p_name}'")
 
-        # Resolve commit SHA
-        api_url = f"https://api.github.com/repos/{repo}/commits/{ref}"
-        req = urllib.request.Request(api_url, headers={"User-Agent": "Entropy-Calibration-Fetcher"})
-        try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                commit_data = json.loads(resp.read().decode("utf-8"))
-                commit_sha = commit_data["sha"]
-        except Exception as err:
-            print(f"  Warning: could not resolve commit SHA via API ({err}), falling back to ref: {ref}")
-            commit_sha = ref
+        print(f"Fetching {p_name} ({repo} @ {commit_sha})...")
 
-        saved_files = []
-        for remote_path, local_name in proj["files"].items():
+        saved_files: list[str] = []
+        sha256_map: dict[str, str] = {}
+
+        for remote_path, local_name in remote_mapping.items():
             raw_url = f"https://raw.githubusercontent.com/{repo}/{commit_sha}/{remote_path}"
-            r_req = urllib.request.Request(raw_url, headers={"User-Agent": "Entropy-Calibration-Fetcher"})
+            req = urllib.request.Request(raw_url, headers={"User-Agent": "Entropy-Calibration-Fetcher/1.0"})
             try:
-                with urllib.request.urlopen(r_req, timeout=15) as r_resp:
-                    content = r_resp.read()
-                    dest_file = target_dir / local_name
-                    dest_file.write_bytes(content)
-                    saved_files.append(local_name)
-                    print(f"  Downloaded {local_name} ({len(content)} bytes)")
+                with urllib.request.urlopen(req, timeout=20) as resp:
+                    if resp.status != 200:
+                        raise RuntimeError(f"HTTP {resp.status} received from {raw_url}")
+                    content = resp.read()
+                    if not content:
+                        raise RuntimeError(f"Received empty response from {raw_url}")
             except Exception as err:
-                print(f"  Failed to download {remote_path}: {err}", file=sys.stderr)
-                raise
+                print(f"FATAL: Failed to download {remote_path} from {raw_url}: {err}", file=sys.stderr)
+                # Refuse to continue if a download fails
+                raise RuntimeError(f"Corpus fetch aborted: failed to download {remote_path}: {err}") from err
 
-        manifest_entries.append({
-            "name": p_name,
-            "type": proj["type"],
-            "set": proj["set"],
-            "language": proj["language"],
-            "repo": repo,
-            "commit_sha": commit_sha,
-            "license": proj["license"],
-            "description": proj["description"],
-            "relative_dir": p_name,
-            "files": saved_files,
-        })
+            file_hash = hashlib.sha256(content).hexdigest()
+            dest_file = target_dir / local_name
+            dest_file.write_bytes(content)
+            saved_files.append(local_name)
+            sha256_map[local_name] = file_hash
+            print(f"  Downloaded {local_name} ({len(content)} bytes, sha256: {file_hash[:12]}...)")
 
-    manifest_path = CORPUS_DIR / "manifest.json"
-    manifest_data = {
-        "description": "Real, independently authored calibration and held-out corpus for Entropy scoring validation.",
-        "projects": manifest_entries,
-    }
-    manifest_path.write_text(json.dumps(manifest_data, indent=2), encoding="utf-8")
-    print(f"\nCorpus successfully built at {CORPUS_DIR}")
-    print(f"Manifest written to {manifest_path} ({len(manifest_entries)} projects)")
+        proj["files"] = saved_files
+        proj["sha256"] = sha256_map
+        proj["file_hashes"] = sha256_map
+
+    MANIFEST_PATH.write_text(json.dumps(manifest_data, indent=2) + "\n", encoding="utf-8")
+    print(f"\nCorpus successfully built and verified at {CORPUS_DIR}")
+    print(f"Manifest updated at {MANIFEST_PATH} ({len(projects)} projects)")
 
 
 if __name__ == "__main__":

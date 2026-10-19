@@ -1,29 +1,22 @@
-import base64
-import datetime
-import hashlib
-import json
-import os
-import random
-
-import jwt
-import yaml
-from docx import Document
-from faker import Faker
-from flask import (
-    Flask,
-    Response,
-    jsonify,
-    render_template,
-    render_template_string,
-    request,
-    url_for,
-)
+from flask import session, Flask, jsonify, request, Response, render_template, render_template_string, url_for
 from flask_sqlalchemy import SQLAlchemy
-from jwt.exceptions import DecodeError, MissingRequiredClaimError
+import jwt
+from jwt.exceptions import DecodeError, MissingRequiredClaimError, InvalidKeyError
+import json
+import hashlib
+import datetime
+import os
+from faker import Faker
+import random
+from werkzeug.utils import secure_filename
+from docx import Document
+import yaml
+
+from tornado.wsgi import WSGIContainer
 from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
-from tornado.wsgi import WSGIContainer
-from werkzeug.utils import secure_filename
+import os
+import base64
 
 app_port = os.environ.get('APP_PORT', 5050)
 
@@ -44,7 +37,7 @@ class User(db.Model):
 
 
     def __repr__(self):
-        return f"<User {self.username}>"
+        return "<User {0}>".format(self.username)
 
 class Customer(db.Model):
     id = db.Column(db.Integer, primary_key = True)
@@ -57,7 +50,7 @@ class Customer(db.Model):
 
 
     def __repr__(self):
-        return f"<User {self.first_name} {self.last_name}>"
+        return "<User {0} {1}>".format(self.first_name, self.last_name)
 
 @app.before_first_request
 def setup_users():
@@ -91,13 +84,13 @@ def get_exp_date():
 def verify_jwt(token):
     try:
         decoded = jwt.decode(token, app.config['SECRET_KEY_HMAC'], verify=True, issuer = 'we45', leeway=10, algorithms=['HS256'])
-        print(f"JWT Token from API: {decoded}")
+        print("JWT Token from API: {0}".format(decoded))
         return True
     except DecodeError:
         print("Error in decoding token")
         return False
     except MissingRequiredClaimError as e:
-        print(f'Claim required is missing: {e}')
+        print('Claim required is missing: {0}'.format(e))
         return False
 
 def insecure_verify(token):
@@ -131,7 +124,7 @@ def sitemap():
     for rule in app.url_map.iter_rules():
         print(rule)
         if ("GET" in rule.methods or "POST" in rule.methods) and has_no_empty_params(rule):
-            if 'static' not in rule.endpoint:
+            if not 'static' in rule.endpoint:
                 url = url_for(rule.endpoint, **(rule.defaults or {}))
                 links.append((url, rule.endpoint, ','.join(rule.methods)))
 
@@ -149,7 +142,7 @@ def reg_customer():
             new_user = User(username, hash_pass)
             db.session.add(new_user)
             db.session.commit()
-            user_created = f'User: {username} has been created'
+            user_created = 'User: {0} has been created'.format(username)
             return jsonify({'Created': user_created}),200
     except Exception as e:
         return jsonify({'Error': str(e.message)}),404
@@ -168,7 +161,7 @@ def reg_user():
             cust = Customer(first_name, last_name, email, username, password, ccn)
             db.session.add(cust)
             db.session.commit()
-            user_created = f'Customer: {username} has been created'
+            user_created = 'Customer: {0} has been created'.format(username)
             return jsonify({'Created': user_created}),200
     except Exception as e:
         return jsonify({'Error': str(e.message)}),404
@@ -191,7 +184,7 @@ def login():
             auth_token = jwt.encode({'user': username, 'exp': get_exp_date(), 'nbf': datetime.datetime.utcnow(), 'iss': 'we45', 'iat': datetime.datetime.utcnow()}, app.config['SECRET_KEY_HMAC'], algorithm='HS256')
             resp = Response(json.dumps({'Authenticated': True, "User": username}))
             #resp.set_cookie('SESSIONID', auth_token)
-            resp.headers['Authorization'] = f"{auth_token}"
+            resp.headers['Authorization'] = "{0}".format(auth_token)
             resp.status_code = 200
             resp.mimetype = 'application/json'
             return resp
@@ -330,7 +323,7 @@ def yaml_hammer():
         file_path = cwd + '/Files/' + fname
         f.save(file_path)  # save file locally
 
-        with open(file_path) as yfile:
+        with open(file_path, 'r') as yfile:
             y = yfile.read()
 
         ydata = yaml.load(y)

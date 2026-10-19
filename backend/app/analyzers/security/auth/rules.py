@@ -12,7 +12,12 @@ from app.analyzers.security.models import (
 )
 from app.models.domain.enums import Confidence, DebtCategory, Severity
 from app.models.domain.finding import Finding
-from app.scoring.weights import SENSITIVE_ROUTE_TERMS
+from app.scoring.weights import (
+    SENSITIVE_DATA_TERMS,
+    SENSITIVE_ROUTE_TERMS,
+    drop_severity_one_level,
+    is_intentionally_public_endpoint,
+)
 
 # =============================================================================
 # Authentication Rules (ENT-AUTH-001, ENT-AUTH-002, ENT-AUTH-003)
@@ -71,6 +76,7 @@ class PotentiallyUnprotectedEndpointRule(BaseRule):
             if (
                 ep.is_security_sensitive
                 and not ep.is_public
+                and not is_intentionally_public_endpoint(ep.route_path, ep.symbol)
                 and not ep.has_authentication
                 and not ep.has_authorization
             ):
@@ -115,6 +121,26 @@ class PotentiallyUnprotectedEndpointRule(BaseRule):
                 if is_mutating and len(ep.sensitivity_reasons) >= 2
                 else self.default_confidence
             )
+
+        # If response model or body shows no sensitive data, drop severity by one level
+        func = context.get_enclosing_function(ep.location.line_start)
+        response_data_str = ""
+        if func:
+            for d in func.decorators:
+                for arg in d.arguments:
+                    if "response_model" in arg:
+                        response_data_str += " " + arg
+            if func.return_annotation:
+                response_data_str += " " + func.return_annotation
+            for ret in func.returns:
+                if ret.value_representation:
+                    response_data_str += " " + ret.value_representation
+        if snippet and snippet.content:
+            response_data_str += " " + snippet.content
+
+        has_sensitive_response = any(term in response_data_str.lower() for term in SENSITIVE_DATA_TERMS)
+        if not has_sensitive_response:
+            severity = drop_severity_one_level(severity)
 
         sig = f"{ep.file_path}:{ep.symbol}:{ep.display_route}:unprotected"
         fid = Finding.generate_deterministic_id(
@@ -223,7 +249,12 @@ class InconsistentAuthenticationRule(BaseRule):
                 continue
 
             auth_eps = [e for e in eps if e.has_authentication]
-            unauth_eps = [e for e in eps if not e.has_authentication and not e.is_public]
+            unauth_eps = [
+                e for e in eps
+                if not e.has_authentication
+                and not e.is_public
+                and not is_intentionally_public_endpoint(e.route_path, e.symbol)
+            ]
 
             # Inconsistency: group has authenticated routes, but some non-public routes lack auth
             if auth_eps and unauth_eps:
@@ -529,7 +560,7 @@ class PotentiallyMissingAuthorizationRule(BaseRule):
     @classmethod
     def _requires_access_control(cls, ep: EndpointDefinition) -> bool:
         """Evaluate if an endpoint represents a privileged / administrative domain."""
-        if ep.is_public:
+        if ep.is_public or is_intentionally_public_endpoint(ep.route_path, ep.symbol):
             return False
 
         path_lower = (ep.route_path or "").lower()
@@ -574,6 +605,7 @@ class PotentiallyMissingAuthorizationRule(BaseRule):
         else:
             severity = self.default_severity
             confidence = self.default_confidence
+
 
         desc = (
             f"Privileged endpoint '{ep.display_route}' contains no recognizable authorization "

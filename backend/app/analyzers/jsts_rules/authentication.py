@@ -14,7 +14,12 @@ from app.analyzers.security.models import EndpointDefinition
 from app.models.domain.enums import Confidence, DebtCategory, Severity, SupportedLanguage
 from app.models.domain.finding import Finding
 from app.models.domain.rule import RuleDefinition
-from app.scoring.weights import SENSITIVE_ROUTE_TERMS
+from app.scoring.weights import (
+    SENSITIVE_DATA_TERMS,
+    SENSITIVE_ROUTE_TERMS,
+    drop_severity_one_level,
+    is_intentionally_public_endpoint,
+)
 
 
 class JSUnprotectedEndpointRule:
@@ -84,6 +89,7 @@ class JSUnprotectedEndpointRule:
             if (
                 ep.is_security_sensitive
                 and not ep.is_public
+                and not is_intentionally_public_endpoint(ep.route_path, ep.symbol)
                 and not ep.has_authentication
                 and not ep.has_authorization
             ):
@@ -128,6 +134,11 @@ class JSUnprotectedEndpointRule:
                 if is_mutating and len(ep.sensitivity_reasons) >= 2
                 else self.default_confidence
             )
+
+        # If response body shows no sensitive data, drop severity by one level
+        has_sensitive_response = any(term in snippet.content.lower() for term in SENSITIVE_DATA_TERMS)
+        if not has_sensitive_response:
+            severity = drop_severity_one_level(severity)
 
         sig = f"{ep.file_path}:{ep.symbol}:{ep.display_route}:unprotected"
         fid = Finding.generate_deterministic_id(
@@ -249,7 +260,12 @@ class JSInconsistentAuthenticationRule:
                 continue
 
             auth_eps = [e for e in eps if e.has_authentication]
-            unauth_eps = [e for e in eps if not e.has_authentication and not e.is_public]
+            unauth_eps = [
+                e for e in eps
+                if not e.has_authentication
+                and not e.is_public
+                and not is_intentionally_public_endpoint(e.route_path, e.symbol)
+            ]
 
             if auth_eps and unauth_eps:
                 peer_desc = [f"{e.display_route} ({e.auth_evidence[0].guard_name})" for e in auth_eps]

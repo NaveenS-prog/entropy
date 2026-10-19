@@ -163,14 +163,22 @@ class EntropyScorer:
         if worst_cat_name is not None and max_cat_score >= 0:
             worst_category = WorstCategory(name=worst_cat_name, score=round(max_cat_score, 1))
 
-        # Evaluate severity floors from high-confidence critical/high findings
+        # Evaluate severity floors from high-confidence critical/high findings in non-test, non-example paths
+        from app.repository.config import is_scope_excluded
+
         crit_high_conf = [
             f for f in findings
-            if f.category in active_cats and f.severity == Severity.CRITICAL and f.confidence == Confidence.HIGH
+            if f.category in active_cats
+            and f.severity == Severity.CRITICAL
+            and f.confidence == Confidence.HIGH
+            and not is_scope_excluded(f.file)
         ]
         high_high_conf = [
             f for f in findings
-            if f.category in active_cats and f.severity == Severity.HIGH and f.confidence == Confidence.HIGH
+            if f.category in active_cats
+            and f.severity == Severity.HIGH
+            and f.confidence == Confidence.HIGH
+            and not is_scope_excluded(f.file)
         ]
 
         floor_score = 0
@@ -180,18 +188,22 @@ class EntropyScorer:
             floor_score = SEVERITY_FLOOR_VERY_HIGH_SCORE
             rules = sorted({f.rule_id for f in crit_high_conf})
             rules_str = ", ".join(rules[:2])
-            floor_candidate_reason = f"{len(crit_high_conf)} CRITICAL findings ({rules_str}) in {crit_high_conf[0].file}"
+            trigger_ids = ", ".join(f.id for f in crit_high_conf[:2])
+            floor_candidate_reason = (
+                f"{len(crit_high_conf)} CRITICAL findings: triggered by {trigger_ids} ({rules_str}) "
+                f"in {crit_high_conf[0].file}"
+            )
         elif len(crit_high_conf) == 1:
             floor_score = SEVERITY_FLOOR_HIGH_SCORE
             f = crit_high_conf[0]
-            floor_candidate_reason = f"1 CRITICAL finding ({f.rule_id}) in {f.file}"
+            floor_candidate_reason = f"1 CRITICAL finding: triggered by {f.id} ({f.rule_id}) in {f.file}:{f.line_start}"
         elif len(high_high_conf) >= 1:
             floor_score = SEVERITY_FLOOR_MODERATE_SCORE
             f = high_high_conf[0]
             count_str = f"{len(high_high_conf)} HIGH finding{'s' if len(high_high_conf) > 1 else ''}"
             rules = sorted({f.rule_id for f in high_high_conf})
             rules_str = ", ".join(rules[:2])
-            floor_candidate_reason = f"{count_str} ({rules_str}) in {f.file}"
+            floor_candidate_reason = f"{count_str}: triggered by {f.id} ({rules_str}) in {f.file}:{f.line_start}"
 
         if floor_score > score_density:
             final_score = floor_score

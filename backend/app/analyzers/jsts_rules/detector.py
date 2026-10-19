@@ -23,7 +23,7 @@ from app.analyzers.security.models import (
 )
 from app.models.domain.enums import Confidence
 from app.parser.python.models import SourceLocation
-from app.scoring.weights import SENSITIVE_ROUTE_TERMS
+from app.scoring.weights import SENSITIVE_ROUTE_TERMS, is_intentionally_public_endpoint
 
 # Auth-related keyword patterns for middleware identification
 AUTH_MIDDLEWARE_PATTERNS = [
@@ -663,6 +663,9 @@ class JSFrameworkRouteDetector:
             mw_lower = mw.lower()
             if any(re.search(p, mw_lower) for p in PUBLIC_MIDDLEWARE_PATTERNS):
                 reasons.append(f"Explicit public middleware '{mw}'")
+
+        if is_intentionally_public_endpoint(route.path, route.handler_name):
+            reasons.append(f"Intentionally public endpoint pattern in '{route.path or route.handler_name}'")
 
         return bool(reasons), reasons
 

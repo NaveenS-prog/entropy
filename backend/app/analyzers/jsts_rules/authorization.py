@@ -14,7 +14,7 @@ from app.analyzers.security.models import EndpointDefinition
 from app.models.domain.enums import Confidence, DebtCategory, Severity, SupportedLanguage
 from app.models.domain.finding import Finding
 from app.models.domain.rule import RuleDefinition
-from app.scoring.weights import SENSITIVE_ROUTE_TERMS
+from app.scoring.weights import SENSITIVE_ROUTE_TERMS, is_intentionally_public_endpoint
 
 
 class JSMissingAuthorizationRule:
@@ -90,7 +90,7 @@ class JSMissingAuthorizationRule:
 
     @classmethod
     def _requires_access_control(cls, ep: EndpointDefinition) -> bool:
-        if ep.is_public:
+        if ep.is_public or is_intentionally_public_endpoint(ep.route_path, ep.symbol):
             return False
 
         path_lower = (ep.route_path or "").lower()

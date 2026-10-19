@@ -22,6 +22,7 @@ from app.analyzers.security.models import (
 )
 from app.models.domain.enums import Confidence
 from app.parser.python.models import Decorator, FunctionDefinition, SourceLocation
+from app.scoring.weights import is_intentionally_public_endpoint
 
 # Keywords indicating potential security sensitivity
 SENSITIVE_ROUTE_TERMS = {
@@ -562,6 +563,10 @@ class FrameworkRouteDetector:
         # Function name indicates public utility
         if func_lower in ("health", "health_check", "ping", "live", "ready", "public_index"):
             reasons.append(f"Public utility function name '{func_name}'")
+
+        # Configured intentionally public terms (login, token, reset-password, callback, etc.)
+        if is_intentionally_public_endpoint(route_path, func_name):
+            reasons.append(f"Intentionally public endpoint pattern in '{route_path or func_name}'")
 
         is_public = len(reasons) > 0
         return is_public, reasons

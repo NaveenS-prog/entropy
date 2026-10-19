@@ -36,6 +36,7 @@ class PythonAstVisitor(ast.NodeVisitor):
         self._scope_stack: list[str] = []
         self._class_stack: list[ClassDefinition] = []
         self._function_stack: list[FunctionDefinition] = []
+        self._type_checking_depth: int = 0
 
     def extract(self, root: ast.Module) -> PythonModuleStructure:
         """Run extraction across the AST module and return the structured representation."""
@@ -177,6 +178,8 @@ class PythonAstVisitor(ast.NodeVisitor):
                     is_from=False,
                     level=0,
                     location=loc,
+                    is_type_checking=self._type_checking_depth > 0,
+                    enclosing_function=self._current_function_name(),
                 )
             )
         self.generic_visit(node)
@@ -192,6 +195,8 @@ class PythonAstVisitor(ast.NodeVisitor):
                     is_from=True,
                     level=node.level,
                     location=loc,
+                    is_type_checking=self._type_checking_depth > 0,
+                    enclosing_function=self._current_function_name(),
                 )
             )
         self.generic_visit(node)
@@ -511,17 +516,30 @@ class PythonAstVisitor(ast.NodeVisitor):
 
     def visit_If(self, node: ast.If) -> Any:
         loc = SourceLocation.from_node(node)
+        cond_str = ast.unparse(node.test)
         cf = ControlFlowConstruct(
             kind="if",
             location=loc,
             has_else=bool(node.orelse),
-            condition_or_target=ast.unparse(node.test),
+            condition_or_target=cond_str,
             enclosing_function=self._current_function_name(),
         )
         self.structure.all_control_flows.append(cf)
         if self._function_stack:
             self._function_stack[-1].control_flows.append(cf)
-        self.generic_visit(node)
+
+        is_tc = "TYPE_CHECKING" in cond_str
+        if is_tc:
+            self._type_checking_depth += 1
+        try:
+            for item in node.body:
+                self.visit(item)
+        finally:
+            if is_tc:
+                self._type_checking_depth -= 1
+
+        for item in node.orelse:
+            self.visit(item)
 
     def visit_For(self, node: ast.For) -> Any:
         loc = SourceLocation.from_node(node)

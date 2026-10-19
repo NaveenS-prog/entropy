@@ -211,3 +211,49 @@ SEVERITY_FLOOR_MODERATE_SCORE: int = 41    # Minimum score for MODERATE tier (>=
 SEVERITY_FLOOR_HIGH_SCORE: int = 61        # Minimum score for HIGH tier (>= 1 CRITICAL finding with HIGH confidence)
 SEVERITY_FLOOR_VERY_HIGH_SCORE: int = 81   # Minimum score for VERY_HIGH tier (>= 2 CRITICAL findings with HIGH confidence)
 
+
+# =============================================================================
+# Rule Penalty Diminishing Returns Constants
+# =============================================================================
+# Maximum findings evaluated at 100% full weight before logarithmic diminishing returns
+RULE_FULL_WEIGHT_THRESHOLD: int = 20
+
+# Logarithmic scaling multiplier for excess findings beyond the threshold
+RULE_LOG_SCALE_FACTOR: float = 5.0
+
+# Divisor inside the logarithm for excess findings
+RULE_LOG_SCALE_DIVISOR: float = 1.0
+
+
+def calculate_rule_penalty(finding_weights: list[float]) -> float:
+    """Calculate rule penalty with diminishing returns so a single noisy rule cannot dominate a category.
+
+    The first RULE_FULL_WEIGHT_THRESHOLD findings contribute at full weight.
+    Subsequent findings contribute with logarithmic diminishing returns:
+    excess_penalty = avg_weight * RULE_LOG_SCALE_FACTOR * ln(1 + excess / RULE_LOG_SCALE_DIVISOR).
+    """
+    import math
+
+    if not finding_weights:
+        return 0.0
+
+    sorted_weights = sorted(finding_weights, reverse=True)
+    n = len(sorted_weights)
+
+    if n <= RULE_FULL_WEIGHT_THRESHOLD:
+        return sum(sorted_weights)
+
+    top_weights = sorted_weights[:RULE_FULL_WEIGHT_THRESHOLD]
+    base_penalty = sum(top_weights)
+    avg_top_weight = base_penalty / RULE_FULL_WEIGHT_THRESHOLD
+
+    excess_count = n - RULE_FULL_WEIGHT_THRESHOLD
+    excess_penalty = (
+        avg_top_weight
+        * RULE_LOG_SCALE_FACTOR
+        * math.log(1.0 + excess_count / RULE_LOG_SCALE_DIVISOR)
+    )
+
+    return base_penalty + excess_penalty
+
+

@@ -56,6 +56,8 @@ class ImportItem:
     is_from: bool
     level: int
     location: SourceLocation
+    is_type_checking: bool = False
+    enclosing_function: str | None = None
 
 
 @dataclass

@@ -82,12 +82,12 @@ def _make_critical_finding(fid: str = "finding-crit-001", file_path: str = "admi
     )
 
 
-def _make_medium_finding(fid: str, loc_line: int = 5) -> Finding:
+def _make_medium_finding(fid: str, loc_line: int = 5, rule_id: str = "ENT-ERR-001") -> Finding:
     """Create a standard MEDIUM-severity finding (ENT-ERR-001)."""
     return Finding(
         id=fid,
         category=DebtCategory.ERROR_HANDLING,
-        rule_id="ENT-ERR-001",
+        rule_id=rule_id,
         severity=Severity.MEDIUM,
         confidence=Confidence.HIGH,
         file="utils.py",
@@ -151,10 +151,16 @@ class TestHeadlineScoreSeverityFloor:
         scorer = EntropyScorer()
 
         # 1 MEDIUM finding per 100 LOC across 500 vs 500,000 LOC
-        findings_500 = [_make_medium_finding(f"m500_{i}", loc_line=i * 5 + 1) for i in range(5)]
+        findings_500 = [
+            _make_medium_finding(f"m500_{i}", loc_line=i * 5 + 1, rule_id=f"ENT-ERR-{i % 5:03d}")
+            for i in range(5)
+        ]
         result_500 = scorer.calculate_score(findings=findings_500, total_loc=500, analyzed_files=5)
 
-        findings_500k = [_make_medium_finding(f"m500k_{i}", loc_line=i * 5 + 1) for i in range(5000)]
+        findings_500k = [
+            _make_medium_finding(f"m500k_{i}", loc_line=i * 5 + 1, rule_id=f"ENT-ERR-{i % 5000:03d}")
+            for i in range(5000)
+        ]
         result_500k = scorer.calculate_score(findings=findings_500k, total_loc=500_000, analyzed_files=500)
 
         # No severity floor applied

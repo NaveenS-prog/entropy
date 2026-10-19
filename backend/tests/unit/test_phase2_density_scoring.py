@@ -27,11 +27,12 @@ def _make_finding(
     severity: Severity = Severity.MEDIUM,
     category: DebtCategory = DebtCategory.ERROR_HANDLING,
     file_path: str = "src/app.py",
+    rule_id: str = "ENT-ERR-001",
 ) -> Finding:
     return Finding(
         id=fid,
         category=category,
-        rule_id="ENT-ERR-001",
+        rule_id=rule_id,
         severity=severity,
         confidence=Confidence.HIGH,
         file=file_path,
@@ -67,19 +68,19 @@ class TestDensityScoringProperties:
         scorer = EntropyScorer()
 
         # 500 LOC with 5 medium findings
-        findings_500 = [_make_finding(f"f500_{i}", Severity.MEDIUM) for i in range(5)]
+        findings_500 = [_make_finding(f"f500_{i}", Severity.MEDIUM, rule_id=f"RULE_{i % 5}") for i in range(5)]
         result_500 = scorer.calculate_score(findings=findings_500, total_loc=500, analyzed_files=5)
 
         # 5,000 LOC with 50 medium findings
-        findings_5k = [_make_finding(f"f5k_{i}", Severity.MEDIUM) for i in range(50)]
+        findings_5k = [_make_finding(f"f5k_{i}", Severity.MEDIUM, rule_id=f"RULE_{i % 50}") for i in range(50)]
         result_5k = scorer.calculate_score(findings=findings_5k, total_loc=5000, analyzed_files=20)
 
         # 50,000 LOC with 500 medium findings
-        findings_50k = [_make_finding(f"f50k_{i}", Severity.MEDIUM) for i in range(500)]
+        findings_50k = [_make_finding(f"f50k_{i}", Severity.MEDIUM, rule_id=f"RULE_{i % 500}") for i in range(500)]
         result_50k = scorer.calculate_score(findings=findings_50k, total_loc=50_000, analyzed_files=100)
 
         # 500,000 LOC with 5,000 medium findings
-        findings_500k = [_make_finding(f"f500k_{i}", Severity.MEDIUM) for i in range(5000)]
+        findings_500k = [_make_finding(f"f500k_{i}", Severity.MEDIUM, rule_id=f"RULE_{i % 5000}") for i in range(5000)]
         result_500k = scorer.calculate_score(findings=findings_500k, total_loc=500_000, analyzed_files=500)
 
         # Category scores should be strictly identical because density is exactly 40.0 pts/KLOC

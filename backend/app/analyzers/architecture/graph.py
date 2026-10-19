@@ -85,10 +85,11 @@ class DependencyGraph:
         path: list[str],
         all_cycles: list[DependencyCycle],
         seen_cycle_ids: set[str],
-        max_depth: int = 15,
+        max_depth: int = 10,
+        max_cycles: int = 100,
     ) -> None:
         """DFS recursive traversal to discover cycles returning to start_node."""
-        if len(path) > max_depth:
+        if len(path) > max_depth or len(all_cycles) >= max_cycles:
             return
 
         for neighbor in sorted(self.adj_list.get(current, set())):

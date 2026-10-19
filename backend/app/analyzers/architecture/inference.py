@@ -262,6 +262,12 @@ class ArchitectureModelBuilder:
             return
 
         for imp in mod.imports:
+            # Skip imports inside TYPE_CHECKING or inside functions for module graph
+            if getattr(imp, "is_type_checking", False):
+                continue
+            if getattr(imp, "enclosing_function", None) is not None:
+                continue
+
             target_module = self._resolve_import_target(imp, parts)
             if target_module and target_module in self.modules:
                 mod.local_dependencies.add(target_module)
@@ -288,13 +294,15 @@ class ArchitectureModelBuilder:
             else:
                 target_str = ".".join(base_pkg)
 
-            # Check if target_str matches an alias
-            if target_str in self._alias_map:
-                return self._alias_map[target_str]
-            # Try combining with imported symbol name (e.g. from . import user)
+            # Try combining with imported symbol name first (e.g. from . import cli -> flask.cli)
             target_with_name = f"{target_str}.{imp.name}" if target_str else imp.name
             if target_with_name in self._alias_map:
                 return self._alias_map[target_with_name]
+
+            # Check if target_str matches an alias (e.g. from . import flask_function)
+            if target_str in self._alias_map:
+                return self._alias_map[target_str]
+
             return None
 
         # Absolute import

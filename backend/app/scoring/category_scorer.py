@@ -19,6 +19,7 @@ from app.scoring.weights import (
     CATEGORY_WEIGHTS,
     CONFIDENCE_WEIGHTS,
     SEVERITY_WEIGHTS,
+    calculate_rule_penalty,
 )
 
 
@@ -66,36 +67,34 @@ class CategoryScorer:
 
         # Analyzed Category: Calculate from real findings
         severity_counts = {s: 0 for s in Severity}
-        raw_penalty = 0.0
 
-        # Group by rule for rule-level contribution analysis
+        # Group by rule for rule-level contribution analysis and penalty calculation
         rule_findings: dict[str, list[Finding]] = {}
 
         for f in findings:
             severity_counts[f.severity] += 1
-            sev_pts = SEVERITY_WEIGHTS.get(f.severity, 0.0)
-            conf_mult = CONFIDENCE_WEIGHTS.get(f.confidence, 1.0)
-            raw_penalty += sev_pts * conf_mult
-
             if f.rule_id not in rule_findings:
                 rule_findings[f.rule_id] = []
             rule_findings[f.rule_id].append(f)
 
-        # Compute top contributing rules sorted by weighted impact
+        raw_penalty = 0.0
+        # Compute top contributing rules sorted by weighted impact with diminishing returns per rule
         top_rules: list[RuleContribution] = []
         for r_id, r_list in rule_findings.items():
             first_finding = r_list[0]
             rule_title = first_finding.title
-            r_points = sum(
+            finding_weights = [
                 SEVERITY_WEIGHTS.get(f.severity, 0.0) * CONFIDENCE_WEIGHTS.get(f.confidence, 1.0)
                 for f in r_list
-            )
+            ]
+            rule_penalty = calculate_rule_penalty(finding_weights)
+            raw_penalty += rule_penalty
             top_rules.append(
                 RuleContribution(
                     rule_id=r_id,
                     rule_title=rule_title,
                     finding_count=len(r_list),
-                    weighted_points=round(r_points, 2),
+                    weighted_points=round(rule_penalty, 2),
                 )
             )
         top_rules.sort(key=lambda r: (r.weighted_points, r.finding_count), reverse=True)

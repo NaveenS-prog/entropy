@@ -69,10 +69,21 @@ To prevent repository size from distorting scores and ensure scale invariance:
 - Monotonicity: adding any authentic finding strictly increases (or preserves) the score.
 - A minimum LOC floor ($\text{MIN\_LOC\_FLOOR} = 200$) protects tiny repositories from mathematical score explosion.
 
-### Step 1: Raw Category Penalty
-For each finding $f$ in category $c$:
+### Step 1: Raw Category Penalty with Rule-Level Diminishing Returns
+To prevent any single noisy rule from dominating an entire category penalty (e.g. thousands of repetitive findings from a single pattern), penalties are calculated with diminishing returns per rule:
+For each finding $f$ produced by rule $r$:
 $$\text{Points}(f) = W_{\text{severity}}(f) \times M_{\text{confidence}}(f)$$
-$$\text{Raw Penalty}_c = \sum_{f \in \text{Findings}_c} \text{Points}(f)$$
+
+For findings sorted by weight descending within rule $r$:
+- The first $N = 20$ findings (`RULE_FULL_WEIGHT_THRESHOLD`) are counted at 100% full weight.
+- Excess findings ($k > N$) contribute with logarithmic scaling:
+$$\text{Penalty}(r) = \sum_{i=1}^{\min(k, N)} \text{Points}(f_i) + \overline{\text{Points}}_r \times \text{FACTOR} \times \ln\left(1 + \frac{k - N}{\text{DIVISOR}}\right)$$
+where $\text{FACTOR} = 5.0$ (`RULE_LOG_SCALE_FACTOR`) and $\text{DIVISOR} = 1.0$ (`RULE_LOG_SCALE_DIVISOR`).
+
+The category penalty is the sum of penalties across all active rules in category $c$:
+$$\text{Raw Penalty}_c = \sum_{r \in \text{Rules}_c} \text{Penalty}(r)$$
+
+This mathematical safeguard guarantees that 4,000 identical findings from one rule cannot exceed approximately $3.1\times$ the penalty of 20 findings, preventing single-rule saturation while preserving monotonicity.
 
 ### Step 2: Codebase Scale in KLOC with Minimum Floor
 $$\text{Effective LOC} = \max(\text{total\_loc}, 200)$$

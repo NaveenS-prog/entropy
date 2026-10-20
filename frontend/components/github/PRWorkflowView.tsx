@@ -15,15 +15,27 @@ export function PRWorkflowView() {
   const [comparison, setComparison] = useState<ScanComparisonResult | null>(null);
 
   const parseOwnerRepo = () => {
-    const parts = ownerRepo.split("/").map((p) => p.trim());
-    if (parts.length !== 2 || !parts[0] || !parts[1]) {
-      throw new Error("Repository must be in 'owner/repo' format (e.g. 'org/project')");
+    let clean = ownerRepo.trim();
+    // Support full URLs like https://github.com/owner/repo or https://github.com/owner/repo/pull/123
+    clean = clean.replace(/^(https?:\/\/)?(www\.)?github\.com\//i, "");
+    clean = clean.replace(/\.git$/i, "");
+    const segments = clean.split("/").filter(Boolean);
+
+    let extractedPrNum = parseInt(prNumber, 10);
+    if (segments.length >= 4 && segments[2] === "pull") {
+      const parsedFromUrl = parseInt(segments[3], 10);
+      if (!isNaN(parsedFromUrl) && parsedFromUrl > 0) {
+        extractedPrNum = parsedFromUrl;
+      }
     }
-    const num = parseInt(prNumber, 10);
-    if (isNaN(num) || num <= 0) {
+
+    if (segments.length < 2 || !segments[0] || !segments[1]) {
+      throw new Error("Repository must be in 'owner/repo' format (e.g. 'org/project' or 'https://github.com/org/project')");
+    }
+    if (isNaN(extractedPrNum) || extractedPrNum <= 0) {
       throw new Error("PR Number must be a positive integer");
     }
-    return { owner: parts[0], repo: parts[1], num };
+    return { owner: segments[0], repo: segments[1], num: extractedPrNum };
   };
 
   const handleFetch = async () => {

@@ -13,6 +13,12 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const docsUrl =
+    process.env.NEXT_PUBLIC_API_DOCS_URL ||
+    (process.env.NEXT_PUBLIC_API_URL
+      ? `${process.env.NEXT_PUBLIC_API_URL.replace(/\/api\/v1\/?$/, "")}/docs`
+      : "http://localhost:8000/docs");
+
   return (
     <html lang="en" className="dark">
       <body className="bg-background text-foreground antialiased flex flex-col min-h-screen">
@@ -44,7 +50,7 @@ export default function RootLayout({
               <span>Constitution</span>
             </Link>
             <a
-              href="http://localhost:8000/docs"
+              href={docsUrl}
               target="_blank"
               rel="noreferrer"
               className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors"

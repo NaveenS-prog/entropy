@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: entropy-backend
+    runtime: python
+    rootDir: backend
+    plan: free
+    region: oregon
+    buildCommand: pip install --upgrade pip && pip install .
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: ENTROPY_ALLOW_LOCALHOST_NO_KEY
+        value: "true"
+      - key: SCAN_ALLOWED_ROOTS
+        value: "/tmp,.scans,."
+      - key: CORS_ORIGINS
+        value: "https://entropy-dashboard-naveen.vercel.app,https://frontend-one-kappa-73.vercel.app"

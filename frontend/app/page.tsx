@@ -210,7 +210,14 @@ export default function RepositoryIngestionDashboard() {
       }
     } catch (err: unknown) {
       clearInterval(interval);
-      const errorMessage = err instanceof Error ? err.message : "Failed to scan repository";
+      let errorMessage = err instanceof Error ? err.message : "Failed to scan repository";
+      if (
+        errorMessage.toLowerCase().includes("failed to fetch") ||
+        errorMessage.toLowerCase().includes("networkerror")
+      ) {
+        errorMessage =
+          "Cannot reach backend API. Ensure your backend service is running and NEXT_PUBLIC_API_URL is configured in your deployment.";
+      }
       setError(errorMessage);
     } finally {
       setIsScanning(false);
@@ -283,12 +290,17 @@ export default function RepositoryIngestionDashboard() {
             </div>
           )}
 
-          {health && (
+          {health ? (
             <div className="flex items-center gap-2 text-xs text-slate-400 font-mono bg-slate-900 px-3 py-2 rounded-lg border border-slate-800">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>Backend {health.version}</span>
               <span className="text-slate-600">|</span>
               <span>Engine {health.status}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-xs text-amber-400 font-mono bg-amber-950/40 border border-amber-800/60 px-3 py-2 rounded-lg" title="Backend not reached. Set NEXT_PUBLIC_API_URL or run the backend service.">
+              <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+              <span>Backend Offline</span>
             </div>
           )}
         </div>
@@ -305,7 +317,7 @@ export default function RepositoryIngestionDashboard() {
           }`}
         >
           <FolderGit2 className="w-4 h-4" />
-          <span>Local Repository Scanner</span>
+          <span>Local &amp; Remote Repository Scanner</span>
         </button>
 
         <button
@@ -335,19 +347,19 @@ export default function RepositoryIngestionDashboard() {
           <span>Scan Repository</span>
         </h2>
         <p className="text-xs text-slate-400 mb-5">
-          Enter the absolute or relative path to a local code repository. Entropy inspects file structures,
-          detects programming languages, respects <code className="text-slate-300">.gitignore</code>, and guarantees zero code execution.
+          Enter a local filesystem path or a remote Git repository URL (e.g. <code className="text-slate-300">https://github.com/owner/repo</code>). Entropy inspects file structures,
+          detects programming languages, respects <code className="text-slate-300">.gitignore</code>, and guarantees zero untrusted code execution.
         </p>
 
         <form onSubmit={handleStartScan} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Repository Path <span className="text-red-400">*</span>
+                Repository Path or Git URL <span className="text-red-400">*</span>
               </label>
               <input
                 type="text"
-                placeholder="/home/user/my-project"
+                placeholder="/path/to/project or https://github.com/owner/repo"
                 value={repoPath}
                 onChange={(e) => setRepoPath(e.target.value)}
                 required

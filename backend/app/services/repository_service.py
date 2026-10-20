@@ -54,7 +54,15 @@ class RepositoryService:
         include_tests: bool = False,
     ) -> RepositoryScanResult:
         """Execute a safe repository scan, record state transitions, and return the result."""
-        source = LocalRepositorySource(repo_path, repo_name, check_allowed_roots=check_allowed_roots)
+        clean_path = str(repo_path).strip()
+        is_git_url = clean_path.lower().startswith(("http://", "https://"))
+
+        if is_git_url:
+            from app.repository.sources import GitUrlRepositorySource
+
+            source = GitUrlRepositorySource(clean_path, repo_name)
+        else:
+            source = LocalRepositorySource(clean_path, repo_name, check_allowed_roots=check_allowed_roots)
 
         # Pre-validate source to fail fast on invalid paths or permissions
         try:

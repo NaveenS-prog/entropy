@@ -35,6 +35,10 @@ class RepositorySource(ABC):
         """Return a display name for the repository."""
         ...
 
+    def cleanup(self) -> None:
+        """Optional cleanup hook for temporary repository resources."""
+        pass
+
 
 class LocalRepositorySource(RepositorySource):
     """Local filesystem repository source with strict security validation."""
@@ -103,3 +107,86 @@ class LocalRepositorySource(RepositorySource):
         if self.custom_name:
             return self.custom_name
         return self.get_root_path().name or "unnamed-repo"
+
+
+class GitUrlRepositorySource(RepositorySource):
+    """Remote Git URL repository source cloned securely into an isolated sandbox."""
+
+    def __init__(self, url: str, name: str | None = None) -> None:
+        if not url or not str(url).strip():
+            raise RepositoryNotFoundError("Repository URL cannot be empty.")
+        self.raw_url = str(url).strip()
+        self.custom_name = name
+        self._temp_dir = None
+        self._resolved_path: Path | None = None
+
+    def validate(self) -> None:
+        """Validate URL protocol safety and git availability."""
+        url = self.raw_url.lower()
+        if not (url.startswith("https://") or url.startswith("http://")):
+            raise RepositorySecurityError(
+                "Only HTTP and HTTPS repository URLs are supported (e.g. 'https://github.com/owner/repo')."
+            )
+        import shutil
+
+        if not shutil.which("git"):
+            raise RepositoryNotFoundError("Git is not installed or not available in the system PATH.")
+
+    def get_root_path(self) -> Path:
+        """Clone repository shallowly and return safe directory path."""
+        if self._resolved_path is not None:
+            return self._resolved_path
+
+        self.validate()
+        import hashlib
+        import shutil
+        import subprocess
+
+        url_hash = hashlib.sha256(self.raw_url.encode()).hexdigest()[:12]
+        repo_name = self.get_name()
+        target_path = settings.SCAN_STORAGE_DIR / "remote_clones" / f"{repo_name}_{url_hash}"
+
+        if target_path.exists():
+            shutil.rmtree(target_path, ignore_errors=True)
+        target_path.mkdir(parents=True, exist_ok=True)
+
+        clone_cmd = [
+            "git",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "clone",
+            "--depth",
+            "1",
+            "--single-branch",
+            self.raw_url,
+            str(target_path),
+        ]
+        proc = subprocess.run(
+            clone_cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+        if proc.returncode != 0:
+            shutil.rmtree(target_path, ignore_errors=True)
+            raise RepositoryNotFoundError(
+                f"Failed to clone repository from '{self.raw_url}': {proc.stderr.strip()}"
+            )
+
+        # Remove internal .git metadata to prevent collisions
+        git_dir = target_path / ".git"
+        if git_dir.exists():
+            shutil.rmtree(git_dir, ignore_errors=True)
+
+        self._resolved_path = target_path
+        return self._resolved_path
+
+    def get_name(self) -> str:
+        if self.custom_name:
+            return self.custom_name
+        clean_url = self.raw_url.rstrip("/").removesuffix(".git")
+        return clean_url.split("/")[-1] or "remote-repo"
+
+    def cleanup(self) -> None:
+        pass

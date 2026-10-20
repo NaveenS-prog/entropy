@@ -1,0 +1,10 @@
+backend
+.scans
+.ai_cache
+.venv
+*.db
+*.log
+tests
+docs
+tools
+brag-output

@@ -1,0 +1,9 @@
+.next
+node_modules
+*.tsbuildinfo
+.git
+.env.local
+.env*.local
+*.test.ts
+*.test.tsx
+vitest.config.ts

@@ -35,7 +35,7 @@ class RepositorySource(ABC):
         """Return a display name for the repository."""
         ...
 
-    def cleanup(self) -> None:
+    def cleanup(self) -> None:  # noqa: B027
         """Optional cleanup hook for temporary repository resources."""
         pass
 

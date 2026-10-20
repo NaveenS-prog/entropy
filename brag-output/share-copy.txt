@@ -1,3 +1,0 @@
-Stop guessing if AI wrote your code. Entropy is an architectural security-debt analyzer that deterministically measures structural risk from 0 to 100 — without ever guessing "AI authorship".
-
-Explore the engine: https://github.com/NaveenS-prog/entropy

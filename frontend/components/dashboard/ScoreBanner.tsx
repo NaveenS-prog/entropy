@@ -44,20 +44,7 @@ export function ScoreBanner({ score, repository, durationMs }: ScoreBannerProps)
               <span className="text-[11px] uppercase tracking-wider text-slate-400 font-medium">
                 / 100
               </span>
-              <span className="text-[8px] font-bold uppercase tracking-wider text-amber-300 bg-amber-950/90 px-1 py-0.5 rounded border border-amber-700 mt-0.5">
-                experimental
-              </span>
-              {isPartial && (
-                <span className="text-[9px] font-semibold uppercase tracking-wider text-amber-400 bg-amber-950/80 px-1 py-0.5 rounded border border-amber-800">
-                  partial
-                </span>
-              )}
             </div>
-            {score.severity_floor_applied && score.floor_reason && (
-              <span className="text-[10px] font-medium text-amber-300 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-700/80 mt-1 text-center max-w-[140px] leading-tight">
-                raised to {score.tier.replace("_", " ").toUpperCase()} by {score.floor_reason}
-              </span>
-            )}
           </div>
 
           <div>

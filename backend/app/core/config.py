@@ -32,6 +32,11 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("ALLOW_LOCALHOST_NO_KEY", "ENTROPY_ALLOW_LOCALHOST_NO_KEY"),
         description="Allow localhost access without API key when no key is configured",
     )
+    ALLOW_PUBLIC_ACCESS: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("ALLOW_PUBLIC_ACCESS", "ENTROPY_ALLOW_PUBLIC_ACCESS"),
+        description="Allow public non-localhost access without API key when no key is configured",
+    )
     SCAN_ALLOWED_ROOTS: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: [str(Path.cwd().resolve())],
         validation_alias=AliasChoices("SCAN_ALLOWED_ROOTS", "ENTROPY_SCAN_ALLOWED_ROOTS"),

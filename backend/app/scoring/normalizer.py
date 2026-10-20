@@ -58,7 +58,6 @@ class ScoreNormalizer:
         cls,
         raw_penalty: float,
         total_loc: int = 0,
-        analyzed_files: int = 0,
     ) -> NormalizationResult:
         """Normalize raw finding penalties into a bounded 0-100 score via debt density."""
         effective_loc = max(total_loc, MIN_LOC_FLOOR)

@@ -29,6 +29,10 @@ def verify_api_key(
             )
         return True
 
+    # Public access mode enabled: allows requests without an API key
+    if getattr(settings, "ALLOW_PUBLIC_ACCESS", False):
+        return False
+
     # No key configured: check if localhost fallback is permitted
     if not settings.ALLOW_LOCALHOST_NO_KEY:
         raise HTTPException(
@@ -47,7 +51,6 @@ def verify_api_key(
 
 
 def is_authenticated_caller(
-    request: Request,
     x_api_key: str | None = Header(None, alias="X-API-Key"),
 ) -> bool:
     """Return True if the caller has presented a valid configured API key."""

@@ -88,7 +88,7 @@ class AnalysisService:
                             )
                         )
 
-                active_findings, suppressed_findings = apply_suppressions(
+                _active_findings, suppressed_findings = apply_suppressions(
                     findings=findings,
                     suppressed_rules=config_rules,
                     suppressed_finding_ids=config_findings,

@@ -72,7 +72,7 @@ CATEGORY_WEIGHTS: dict[DebtCategory, float] = {
 # Normalization & Saturation Constants (Density-Based Scoring)
 # =============================================================================
 # Density saturation constant K for asymptotic category curve:
-# Category_Score = 100 * (1 - e^(-Weighted_Debt_Density / DENSITY_SATURATION_FACTOR))
+# Formula: Category_Score = 100 * (1 - e^(-Weighted_Debt_Density / DENSITY_SATURATION_FACTOR))
 DENSITY_SATURATION_FACTOR: float = 40.0
 
 # Legacy alias for backward compatibility

@@ -26,7 +26,7 @@ BAND_RANGES: dict[DebtScoreTier, tuple[int, int]] = {
 
 def clamp_score(score: float | int) -> int:
     """Clamp score strictly to integer range [0, 100]."""
-    rounded = int(round(score))
+    rounded = round(score)
     return max(0, min(100, rounded))
 
 
@@ -45,14 +45,13 @@ def classify_score_band(score: float | int) -> DebtScoreTier:
     clamped = clamp_score(score)
     if clamped <= 20:
         return DebtScoreTier.VERY_LOW
-    elif clamped <= 40:
+    if clamped <= 40:
         return DebtScoreTier.LOW
-    elif clamped <= 60:
+    if clamped <= 60:
         return DebtScoreTier.MODERATE
-    elif clamped <= 80:
+    if clamped <= 80:
         return DebtScoreTier.HIGH
-    else:
-        return DebtScoreTier.VERY_HIGH
+    return DebtScoreTier.VERY_HIGH
 
 
 def get_band_description(tier: DebtScoreTier) -> str:

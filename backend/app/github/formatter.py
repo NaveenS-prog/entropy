@@ -132,7 +132,7 @@ def build_pr_comment_markdown(
 
     comment_lines = [
         "<!-- entropy-pr-report -->",
-        "## 🔍 Entropy Architectural & Security Debt Report",
+        f"## 🔍 Entropy Architectural & Security Debt Report (PR #{pr_number})",
         "",
         f"| Metric | Base (`{summary_data.previous_scan_id[:8]}`) | PR (`{summary_data.current_scan_id[:8]}`) | Delta |",
         "| :--- | :---: | :---: | :---: |",

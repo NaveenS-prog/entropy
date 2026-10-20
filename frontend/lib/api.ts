@@ -17,39 +17,48 @@ import {
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
+
+function getHeaders(customHeaders: Record<string, string> = {}): Record<string, string> {
+  const headers: Record<string, string> = { ...customHeaders };
+  if (API_KEY) {
+    headers["X-API-Key"] = API_KEY;
+  }
+  return headers;
+}
 
 export async function fetchHealth(): Promise<SystemHealth> {
-  const res = await fetch(`${API_BASE}/health`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/health`, { cache: "no-store", headers: getHeaders() });
   if (!res.ok) throw new Error(`Health check failed: ${res.statusText}`);
   return res.json();
 }
 
 export async function listScans(): Promise<RepositoryScanResult[]> {
-  const res = await fetch(`${API_BASE}/scans`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/scans`, { cache: "no-store", headers: getHeaders() });
   if (!res.ok) throw new Error(`Failed to list scans: ${res.statusText}`);
   return res.json();
 }
 
 export async function getScan(scanId: string): Promise<RepositoryScanResult> {
-  const res = await fetch(`${API_BASE}/scans/${scanId}`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/scans/${scanId}`, { cache: "no-store", headers: getHeaders() });
   if (!res.ok) throw new Error(`Failed to fetch scan ${scanId}: ${res.statusText}`);
   return res.json();
 }
 
 export async function getManifest(scanId: string): Promise<RepositoryManifest> {
-  const res = await fetch(`${API_BASE}/scans/${scanId}/manifest`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/scans/${scanId}/manifest`, { cache: "no-store", headers: getHeaders() });
   if (!res.ok) throw new Error(`Failed to fetch manifest for scan ${scanId}: ${res.statusText}`);
   return res.json();
 }
 
 export async function getFindings(scanId: string): Promise<Finding[]> {
-  const res = await fetch(`${API_BASE}/scans/${scanId}/findings`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/scans/${scanId}/findings`, { cache: "no-store", headers: getHeaders() });
   if (!res.ok) throw new Error(`Failed to fetch findings for scan ${scanId}: ${res.statusText}`);
   return res.json();
 }
 
 export async function getScore(scanId: string): Promise<DebtScoreResult> {
-  const res = await fetch(`${API_BASE}/scans/${scanId}/score`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/scans/${scanId}/score`, { cache: "no-store", headers: getHeaders() });
   if (!res.ok) throw new Error(`Failed to fetch score for scan ${scanId}: ${res.statusText}`);
   return res.json();
 }
@@ -57,7 +66,7 @@ export async function getScore(scanId: string): Promise<DebtScoreResult> {
 export async function triggerScan(repoPath: string, repoName?: string): Promise<RepositoryScanResult> {
   const res = await fetch(`${API_BASE}/repositories/scan`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ path: repoPath, repo_name: repoName }),
   });
   if (!res.ok) {
@@ -67,20 +76,20 @@ export async function triggerScan(repoPath: string, repoName?: string): Promise<
   return res.json();
 }
 
-
 export async function explainFinding(
   scanId: string,
   findingId: string
 ): Promise<FindingExplanation> {
   const res = await fetch(`${API_BASE}/scans/${scanId}/findings/${findingId}/explain`, {
     cache: "no-store",
+    headers: getHeaders(),
   });
   if (!res.ok) throw new Error(`Failed to get explanation: ${res.statusText}`);
   return res.json();
 }
 
 export async function listRules(): Promise<RuleDefinition[]> {
-  const res = await fetch(`${API_BASE}/analyzers/rules`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/analyzers/rules`, { cache: "no-store", headers: getHeaders() });
   if (!res.ok) throw new Error(`Failed to list rules: ${res.statusText}`);
   return res.json();
 }
@@ -94,7 +103,7 @@ export async function requestAIExplanation(
     : `${API_BASE}/findings/${findingId}/explanation`;
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders({ "Content-Type": "application/json" }),
   });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
@@ -119,6 +128,7 @@ export async function listRepositoryScans(
 
   const res = await fetch(`${API_BASE}/repositories/${repositoryId}/scans?${params.toString()}`, {
     cache: "no-store",
+    headers: getHeaders(),
   });
   if (!res.ok) throw new Error(`Failed to list repository scans: ${res.statusText}`);
   return res.json();
@@ -129,6 +139,7 @@ export async function getRepositoryTrend(
 ): Promise<RepositoryTrendResponse> {
   const res = await fetch(`${API_BASE}/repositories/${repositoryId}/trend`, {
     cache: "no-store",
+    headers: getHeaders(),
   });
   if (!res.ok) throw new Error(`Failed to fetch repository trend: ${res.statusText}`);
   return res.json();
@@ -140,6 +151,7 @@ export async function compareScans(
 ): Promise<ScanComparisonResult> {
   const res = await fetch(`${API_BASE}/scans/${currentScanId}/compare/${previousScanId}`, {
     cache: "no-store",
+    headers: getHeaders(),
   });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
@@ -155,6 +167,7 @@ export async function getPRAnalysis(
 ): Promise<PRAnalysisRecord> {
   const res = await fetch(`${API_BASE}/github/prs/${owner}/${repo}/${prNumber}`, {
     cache: "no-store",
+    headers: getHeaders(),
   });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
@@ -170,6 +183,7 @@ export async function getPRComparison(
 ): Promise<ScanComparisonResult> {
   const res = await fetch(`${API_BASE}/github/prs/${owner}/${repo}/${prNumber}/comparison`, {
     cache: "no-store",
+    headers: getHeaders(),
   });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
@@ -186,7 +200,7 @@ export async function triggerPRAnalysis(
 ): Promise<PRAnalysisRecord> {
   const res = await fetch(`${API_BASE}/github/prs/${owner}/${repo}/${prNumber}/analyze`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders({ "Content-Type": "application/json" }),
     body: request ? JSON.stringify(request) : JSON.stringify({}),
   });
   if (!res.ok) {
@@ -203,6 +217,7 @@ export async function listPRAnalyses(
 ): Promise<PRAnalysisRecord[]> {
   const res = await fetch(`${API_BASE}/github/prs/${owner}/${repo}?limit=${limit}`, {
     cache: "no-store",
+    headers: getHeaders(),
   });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
@@ -212,7 +227,7 @@ export async function listPRAnalyses(
 }
 
 export async function getDefaultPolicy(): Promise<PolicyConfig> {
-  const res = await fetch(`${API_BASE}/policies/default`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/policies/default`, { cache: "no-store", headers: getHeaders() });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.detail || `Failed to fetch default policy: ${res.statusText}`);
@@ -225,7 +240,7 @@ export async function validatePolicy(
 ): Promise<{ valid: boolean; policy?: PolicyConfig; errors: any[] }> {
   const res = await fetch(`${API_BASE}/policies/validate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(policy),
   });
   if (!res.ok) {
@@ -241,7 +256,7 @@ export async function evaluateScanPolicy(
 ): Promise<PolicyEvaluation> {
   const res = await fetch(`${API_BASE}/policies/scans/${scanId}/evaluate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders({ "Content-Type": "application/json" }),
     body: customPolicy ? JSON.stringify(customPolicy) : undefined,
   });
   if (!res.ok) {
@@ -260,7 +275,7 @@ export async function evaluateComparisonPolicy(
     `${API_BASE}/policies/scans/${currentScanId}/compare/${previousScanId}/evaluate`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getHeaders({ "Content-Type": "application/json" }),
       body: customPolicy ? JSON.stringify(customPolicy) : undefined,
     }
   );
@@ -274,6 +289,7 @@ export async function evaluateComparisonPolicy(
 export async function getPRPolicy(analysisId: string): Promise<PolicyEvaluation> {
   const res = await fetch(`${API_BASE}/policies/github/prs/${analysisId}/policy`, {
     cache: "no-store",
+    headers: getHeaders(),
   });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
@@ -281,6 +297,3 @@ export async function getPRPolicy(analysisId: string): Promise<PolicyEvaluation>
   }
   return res.json();
 }
-
-
-

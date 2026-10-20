@@ -82,6 +82,15 @@ def test_non_localhost_rejected_when_no_key_configured(monkeypatch: pytest.Monke
     assert "Non-localhost access requires ENTROPY_API_KEY" in resp.json()["detail"]
 
 
+def test_allow_public_access_allows_remote_client_without_key(monkeypatch: pytest.MonkeyPatch):
+    """When ALLOW_PUBLIC_ACCESS is True and no API_KEY configured, remote callers are allowed."""
+    monkeypatch.setattr(settings, "API_KEY", None)
+    monkeypatch.setattr(settings, "ALLOW_PUBLIC_ACCESS", True)
+    remote_client = TestClient(app, client=("192.168.1.100", 54321))
+    resp = remote_client.get("/api/v1/scans")
+    assert resp.status_code == 200
+
+
 def test_testclient_host_removed_from_localhost_hosts(monkeypatch: pytest.MonkeyPatch):
     """The 'testclient' pseudo-host is no longer in LOCALHOST_HOSTS and must receive 401 in production."""
     monkeypatch.setattr(settings, "API_KEY", None)

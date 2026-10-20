@@ -82,7 +82,7 @@ SENSITIVE_INPUT_KEYWORDS = {
 
 
 def _extract_input_profile(
-    context: PythonASTContext,
+    _context: PythonASTContext,
     endpoint: EndpointDefinition,
     ast_func_map: dict[tuple[str, int], ast.AST],
 ) -> EndpointInputProfile:

@@ -103,7 +103,6 @@ class CategoryScorer:
         norm_result = self.normalizer.normalize_category_penalty(
             raw_penalty=raw_penalty,
             total_loc=total_loc,
-            analyzed_files=analyzed_files,
         )
 
         category_score = norm_result.category_score

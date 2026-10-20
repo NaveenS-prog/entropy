@@ -234,18 +234,22 @@ export interface RepositoryMetadata {
 
 export interface RepositoryScanResult {
   scan_id: string;
-  repository: RepositoryMetadata;
+  repository?: RepositoryMetadata | null;
+  repo_name?: string | null;
+  repo_path?: string | null;
+  branch?: string | null;
+  commit_hash?: string | null;
   status: ScanStatus;
   manifest?: RepositoryManifest | null;
   categories?: Record<string, CategoryScoreBreakdown>;
   top_findings?: Finding[];
-  findings: Finding[];
+  findings?: Finding[];
   score?: DebtScoreResult | null;
   started_at: string;
   completed_at?: string | null;
   duration_ms?: number | null;
-  analyzers_executed: string[];
-  errors: string[];
+  analyzers_executed?: string[];
+  errors?: string[];
 }
 
 export interface FindingExplanation {

@@ -15,13 +15,15 @@ import {
 
 interface ScoreBannerProps {
   score: DebtScoreResult;
-  repository: RepositoryMetadata;
+  repository?: RepositoryMetadata | null;
   durationMs?: number | null;
 }
 
 export function ScoreBanner({ score, repository, durationMs }: ScoreBannerProps) {
   const tierStyle = getTierColor(score.tier);
   const isPartial = score.status === "partial" || Boolean(score.coverage?.is_partial);
+  const repoName = repository?.name || "Repository";
+  const repoPath = repository?.path || "";
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 shadow-xl relative overflow-hidden space-y-6">
@@ -49,7 +51,7 @@ export function ScoreBanner({ score, repository, durationMs }: ScoreBannerProps)
 
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-2xl font-bold text-white tracking-tight">{repository.name}</h1>
+              <h1 className="text-2xl font-bold text-white tracking-tight">{repoName}</h1>
               <span
                 className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${tierStyle.bg} ${tierStyle.text} ${tierStyle.border}`}
               >
@@ -73,7 +75,9 @@ export function ScoreBanner({ score, repository, durationMs }: ScoreBannerProps)
               </span>
             </div>
 
-            <p className="text-xs text-slate-400 mt-1 font-mono break-all">{repository.path}</p>
+            {repoPath && (
+              <p className="text-xs text-slate-400 mt-1 font-mono break-all">{repoPath}</p>
+            )}
 
             {/* Prominent Coverage & Exclusion Counts next to score */}
             <div className="flex items-center gap-2.5 mt-2.5 text-xs font-mono text-slate-300 flex-wrap">
@@ -82,21 +86,21 @@ export function ScoreBanner({ score, repository, durationMs }: ScoreBannerProps)
                   Coverage: <strong className="text-emerald-400">{score.coverage.loc_coverage_percentage}%</strong> ({score.coverage.covered_loc.toLocaleString()} / {score.coverage.total_loc.toLocaleString()} LOC)
                 </span>
               )}
-              {(Boolean(score.excluded_files) || Boolean(repository.excluded_files)) && (
+              {(Boolean(score.excluded_files) || Boolean(repository?.excluded_files)) && (
                 <span className="bg-slate-900/90 px-2.5 py-1 rounded border border-slate-700/80">
-                  Excluded: <strong className="text-amber-400">{(score.excluded_files ?? repository.excluded_files ?? 0).toLocaleString()}</strong> files (<strong className="text-amber-400">{(score.excluded_loc ?? repository.excluded_loc ?? 0).toLocaleString()}</strong> LOC)
+                  Excluded: <strong className="text-amber-400">{(score.excluded_files ?? repository?.excluded_files ?? 0).toLocaleString()}</strong> files (<strong className="text-amber-400">{(score.excluded_loc ?? repository?.excluded_loc ?? 0).toLocaleString()}</strong> LOC)
                 </span>
               )}
             </div>
 
             <div className="flex items-center gap-4 mt-3 text-xs text-slate-400 flex-wrap">
-              {repository.branch && (
+              {repository?.branch && (
                 <div className="flex items-center gap-1.5 bg-slate-900/80 px-2 py-1 rounded border border-slate-800">
                   <GitBranch className="h-3.5 w-3.5 text-slate-400" />
                   <span className="font-mono">{repository.branch}</span>
                 </div>
               )}
-              {repository.commit_hash && (
+              {repository?.commit_hash && (
                 <div className="flex items-center gap-1.5 bg-slate-900/80 px-2 py-1 rounded border border-slate-800">
                   <GitCommit className="h-3.5 w-3.5 text-slate-400" />
                   <span className="font-mono">{repository.commit_hash.slice(0, 7)}</span>
@@ -171,10 +175,10 @@ export function ScoreBanner({ score, repository, durationMs }: ScoreBannerProps)
             )}
           </div>
         )}
-        {(Boolean(score.excluded_files) || Boolean(repository.excluded_files)) && (
+        {(Boolean(score.excluded_files) || Boolean(repository?.excluded_files)) && (
           <div className="mt-1.5 text-[11px] text-slate-400 font-mono flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-800/60">
             <span>
-              Scope Exclusions: <strong className="text-white">{(score.excluded_files ?? repository.excluded_files ?? 0).toLocaleString()}</strong> files (<strong className="text-white">{(score.excluded_loc ?? repository.excluded_loc ?? 0).toLocaleString()}</strong> LOC excluded)
+              Scope Exclusions: <strong className="text-white">{(score.excluded_files ?? repository?.excluded_files ?? 0).toLocaleString()}</strong> files (<strong className="text-white">{(score.excluded_loc ?? repository?.excluded_loc ?? 0).toLocaleString()}</strong> LOC excluded)
             </span>
             <span className="text-slate-500">tests, mocks, examples, fixtures</span>
           </div>

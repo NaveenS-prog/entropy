@@ -7,6 +7,7 @@ import {
   getFindings,
   getManifest,
   getRepositoryTrend,
+  getScan,
   getScore,
   listRepositoryScans,
   listScans,
@@ -159,16 +160,36 @@ export default function RepositoryIngestionDashboard() {
         setScans(scanList);
         if (scanList.length > 0) {
           const first = scanList[0];
-          setActiveScan(first);
-          if (first.manifest) {
-            setManifest(first.manifest);
-          } else {
-            getManifest(first.scan_id).then(setManifest).catch(() => null);
-          }
-          loadFindingsForScan(first.scan_id);
-          loadScoreForScan(first.scan_id);
-          if (first.repository.repository_id) {
-            loadHistoryAndTrend(first.repository.repository_id);
+          try {
+            const fullScan = await getScan(first.scan_id);
+            setActiveScan(fullScan);
+            if (fullScan.manifest) {
+              setManifest(fullScan.manifest);
+            } else {
+              getManifest(fullScan.scan_id).then(setManifest).catch(() => null);
+            }
+            loadFindingsForScan(fullScan.scan_id);
+            loadScoreForScan(fullScan.scan_id);
+            if (fullScan.repository?.repository_id) {
+              loadHistoryAndTrend(fullScan.repository.repository_id);
+            }
+          } catch {
+            const fallback: RepositoryScanResult = {
+              ...first,
+              repository: first.repository || {
+                name: (first as any).repo_name || "Repository",
+                path: (first as any).repo_path || "",
+                branch: first.branch,
+                commit_hash: first.commit_hash,
+                total_files: 0,
+                scannable_files: 0,
+                total_loc: 0,
+              },
+              findings: first.findings || [],
+              analyzers_executed: first.analyzers_executed || [],
+              errors: first.errors || [],
+            };
+            setActiveScan(fallback);
           }
         }
       } catch (err) {
@@ -205,7 +226,7 @@ export default function RepositoryIngestionDashboard() {
       }
       loadFindingsForScan(result.scan_id);
       loadScoreForScan(result.scan_id);
-      if (result.repository.repository_id) {
+      if (result.repository?.repository_id) {
         loadHistoryAndTrend(result.repository.repository_id);
       }
     } catch (err: unknown) {
@@ -225,23 +246,40 @@ export default function RepositoryIngestionDashboard() {
   };
 
   const handleSelectScan = async (scanId: string) => {
-    const found = scans.find((s) => s.scan_id === scanId);
-    if (!found) return;
-    setActiveScan(found);
-    if (found.manifest) {
-      setManifest(found.manifest);
-    } else {
-      try {
-        const m = await getManifest(found.scan_id);
+    try {
+      const full = await getScan(scanId);
+      setActiveScan(full);
+      if (full.manifest) {
+        setManifest(full.manifest);
+      } else {
+        const m = await getManifest(full.scan_id).catch(() => null);
         setManifest(m);
-      } catch {
-        setManifest(null);
       }
-    }
-    loadFindingsForScan(found.scan_id);
-    loadScoreForScan(found.scan_id);
-    if (found.repository.repository_id) {
-      loadHistoryAndTrend(found.repository.repository_id);
+      loadFindingsForScan(full.scan_id);
+      loadScoreForScan(full.scan_id);
+      if (full.repository?.repository_id) {
+        loadHistoryAndTrend(full.repository.repository_id);
+      }
+    } catch (err) {
+      console.error("Failed to load selected scan:", err);
+      const found = scans.find((s) => s.scan_id === scanId);
+      if (found) {
+        setActiveScan({
+          ...found,
+          repository: found.repository || {
+            name: (found as any).repo_name || "Repository",
+            path: (found as any).repo_path || "",
+            branch: found.branch,
+            commit_hash: found.commit_hash,
+            total_files: 0,
+            scannable_files: 0,
+            total_loc: 0,
+          },
+          findings: found.findings || [],
+          analyzers_executed: found.analyzers_executed || [],
+          errors: found.errors || [],
+        });
+      }
     }
   };
 
@@ -280,11 +318,14 @@ export default function RepositoryIngestionDashboard() {
                 onChange={(e) => handleSelectScan(e.target.value)}
                 className="appearance-none bg-slate-900 border border-slate-700 text-xs font-semibold text-white rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-emerald-500 cursor-pointer"
               >
-                {scans.map((s) => (
-                  <option key={s.scan_id} value={s.scan_id}>
-                    {s.repository.name} ({s.status})
-                  </option>
-                ))}
+                {scans.map((s) => {
+                  const repoName = s.repository?.name || s.repo_name || "Repository";
+                  return (
+                    <option key={s.scan_id} value={s.scan_id}>
+                      {repoName} ({s.status})
+                    </option>
+                  );
+                })}
               </select>
               <ChevronDown className="h-3.5 w-3.5 text-slate-400 absolute right-2.5 top-3 pointer-events-none" />
             </div>
@@ -490,7 +531,7 @@ export default function RepositoryIngestionDashboard() {
             <button
               onClick={() => {
                 setActiveTab("history");
-                if (activeScan.repository.repository_id) {
+                if (activeScan?.repository?.repository_id) {
                   loadHistoryAndTrend(activeScan.repository.repository_id);
                 }
               }}
@@ -533,8 +574,8 @@ export default function RepositoryIngestionDashboard() {
               {score && (
                 <ScoreBanner
                   score={score}
-                  repository={activeScan.repository}
-                  durationMs={activeScan.duration_ms}
+                  repository={activeScan?.repository}
+                  durationMs={activeScan?.duration_ms}
                 />
               )}
 
@@ -840,7 +881,7 @@ export default function RepositoryIngestionDashboard() {
             onSelectScan={handleSelectScan}
             onCompareScans={handleCompareScans}
             onPageChange={(p) => {
-              if (activeScan?.repository.repository_id) {
+              if (activeScan?.repository?.repository_id) {
                 loadHistoryAndTrend(activeScan.repository.repository_id, p);
               }
             }}

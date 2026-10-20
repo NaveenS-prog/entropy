@@ -51,6 +51,7 @@ def list_scans(is_authenticated: bool = Depends(is_authenticated_caller)) -> lis
             branch=s.repository.branch,
             commit_hash=s.repository.commit_hash,
             status=s.status,
+            repository=s.repository if is_authenticated else s.repository.model_copy(update={"path": s.repository.name}),
             total_score=s.score.total_score if s.score else None,
             tier=s.score.tier if s.score else None,
             total_findings=len(s.findings),

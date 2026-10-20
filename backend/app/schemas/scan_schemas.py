@@ -43,6 +43,7 @@ class ScanSummaryResponse(BaseModel):
     branch: str | None = None
     commit_hash: str | None = None
     status: ScanStatus
+    repository: RepositoryMetadata | None = None
     total_score: int | None = None
     tier: DebtScoreTier | None = None
     is_experimental: bool = Field(default=True, description="Indicates the 0-100 score is experimental")

@@ -174,10 +174,12 @@ class GitUrlRepositorySource(RepositorySource):
                 f"Failed to clone repository from '{self.raw_url}': {proc.stderr.strip()}"
             )
 
-        # Remove internal .git metadata to prevent collisions
-        git_dir = target_path / ".git"
-        if git_dir.exists():
-            shutil.rmtree(git_dir, ignore_errors=True)
+        # Extract git metadata and preserve origin URL before cleanup
+        from app.repository.git_service import GitService
+
+        self.branch = GitService.get_current_branch(target_path)
+        self.commit = GitService.get_head_commit(target_path)
+        self.remote_url = GitService.get_remote_url(target_path) or self.raw_url
 
         self._resolved_path = target_path
         return self._resolved_path

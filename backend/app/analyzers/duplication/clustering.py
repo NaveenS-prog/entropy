@@ -152,6 +152,15 @@ class DuplicationDetector:
                         if not (set(sig_a.operators) & set(sig_b.operators)):
                             continue
 
+                    len_a = len(sig_a.structural_tokens)
+                    len_b = len(sig_b.structural_tokens)
+                    if len_a == 0 or len_b == 0:
+                        continue
+
+                    # Fast token length pre-filter: ratio cannot exceed 2 * min / (len_a + len_b)
+                    if (2.0 * min(len_a, len_b) / (len_a + len_b)) < self.similarity_threshold:
+                        continue
+
                     # Compute deterministic sequence similarity
                     matcher = difflib.SequenceMatcher(
                         None, sig_a.structural_tokens, sig_b.structural_tokens

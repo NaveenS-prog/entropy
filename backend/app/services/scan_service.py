@@ -1,24 +1,15 @@
 """Scan orchestration service coordinating discovery, parsing, analysis, and scoring."""
 
-import time
-from datetime import UTC, datetime
 from pathlib import Path
-from uuid import uuid4
 
-from app.analyzers.base import AnalysisContext
 from app.analyzers.registry import AnalyzerRegistry, default_registry
-from app.core.errors import RepositoryNotFoundError
-from app.core.logging import logger
-from app.models.domain.enums import ScanStatus, SupportedLanguage
-from app.models.domain.scan import RepositoryMetadata, RepositoryScanResult
-from app.parser.base import BaseParser, ParsedFile
+from app.models.domain.enums import SupportedLanguage
+from app.models.domain.scan import RepositoryScanResult
+from app.parser.base import BaseParser
 from app.parser.jsts.parser import JSTSParser
 from app.parser.python_ast import PythonAstParser
 from app.persistence.database import scan_db
-from app.repository.config import ScannerConfig
 from app.repository.discoverer import RepositoryDiscoverer
-from app.repository.git_service import GitService
-from app.repository.manifest import ManifestBuilder
 from app.scoring.engine import ScoringEngine, scoring_engine
 from app.services.repository_service import _scans_store
 
@@ -55,124 +46,23 @@ class ScanService:
         repo_name: str | None = None,
         include_tests: bool = False,
     ) -> RepositoryScanResult:
-        """Run a full, deterministic scan over a local repository or directory."""
-        path = Path(repo_path).resolve()
-        if not path.exists():
-            raise RepositoryNotFoundError(f"Target repository not found: {path}")
+        """Run a full, deterministic scan delegating to the production scanner and scoring engine."""
+        from app.scoring.service import scoring_service
+        from app.services.analysis_service import analysis_service
+        from app.services.repository_service import repository_service
 
-        scan_id = str(uuid4())
-        name = repo_name or path.name
-        started_at = datetime.now(UTC)
-        start_time = time.perf_counter()
-
-        logger.info("Initiating scan %s for repo: %s", scan_id, path)
-
-        # 1. Discover files & manifest
-        discoverer = (
-            RepositoryDiscoverer(ScannerConfig(include_tests=include_tests))
-            if include_tests
-            else self.discoverer
+        path_str = str(repo_path)
+        scan = repository_service.execute_scan(
+            repo_path=path_str,
+            repo_name=repo_name,
+            check_allowed_roots=False,
+            include_tests=include_tests,
         )
-        discovery = discoverer.discover_repository(path)
-        discovered_files = discovery.source_files
-        total_loc = discovery.total_source_loc
-
-        # 2. Git metadata
-        branch = GitService.get_current_branch(path)
-        commit = GitService.get_head_commit(path)
-        remote_url = GitService.get_remote_url(path)
-
-        manifest = ManifestBuilder.build(
-            repo_name=name,
-            root_path=path,
-            discovery=discovery,
-            timestamp=started_at,
-        )
-
-        repo_meta = RepositoryMetadata(
-            name=name,
-            path=str(path),
-            remote_url=remote_url,
-            branch=branch,
-            commit_hash=commit,
-            total_files=discovery.total_files_inspected,
-            scannable_files=len(discovered_files),
-            total_loc=total_loc,
-            excluded_files=discovery.excluded_files_count,
-            excluded_loc=discovery.excluded_loc,
-        )
-
-        scan_record = RepositoryScanResult(
-            scan_id=scan_id,
-            repository=repo_meta,
-            status=ScanStatus.PARSING,
-            manifest=manifest,
-            findings=[],
-            score=None,
-            started_at=started_at,
-            analyzers_executed=[a.analyzer_id for a in self.registry.get_all()],
-            errors=[],
-        )
-        self._scans[scan_id] = scan_record
-
-        # 3. Parse source files
-        parsed_files: list[ParsedFile] = []
-        errors: list[str] = []
-
-        for df in discovered_files:
-            parser = self.get_parser_for_language(df.language)
-            if parser is None:
-                # Unsupported language - fail gracefully without crashing
-                continue
-
-            parsed = parser.parse(df)
-            parsed_files.append(parsed)
-            if parsed.parse_errors:
-                errors.extend(parsed.parse_errors)
-
-        # 4. Assemble context & run analyzers
-        scan_record.status = ScanStatus.ANALYZING
-        context = AnalysisContext(
-            repo_path=path,
-            parsed_files=parsed_files,
-            total_loc=total_loc,
-            scanned_file_count=len(parsed_files),
-        )
-
-        findings = self.registry.run_all(context)
-        scan_record.findings = findings
-
-        # 5. Score findings
-        scan_record.status = ScanStatus.SCORING
-        score_result = self.scoring.calculate_score(
-            findings=findings,
-            total_loc=total_loc,
-            analyzed_files=len(parsed_files),
-            skipped_files=len(discovered_files) - len(parsed_files),
-            excluded_files=discovery.excluded_files_count,
-            excluded_loc=discovery.excluded_loc,
-        )
-        scan_record.score = score_result
-
-        # 6. Finalize
-        duration_ms = (time.perf_counter() - start_time) * 1000.0
-        scan_record.completed_at = datetime.now(UTC)
-        scan_record.duration_ms = round(duration_ms, 2)
-        scan_record.errors = errors
-        scan_record.status = ScanStatus.COMPLETED
-
-        self._scans[scan_id] = scan_record
-        scan_db.save_scan(scan_record)
-
-        logger.info(
-            "Scan %s completed in %.2f ms. Score: %d (%s), Findings: %d",
-            scan_id,
-            duration_ms,
-            score_result.total_score,
-            score_result.tier.value,
-            len(findings),
-        )
-        return scan_record
+        analysis_service.analyze_scan(scan.scan_id)
+        scoring_service.calculate_scan_score(scan.scan_id)
+        final_scan = repository_service.get_scan(scan.scan_id) or scan
+        self._scans[final_scan.scan_id] = final_scan
+        return final_scan
 
     def get_scan(self, scan_id: str) -> RepositoryScanResult | None:
         """Retrieve a stored scan result by its ID."""

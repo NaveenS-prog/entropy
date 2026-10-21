@@ -43,9 +43,9 @@ class RepositoryScanner:
         discovery = self.discoverer.discover_repository(root_path)
 
         # 3. Non-destructive Git metadata retrieval
-        branch = GitService.get_current_branch(root_path)
-        commit = GitService.get_head_commit(root_path)
-        remote_url = GitService.get_remote_url(root_path)
+        branch = GitService.get_current_branch(root_path) or getattr(source, "branch", None)
+        commit = GitService.get_head_commit(root_path) or getattr(source, "commit", None)
+        remote_url = GitService.get_remote_url(root_path) or getattr(source, "remote_url", None)
 
         # 4. Build manifest
         manifest = ManifestBuilder.build(

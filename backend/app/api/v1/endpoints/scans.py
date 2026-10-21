@@ -10,7 +10,6 @@ from app.comparison.service import comparison_service
 from app.models.domain.manifest import RepositoryManifest
 from app.schemas.scan_schemas import ScanCreateRequest, ScanDetailResponse, ScanSummaryResponse
 from app.services.repository_service import repository_service
-from app.services.scan_service import scan_service
 
 router = APIRouter()
 
@@ -40,9 +39,14 @@ def trigger_scan(request: ScanCreateRequest) -> ScanDetailResponse:
 
 
 @router.get("", response_model=list[ScanSummaryResponse])
-def list_scans(is_authenticated: bool = Depends(is_authenticated_caller)) -> list[ScanSummaryResponse]:
+def list_scans(
+    limit: int = 100,
+    offset: int = 0,
+    is_authenticated: bool = Depends(is_authenticated_caller),
+) -> list[ScanSummaryResponse]:
     """Retrieve all completed scans."""
-    scans = repository_service.list_scans()
+    all_scans = repository_service.list_scans()
+    scans = all_scans[offset : offset + limit]
     return [
         ScanSummaryResponse(
             scan_id=s.scan_id,
@@ -333,7 +337,6 @@ def trigger_sample_scan() -> ScanDetailResponse:
     Provides instant verification of the end-to-end pipeline without needing
     an external repository.
     """
-    fixture_dir = Path(__file__).resolve().parent.parent.parent.parent.parent / "tests" / "fixtures" / "sample_repo"
     fixture_dir = (
         Path(__file__).resolve().parent.parent.parent.parent.parent
         / "tests"
@@ -345,16 +348,6 @@ def trigger_sample_scan() -> ScanDetailResponse:
         # Create a sample python file demonstrating authentic debt
         sample_file = fixture_dir / "service.py"
         sample_file.write_text(
-            'def handle_payment(payload):\n'
-            '    try:\n'
-            '        process_token(payload)\n'
-            '    except Exception:\n'
-            '        pass\n'
-            '\n'
-            'def fetch_user(user_id):\n'
-            '    try:\n'
-            '        return db_query(user_id)\n'
-            '    except:\n'
             "def handle_payment(payload):\n"
             "    try:\n"
             "        process_token(payload)\n"
@@ -364,14 +357,22 @@ def trigger_sample_scan() -> ScanDetailResponse:
             "def fetch_user(user_id):\n"
             "    try:\n"
             "        return db_query(user_id)\n"
-            "    except:\n"
+            "    except Exception:\n"
             '        print("User query failed")\n'
         )
 
-    scan_result = scan_service.execute_scan(
+    scan_result = repository_service.execute_scan(
         repo_path=str(fixture_dir),
         repo_name="sample-ecommerce-service",
+        check_allowed_roots=False,
     )
+    from app.scoring.service import scoring_service
+    from app.services.analysis_service import analysis_service
+
+    analysis_service.analyze_scan(scan_result.scan_id)
+    scoring_service.calculate_scan_score(scan_result.scan_id)
+    scan_result = repository_service.get_scan(scan_result.scan_id) or scan_result
+
     return ScanDetailResponse(
         scan_id=scan_result.scan_id,
         repository=scan_result.repository,

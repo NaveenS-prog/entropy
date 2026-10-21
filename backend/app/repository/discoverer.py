@@ -86,7 +86,6 @@ class DiscoveryResult:
 
 
 class RepositoryDiscoverer:
-    """Discovers source files within a repository directory."""
     """Discovers source files within a repository directory with robust security safeguards."""
 
     def __init__(self, config: ScannerConfig | int | None = None):

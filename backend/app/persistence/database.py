@@ -26,6 +26,8 @@ class ScanDatabase:
     def __init__(self, db_path: Path | str | None = None) -> None:
         if db_path is not None:
             self.db_path = Path(db_path)
+        elif getattr(settings, "DATABASE_URL", None) and settings.DATABASE_URL.startswith("sqlite:///"):
+            self.db_path = Path(settings.DATABASE_URL.removeprefix("sqlite:///"))
         else:
             storage_dir = settings.SCAN_STORAGE_DIR
             storage_dir.mkdir(parents=True, exist_ok=True)

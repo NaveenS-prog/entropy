@@ -16,10 +16,34 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # CORS settings
-    CORS_ORIGINS: list[str] = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ]
+    CORS_ORIGINS: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+        ],
+        validation_alias=AliasChoices("CORS_ORIGINS", "ENTROPY_CORS_ORIGINS"),
+        description="Allowed origins for Cross-Origin Resource Sharing (CORS)",
+    )
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: Any) -> list[str]:
+        if isinstance(v, str):
+            v_str = v.strip()
+            if not v_str:
+                return []
+            if v_str.startswith("["):
+                import json
+                try:
+                    parsed = json.loads(v_str)
+                    if isinstance(parsed, list):
+                        return [str(p).strip() for p in parsed if str(p).strip()]
+                except json.JSONDecodeError:
+                    pass
+            return [p.strip() for p in v_str.split(",") if p.strip()]
+        if isinstance(v, (list, tuple)):
+            return [str(p).strip() for p in v if str(p).strip()]
+        return ["http://localhost:3000", "http://127.0.0.1:3000"]
 
     # API Security & Ingestion Boundaries
     API_KEY: str | None = Field(
@@ -73,8 +97,12 @@ class Settings(BaseSettings):
     FOLLOW_SYMLINKS: bool = False
     SCAN_STORAGE_DIR: Path = Path(__file__).resolve().parents[3] / ".scans"
 
-    # Database (SQLite default for Phase 0, easily swappable for Postgres in production)
-    DATABASE_URL: str = "sqlite:///./entropy.db"
+    # Database storage override
+    DATABASE_URL: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("DATABASE_URL", "ENTROPY_DATABASE_URL"),
+        description="Optional database URL for SQLite storage override (e.g. sqlite:///./entropy.db)",
+    )
 
     # Phase 7: AI Explanation Layer Settings
     AI_ENABLED: bool = Field(

@@ -40,6 +40,7 @@ def hermetic_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "API_KEY", None)
     monkeypatch.setattr(settings, "ALLOW_LOCALHOST_NO_KEY", False)
 
+    import shutil
     import tempfile
 
     from app.persistence.database import scan_db
@@ -56,6 +57,11 @@ def hermetic_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "SCAN_ALLOWED_ROOTS",
         [str(Path.cwd().resolve()), tempfile.gettempdir(), temp_root],
     )
+
+    try:
+        yield
+    finally:
+        shutil.rmtree(temp_root, ignore_errors=True)
 
 
 @pytest.fixture(autouse=True)

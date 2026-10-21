@@ -5,7 +5,7 @@ import logging
 from app.analyzers.architecture import ArchitecturalConsistencyAnalyzer
 from app.analyzers.base import AnalysisContext, BaseAnalyzer
 from app.analyzers.duplication import CodeDuplicationDebtAnalyzer
-from app.analyzers.rules.error_handling.broad_exception import ErrorHandlingDebtAnalyzer
+from app.analyzers.rules.error_handling.analyzer import ErrorHandlingDebtAnalyzer
 from app.analyzers.security.auth.authentication import AuthenticationConsistencyAnalyzer
 from app.analyzers.security.auth.authorization import AuthorizationConsistencyAnalyzer
 from app.analyzers.security.logging_secrets import LoggingAndSecretsAnalyzer

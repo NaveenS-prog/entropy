@@ -2,15 +2,19 @@
 
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi import Depends, FastAPI, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.v1.endpoints.repositories import _resolve_repository_id
+from app.api.v1.endpoints import (
+    repositories as repos_ep,
+)
+from app.api.v1.endpoints import (
+    scans as scans_ep,
+)
 from app.api.v1.router import api_router
 from app.api.v1.security import is_authenticated_caller, verify_api_key
 from app.comparison.models import RepositoryTrendResponse, ScanComparisonResult
-from app.comparison.service import comparison_service
 from app.core.config import settings
 from app.core.errors import (
     EntropyError,
@@ -25,12 +29,10 @@ from app.models.domain.enums import DebtCategory, Severity
 from app.models.domain.finding import Finding
 from app.models.domain.manifest import RepositoryManifest
 from app.models.domain.scoring import DebtScoreResult
-from app.persistence.database import scan_db
 from app.persistence.models import PaginatedScanSnapshots
 from app.schemas.scan_schemas import ScanCreateRequest, ScanDetailResponse
 from app.scoring.service import scoring_service
 from app.services.analysis_service import analysis_service
-from app.services.repository_service import repository_service
 
 setup_logging()
 
@@ -158,60 +160,19 @@ app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 )
 def root_scan_repository(request: ScanCreateRequest) -> ScanDetailResponse:
     """Ingest a repository via top-level endpoint."""
-    scan_result = repository_service.execute_scan(
-        repo_path=request.target_path,
-        repo_name=request.repo_name,
-        include_tests=request.include_tests,
-    )
-    return ScanDetailResponse(
-        scan_id=scan_result.scan_id,
-        repository=scan_result.repository,
-        status=scan_result.status,
-        manifest=scan_result.manifest,
-        findings=scan_result.findings,
-        score=scan_result.score,
-        started_at=scan_result.started_at,
-        completed_at=scan_result.completed_at,
-        duration_ms=scan_result.duration_ms,
-        analyzers_executed=scan_result.analyzers_executed,
-        errors=scan_result.errors,
-    )
+    return repos_ep.scan_repository(request)
 
 
 @app.get("/scans/{scan_id}", response_model=ScanDetailResponse, tags=["Scans"], dependencies=[Depends(verify_api_key)])
 def root_get_scan(scan_id: str) -> ScanDetailResponse:
     """Retrieve scan details via top-level endpoint."""
-    scan_result = repository_service.get_scan(scan_id)
-    if not scan_result:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Scan '{scan_id}' not found",
-        )
-    return ScanDetailResponse(
-        scan_id=scan_result.scan_id,
-        repository=scan_result.repository,
-        status=scan_result.status,
-        manifest=scan_result.manifest,
-        findings=scan_result.findings,
-        score=scan_result.score,
-        started_at=scan_result.started_at,
-        completed_at=scan_result.completed_at,
-        duration_ms=scan_result.duration_ms,
-        analyzers_executed=scan_result.analyzers_executed,
-        errors=scan_result.errors,
-    )
+    return scans_ep.get_scan(scan_id)
 
 
 @app.get("/scans/{scan_id}/manifest", response_model=RepositoryManifest, tags=["Scans"], dependencies=[Depends(verify_api_key)])
 def root_get_manifest(scan_id: str) -> RepositoryManifest:
     """Retrieve repository manifest via top-level endpoint."""
-    manifest = repository_service.get_manifest(scan_id)
-    if not manifest:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Manifest for scan '{scan_id}' not found",
-        )
-    return manifest
+    return scans_ep.get_scan_manifest(scan_id)
 
 
 @app.get("/scans/{scan_id}/findings", response_model=list[Finding], tags=["Scans"], dependencies=[Depends(verify_api_key)])
@@ -248,64 +209,26 @@ def root_get_repository_scans(
     is_authenticated: bool = Depends(is_authenticated_caller),
 ) -> PaginatedScanSnapshots:
     """Retrieve paginated scan history for a repository."""
-    resolved_id = _resolve_repository_id(repository_id)
-    offset = (page - 1) * page_size
-    items, total = scan_db.list_scans_for_repository(
-        repository_id=resolved_id,
-        limit=page_size,
-        offset=offset,
-        status=status,
-        branch=branch,
-    )
-    if not is_authenticated:
-        for item in items:
-            item.repo_path = item.repo_name
-    total_pages = (total + page_size - 1) // page_size if total > 0 else 0
-    return PaginatedScanSnapshots(
-        items=items,
-        total=total,
+    return repos_ep.get_repository_scans(
+        repository_id=repository_id,
         page=page,
         page_size=page_size,
-        total_pages=total_pages,
+        status=status,
+        branch=branch,
+        is_authenticated=is_authenticated,
     )
 
 
 @app.get("/repositories/{repository_id}/trend", response_model=RepositoryTrendResponse, tags=["Repositories"], dependencies=[Depends(verify_api_key)])
 def root_get_repository_trend(repository_id: str) -> RepositoryTrendResponse:
     """Retrieve chronological score trend for a repository."""
-    resolved_id = _resolve_repository_id(repository_id)
-    return comparison_service.build_repository_trend(resolved_id)
+    return repos_ep.get_repository_trend(repository_id)
 
 
 @app.get("/scans/{current_scan_id}/compare/{previous_scan_id}", response_model=ScanComparisonResult, tags=["Scans"], dependencies=[Depends(verify_api_key)])
 def root_compare_scans(current_scan_id: str, previous_scan_id: str) -> ScanComparisonResult:
     """Compare two scans via top-level endpoint."""
-    current_scan = repository_service.get_scan(current_scan_id)
-    if not current_scan:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Current scan '{current_scan_id}' not found",
-        )
-    previous_scan = repository_service.get_scan(previous_scan_id)
-    if not previous_scan:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Previous scan '{previous_scan_id}' not found",
-        )
-
-    # Ensure findings and scores are loaded
-    if not current_scan.findings:
-        analysis_service.analyze_scan(current_scan_id)
-    if not current_scan.score:
-        scoring_service.calculate_scan_score(current_scan_id)
-    if not previous_scan.findings:
-        analysis_service.analyze_scan(previous_scan_id)
-    if not previous_scan.score:
-        scoring_service.calculate_scan_score(previous_scan_id)
-
-    return comparison_service.compare_scans(
-        current_scan=current_scan, previous_scan=previous_scan
-    )
+    return scans_ep.compare_scans(current_scan_id, previous_scan_id)
 
 
 

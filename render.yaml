@@ -19,3 +19,7 @@ services:
         value: "/tmp,.scans,."
       - key: CORS_ORIGINS
         value: "https://entropy-dashboard-naveen.vercel.app,https://frontend-one-kappa-73.vercel.app"
+      - key: AI_MODEL
+        value: "gemini-2.5-flash"
+      - key: AI_TIMEOUT_SECONDS
+        value: "60"

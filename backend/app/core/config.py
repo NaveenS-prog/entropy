@@ -120,7 +120,7 @@ class Settings(BaseSettings):
         description="AI provider name: gemini, fake, openai, local",
     )
     AI_MODEL: str = Field(
-        default="gemini-flash-lite-latest",
+        default="gemini-2.5-flash",
         validation_alias=AliasChoices("AI_MODEL", "ENTROPY_AI_MODEL"),
         description="Model name used for AI explanations",
     )
@@ -145,7 +145,7 @@ class Settings(BaseSettings):
         description="HTTP timeout for local LLM provider requests",
     )
     AI_TIMEOUT_SECONDS: int = Field(
-        default=30,
+        default=60,
         validation_alias=AliasChoices("AI_TIMEOUT_SECONDS", "ENTROPY_AI_TIMEOUT_SECONDS"),
         description="HTTP timeout for AI provider requests",
     )

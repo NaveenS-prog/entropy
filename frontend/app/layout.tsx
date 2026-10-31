@@ -17,12 +17,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className="bg-background text-foreground antialiased flex flex-col min-h-screen relative selection:bg-red-500/30 selection:text-red-200">
-        {/* Subtle ambient lighting orbs with deep crimson & ruby hues */}
-        <div className="fixed top-0 left-1/4 w-96 h-96 bg-red-600/8 rounded-full blur-3xl pointer-events-none -z-10" />
-        <div className="fixed top-1/3 right-10 w-96 h-96 bg-rose-600/6 rounded-full blur-3xl pointer-events-none -z-10" />
-
-        <header className="sticky top-0 z-50 border-b border-border/80 bg-ink-950/85 backdrop-blur-xl px-6 h-14 flex items-center justify-between">
+      <body className="bg-background text-foreground antialiased flex flex-col min-h-screen selection:bg-ink-700 selection:text-white">
+        <header className="sticky top-0 z-40 border-b border-border bg-ink-950/90 backdrop-blur px-6 h-13 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link
               href="/"

@@ -696,52 +696,72 @@ export default function RepositoryIngestionDashboard() {
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.15 }}
             className="fixed inset-0 z-[100] flex items-center justify-center bg-ink-950/90 backdrop-blur-md p-6 pointer-events-none"
           >
-            <div className="w-full max-w-xl p-10 rounded-3xl border-2 border-dashed border-red-500 bg-red-950/40 flex flex-col items-center justify-center text-center space-y-5 shadow-glow-red">
-              <div className="h-20 w-20 rounded-3xl bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 animate-bounce">
-                <UploadCloud className="h-10 w-10 text-red-400" />
+            <div className="w-full max-w-lg p-8 rounded-2xl border-2 border-dashed border-red-500 bg-red-950/30 flex flex-col items-center justify-center text-center space-y-4">
+              <div className="h-14 w-14 rounded-2xl bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400">
+                <UploadCloud className="h-7 w-7 text-red-400" />
               </div>
-              <div className="space-y-2">
-                <h3 className="text-2xl font-bold text-white tracking-tight">
-                  Drop Local Files or Folder Here
+              <div className="space-y-1">
+                <h3 className="text-xl font-bold text-white tracking-tight">
+                  Drop project folder or files
                 </h3>
-                <p className="text-sm text-red-200/80 max-w-md mx-auto leading-relaxed">
-                  Release anywhere to package and scan your project hermetically in your browser.
+                <p className="text-xs text-ink-300 max-w-sm mx-auto">
+                  Release anywhere to package hermetically and run static AST analysis.
                 </p>
               </div>
-              <div className="flex flex-wrap items-center justify-center gap-2.5 text-xs font-mono text-red-300 bg-red-950/80 border border-red-500/40 px-4 py-2 rounded-full">
-                <span>📁 Folders</span>
-                <span className="text-red-600">•</span>
-                <span>📄 Source Files (.py, .ts, .js)</span>
-                <span className="text-red-600">•</span>
-                <span>📦 .ZIP Archives</span>
+              <div className="flex items-center gap-2 text-xs font-mono text-ink-300 bg-ink-900 border border-border px-3 py-1 rounded-full">
+                <span>Folders</span>
+                <span className="text-ink-600">•</span>
+                <span>Source Files</span>
+                <span className="text-ink-600">•</span>
+                <span>.ZIP Archives</span>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-      {/* Top Header & Server Status */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
-        <div>
-          <h1 className="text-lg font-semibold text-white tracking-tight flex items-center gap-2">
-            <FolderGit2 className="h-5 w-5 text-ink-300" />
-            <span>Repository security debt</span>
-          </h1>
-          <p className="text-xs text-ink-400 mt-0.5">
-            Deterministic AST analysis and evidence-grounded architectural scoring
-          </p>
+
+      {/* Top Toolbar: Mode Switcher & Server Status */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
+        <div className="flex items-center gap-1.5 bg-ink-900 p-1 rounded-lg border border-border">
+          <button
+            onClick={() => setActiveTab("overview")}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+              activeTab !== "pull_requests"
+                ? "bg-ink-800 text-white border border-border/80 shadow-sm"
+                : "text-ink-400 hover:text-white"
+            }`}
+          >
+            <FolderGit2 className="w-3.5 h-3.5" />
+            <span>Repository scanner</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("pull_requests")}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+              activeTab === "pull_requests"
+                ? "bg-ink-800 text-white border border-border/80 shadow-sm"
+                : "text-ink-400 hover:text-white"
+            }`}
+          >
+            <GitPullRequest className="w-3.5 h-3.5" />
+            <span>Pull requests</span>
+          </button>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {scans.length > 0 && (
             <div className="relative">
               <select
                 value={activeScan?.scan_id || ""}
                 onChange={(e) => handleSelectScan(e.target.value)}
-                className="appearance-none bg-ink-850 border border-border text-xs text-ink-200 rounded-md pl-3 pr-8 py-1.5 focus:outline-none focus:border-ink-500 cursor-pointer"
+                className="appearance-none bg-ink-900 border border-border text-xs text-ink-200 rounded-lg pl-3 pr-8 py-1.5 focus:outline-none focus:border-red-500/60 cursor-pointer font-mono"
               >
+                <option value="" disabled>
+                  Past scans...
+                </option>
                 {scans.map((s) => {
                   const repoName = s.repository?.name || s.repo_name || "Repository";
                   return (
@@ -756,14 +776,12 @@ export default function RepositoryIngestionDashboard() {
           )}
 
           {health ? (
-            <div className="flex items-center gap-2 text-xs text-ink-400 font-mono bg-ink-850 px-2.5 py-1.5 rounded-md border border-border">
-              <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+            <div className="flex items-center gap-2 text-xs text-ink-400 font-mono bg-ink-900 px-2.5 py-1.5 rounded-lg border border-border">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
               <span>v{health.version}</span>
-              <span className="text-ink-600">/</span>
-              <span>{health.status}</span>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-xs text-amber-300 font-mono bg-ink-850 border border-border px-2.5 py-1.5 rounded-md">
+            <div className="flex items-center gap-2 text-xs text-amber-300 font-mono bg-ink-900 border border-border px-2.5 py-1.5 rounded-lg">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
               <span>Offline</span>
             </div>
@@ -771,58 +789,31 @@ export default function RepositoryIngestionDashboard() {
         </div>
       </div>
 
-      {/* Primary Workspace Mode Selector */}
-      <div className="flex items-center gap-1.5 border-b border-border pb-3">
-        <button
-          onClick={() => setActiveTab("overview")}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-            activeTab !== "pull_requests"
-              ? "bg-ink-800 text-white border border-border"
-              : "text-ink-400 hover:text-white"
-          }`}
-        >
-          <FolderGit2 className="w-3.5 h-3.5" />
-          <span>Repository scanner</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab("pull_requests")}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-            activeTab === "pull_requests"
-              ? "bg-ink-800 text-white border border-border"
-              : "text-ink-400 hover:text-white"
-          }`}
-        >
-          <GitPullRequest className="w-3.5 h-3.5" />
-          <span>Pull requests</span>
-        </button>
-      </div>
-
       {activeTab === "pull_requests" ? (
         <PRWorkflowView />
       ) : (
         <>
           {/* Main Scan Trigger Box */}
-          <div id="scan-trigger-box" className="glass-panel border border-border/90 rounded-2xl p-6 space-y-5 shadow-2xl relative overflow-hidden">
+          <div id="scan-trigger-box" className="border border-border/90 rounded-2xl p-6 bg-card/60 space-y-5 relative">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 pb-4">
               <div>
-                <h2 className="text-xs font-medium text-red-400 uppercase tracking-wider flex items-center gap-2">
-                  <Terminal className="h-3.5 w-3.5 text-red-400" />
-                  <span>Scan repository</span>
+                <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                  <Terminal className="h-4 w-4 text-ink-400" />
+                  <span>Security Scanner</span>
                 </h2>
-                <p className="text-xs text-ink-300 mt-1">
-                  Choose a local directory, upload a ZIP archive, or provide a Git URL. Zero untrusted code execution.
+                <p className="text-xs text-ink-400 mt-0.5">
+                  Drop a local folder or files, upload a ZIP, or scan a Git repository.
                 </p>
               </div>
 
               {/* Mode Toggle Pills */}
-              <div className="flex items-center bg-ink-950/80 border border-border/80 rounded-xl p-1 gap-1 self-start sm:self-auto">
+              <div className="flex items-center bg-ink-950 border border-border rounded-lg p-0.5 gap-0.5 self-start sm:self-auto">
                 <button
                   type="button"
                   onClick={() => setScanMode("folder")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
                     scanMode === "folder"
-                      ? "bg-red-500/15 text-red-400 border border-red-500/30 shadow-sm"
+                      ? "bg-ink-800 text-white shadow-sm"
                       : "text-ink-400 hover:text-white"
                   }`}
                 >
@@ -832,14 +823,14 @@ export default function RepositoryIngestionDashboard() {
                 <button
                   type="button"
                   onClick={() => setScanMode("path")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
                     scanMode === "path"
-                      ? "bg-red-500/15 text-red-400 border border-red-500/30 shadow-sm"
+                      ? "bg-ink-800 text-white shadow-sm"
                       : "text-ink-400 hover:text-white"
                   }`}
                 >
                   <Code2 className="w-3.5 h-3.5" />
-                  <span>Path / Git URL</span>
+                  <span>Git URL / Path</span>
                 </button>
               </div>
             </div>
@@ -877,56 +868,56 @@ export default function RepositoryIngestionDashboard() {
                     }}
                     onDragLeave={() => setIsDragging(false)}
                     onDrop={handleDrop}
-                    className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all duration-200 ${
+                    className={`border border-dashed rounded-xl p-8 text-center transition-all duration-200 ${
                       isDragging || isWindowDragging
-                        ? "border-red-400 bg-red-500/15 shadow-glow-red"
-                        : "border-border/80 bg-ink-950/40 hover:border-red-500/40 hover:bg-ink-950/60"
+                        ? "border-red-400 bg-red-500/10"
+                        : "border-border hover:border-ink-500 bg-ink-950/40 hover:bg-ink-950/60"
                     }`}
                   >
-                    <div className="flex flex-col items-center justify-center space-y-4">
-                      <div className="h-14 w-14 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 shadow-glow-red">
-                        <FolderUp className="h-7 w-7" />
+                    <div className="flex flex-col items-center justify-center space-y-3">
+                      <div className="h-10 w-10 rounded-xl bg-ink-900 border border-border flex items-center justify-center text-ink-300">
+                        <FolderUp className="h-5 w-5" />
                       </div>
                       <div>
                         <h3 className="text-sm font-semibold text-white">
-                          Drag &amp; Drop Local Folder or Files Here
+                          Drop folder or source files here
                         </h3>
-                        <p className="text-xs text-ink-400 mt-1 max-w-md mx-auto leading-relaxed">
-                          Drop any local project directory, source code files (<code className="text-red-400">.py</code>, <code className="text-red-400">.ts</code>, <code className="text-red-400">.js</code>), or <code className="text-red-400">.zip</code> archive. Packaged hermetically in your browser.
+                        <p className="text-xs text-ink-400 mt-1 max-w-md mx-auto">
+                          Supports local directories, source code files (<span className="text-ink-200 font-mono">.py, .ts, .js</span>), or <span className="text-ink-200 font-mono">.zip</span> archives.
                         </p>
                       </div>
 
-                      <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                      <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
                         <button
                           type="button"
                           onClick={() => folderInputRef.current?.click()}
-                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-ink-950 font-bold text-xs shadow-glow-red transition-all cursor-pointer"
+                          className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white hover:bg-ink-100 text-ink-950 font-semibold text-xs transition-colors cursor-pointer"
                         >
-                          <FolderUp className="h-4 w-4" />
-                          <span>Choose Local Folder</span>
+                          <FolderUp className="h-3.5 w-3.5" />
+                          <span>Choose Folder</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
-                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-ink-850 hover:bg-ink-800 text-ink-200 border border-border text-xs font-medium transition-all cursor-pointer"
+                          className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-ink-850 hover:bg-ink-800 text-ink-200 border border-border text-xs font-medium transition-colors cursor-pointer"
                         >
-                          <FileCode className="h-4 w-4 text-red-400" />
+                          <FileCode className="h-3.5 w-3.5 text-ink-400" />
                           <span>Choose Files</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => zipInputRef.current?.click()}
-                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-ink-850 hover:bg-ink-800 text-ink-200 border border-border text-xs font-medium transition-all cursor-pointer"
+                          className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-ink-850 hover:bg-ink-800 text-ink-300 border border-border text-xs font-medium transition-colors cursor-pointer"
                         >
-                          <FileArchive className="h-4 w-4 text-ink-400" />
-                          <span>Upload .ZIP Archive</span>
+                          <FileArchive className="h-3.5 w-3.5 text-ink-400" />
+                          <span>Upload .ZIP</span>
                         </button>
                       </div>
 
                       <div className="text-[11px] font-mono text-ink-500 pt-1">
-                        Drop anywhere on the screen or use buttons above • Zero code execution
+                        Zero untrusted code execution • Packaged securely in browser
                       </div>
                     </div>
                   </div>
@@ -939,25 +930,25 @@ export default function RepositoryIngestionDashboard() {
                     }}
                     onDragLeave={() => setIsDragging(false)}
                     onDrop={handleDrop}
-                    className="space-y-4"
+                    className="space-y-3"
                   >
-                    <div className="p-4 rounded-xl bg-ink-900/80 border border-red-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                      <div className="flex items-center gap-3.5">
-                        <div className="h-10 w-10 rounded-xl bg-red-500/15 border border-red-500/40 flex items-center justify-center text-red-400 shrink-0">
+                    <div className="p-3.5 rounded-xl bg-ink-900 border border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-lg bg-ink-800 border border-border flex items-center justify-center text-ink-200 shrink-0">
                           {selectedZipFile ? (
-                            <FileArchive className="h-5 w-5" />
+                            <FileArchive className="h-4 w-4" />
                           ) : selectedFolderFiles.some((f) => f.webkitRelativePath?.includes("/")) ? (
-                            <FolderGit2 className="h-5 w-5" />
+                            <FolderGit2 className="h-4 w-4" />
                           ) : (
-                            <FileCode className="h-5 w-5" />
+                            <FileCode className="h-4 w-4" />
                           )}
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-white">
+                            <span className="text-xs font-semibold text-white">
                               {folderDisplayName}
                             </span>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-red-950/60 text-red-300 border border-red-500/30">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-ink-800 text-ink-300 border border-border">
                               {selectedZipFile
                                 ? "ZIP Archive"
                                 : selectedFolderFiles.some((f) => f.webkitRelativePath?.includes("/"))
@@ -965,7 +956,7 @@ export default function RepositoryIngestionDashboard() {
                                 : "Source Files"}
                             </span>
                           </div>
-                          <p className="text-xs text-ink-400 mt-0.5 font-mono">
+                          <p className="text-[11px] text-ink-400 mt-0.5 font-mono">
                             {selectedZipFile
                               ? formatBytes(selectedZipFile.size)
                               : `${selectedFolderFiles.length} file(s) selected (${formatBytes(totalFolderSize)})`}
@@ -973,7 +964,7 @@ export default function RepositoryIngestionDashboard() {
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+                      <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                         <button
                           type="button"
                           onClick={() => {
@@ -981,74 +972,57 @@ export default function RepositoryIngestionDashboard() {
                             setSelectedZipFile(null);
                             setFolderDisplayName("");
                           }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-ink-400 hover:text-white hover:bg-ink-800 transition-colors cursor-pointer"
+                          className="px-2.5 py-1 rounded text-xs text-ink-400 hover:text-white transition-colors cursor-pointer"
                         >
-                          <X className="h-3.5 w-3.5" />
-                          <span>Clear</span>
+                          Clear
                         </button>
-
                         <button
                           type="button"
                           onClick={() => folderInputRef.current?.click()}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-ink-300 hover:text-white bg-ink-850 hover:bg-ink-800 border border-border transition-colors cursor-pointer"
+                          className="px-2.5 py-1 rounded text-xs text-ink-300 hover:text-white bg-ink-850 hover:bg-ink-800 border border-border transition-colors cursor-pointer"
                         >
-                          <FolderUp className="h-3.5 w-3.5" />
-                          <span>Folder</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-ink-300 hover:text-white bg-ink-850 hover:bg-ink-800 border border-border transition-colors cursor-pointer"
-                        >
-                          <FileCode className="h-3.5 w-3.5 text-red-400" />
-                          <span>Files</span>
+                          Change Folder
                         </button>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div className="md:col-span-2">
-                        <label className="block text-xs font-mono text-ink-300 mb-1.5">
-                          Display name
-                        </label>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                      <div className="flex-1">
                         <input
                           type="text"
-                          placeholder="e.g. my-local-service"
+                          placeholder="Project display name (optional)"
                           value={repoName}
                           onChange={(e) => setRepoName(e.target.value)}
-                          className="w-full bg-ink-950/80 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-ink-500 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/40 transition-all font-mono"
+                          className="w-full bg-ink-950 border border-border rounded-lg px-3 py-2 text-xs text-white placeholder-ink-500 focus:outline-none focus:border-ink-400 font-mono transition-all"
                         />
                       </div>
-                      <div className="flex items-end">
-                        <button
-                          type="submit"
-                          disabled={isScanning}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-ink-950 font-bold text-xs shadow-glow-red transition-all disabled:opacity-50 cursor-pointer"
-                        >
-                          {isScanning ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              <span>Scanning local files...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Play className="h-4 w-4 fill-ink-950" />
-                              <span>Scan Local Files</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
+                      <button
+                        type="submit"
+                        disabled={isScanning}
+                        className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-white hover:bg-ink-100 text-ink-950 font-semibold text-xs transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+                      >
+                        {isScanning ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <span>Scanning...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-3.5 w-3.5 fill-ink-950" />
+                            <span>Scan Local Files</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   </form>
                 )}
               </div>
             ) : (
-              <form onSubmit={handleStartScan} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <form onSubmit={handleStartScan} className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-mono text-ink-300 mb-1.5">
-                      Path or Git URL
+                    <label className="block text-[11px] font-mono text-ink-400 mb-1">
+                      Repository Path or Git URL
                     </label>
                     <input
                       type="text"
@@ -1056,12 +1030,12 @@ export default function RepositoryIngestionDashboard() {
                       value={repoPath}
                       onChange={(e) => setRepoPath(e.target.value)}
                       required
-                      className="w-full bg-ink-950/80 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-ink-500 font-mono focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/40 transition-all"
+                      className="w-full bg-ink-950 border border-border rounded-lg px-3 py-2 text-xs text-white placeholder-ink-500 font-mono focus:outline-none focus:border-ink-400 transition-all"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-mono text-ink-300 mb-1.5">
+                    <label className="block text-[11px] font-mono text-ink-400 mb-1">
                       Display name (optional)
                     </label>
                     <input
@@ -1069,31 +1043,21 @@ export default function RepositoryIngestionDashboard() {
                       placeholder="e.g. backend-api"
                       value={repoName}
                       onChange={(e) => setRepoName(e.target.value)}
-                      className="w-full bg-ink-950/80 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-ink-500 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/40 transition-all"
+                      className="w-full bg-ink-950 border border-border rounded-lg px-3 py-2 text-xs text-white placeholder-ink-500 focus:outline-none focus:border-ink-400 transition-all"
                     />
                   </div>
                 </div>
 
                 {/* Quick preset paths */}
-                <div className="flex flex-wrap items-center gap-2 text-xs text-ink-400">
-                  <span className="text-ink-500 font-mono">Quick paths:</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRepoPath(".");
-                      setRepoName("entropy-workspace");
-                    }}
-                    className="bg-ink-850 hover:bg-ink-800 text-ink-300 px-2 py-0.5 rounded border border-border font-mono text-[11px] transition-colors cursor-pointer"
-                  >
-                    . (workspace)
-                  </button>
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-400">
+                  <span className="text-ink-500 font-mono text-[11px]">Presets:</span>
                   <button
                     type="button"
                     onClick={() => {
                       setRepoPath("./backend/tests/fixtures/clean_python_project");
                       setRepoName("clean-python-project");
                     }}
-                    className="bg-ink-850 hover:bg-ink-800 text-ink-300 px-2 py-0.5 rounded border border-border font-mono text-[11px] transition-colors cursor-pointer"
+                    className="bg-ink-900 hover:bg-ink-800 text-ink-300 px-2 py-0.5 rounded border border-border font-mono text-[11px] transition-colors cursor-pointer"
                   >
                     clean_python_project
                   </button>
@@ -1103,7 +1067,7 @@ export default function RepositoryIngestionDashboard() {
                       setRepoPath("./backend/tests/fixtures/mixed_language_project");
                       setRepoName("mixed-language-project");
                     }}
-                    className="bg-ink-850 hover:bg-ink-800 text-ink-300 px-2 py-0.5 rounded border border-border font-mono text-[11px] transition-colors cursor-pointer"
+                    className="bg-ink-900 hover:bg-ink-800 text-ink-300 px-2 py-0.5 rounded border border-border font-mono text-[11px] transition-colors cursor-pointer"
                   >
                     mixed_language_project
                   </button>
@@ -1113,26 +1077,26 @@ export default function RepositoryIngestionDashboard() {
                       setRepoPath("https://github.com/expressjs/express");
                       setRepoName("express-sample");
                     }}
-                    className="bg-ink-850 hover:bg-ink-800 text-ink-300 px-2 py-0.5 rounded border border-border font-mono text-[11px] transition-colors cursor-pointer"
+                    className="bg-ink-900 hover:bg-ink-800 text-ink-300 px-2 py-0.5 rounded border border-border font-mono text-[11px] transition-colors cursor-pointer"
                   >
-                    express-sample (Git)
+                    express (GitHub)
                   </button>
                 </div>
 
                 <div className="pt-2 flex items-center justify-between border-t border-border">
                   <div className="text-[11px] text-ink-500 font-mono">
-                    Limits: 2MB/file • 50,000 files max • Static AST only
+                    Deterministic AST • Zero code execution
                   </div>
 
                   <button
                     type="submit"
                     disabled={isScanning || !repoPath.trim()}
-                    className="flex items-center gap-2 bg-ink-100 hover:bg-white text-ink-950 disabled:opacity-50 font-medium px-4 py-1.5 rounded-md text-xs transition-colors cursor-pointer"
+                    className="flex items-center gap-2 bg-white hover:bg-ink-100 text-ink-950 disabled:opacity-50 font-semibold px-4 py-1.5 rounded-lg text-xs transition-colors cursor-pointer"
                   >
                     {isScanning ? (
                       <>
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span>{SCAN_STEPS[scanStepIndex]}</span>
+                        <span>{packagingMessage || SCAN_STEPS[scanStepIndex]}</span>
                       </>
                     ) : (
                       <>
@@ -1625,138 +1589,80 @@ export default function RepositoryIngestionDashboard() {
               )}
             </div>
           ) : (
-            /* Empty Welcome State */
-            <div className="border border-border/80 rounded-2xl p-8 bg-ink-900/40 backdrop-blur-sm space-y-8">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2 text-red-400 text-xs font-mono font-medium">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+            /* Recent Scans or Clean Empty State */
+            scans.length > 0 ? (
+              <div className="border border-border rounded-xl bg-ink-900/40 overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <History className="h-4 w-4 text-ink-400" />
+                    <span className="text-xs font-semibold text-white tracking-wide uppercase">
+                      Recent Scans
                     </span>
-                    <span>READY FOR FORENSIC SCANNING</span>
                   </div>
-                  <h3 className="text-xl font-bold text-white tracking-tight">
-                    Start a Scan or Explore the Interactive Sample Report
-                  </h3>
-                  <p className="text-xs text-ink-300 max-w-2xl leading-relaxed">
-                    Test how Entropy analyzes cross-file AST trees, calculates mathematical debt deductions, and generates verified AI remediation without hallucinations.
-                  </p>
+                  <span className="text-[11px] font-mono text-ink-400">
+                    {scans.length} recorded
+                  </span>
                 </div>
-
-                <button
-                  onClick={() => {
-                    setScanMode("folder");
-                    handleStartScanClick();
-                    setTimeout(() => folderInputRef.current?.click(), 150);
-                  }}
-                  className="group flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-ink-950 font-bold text-xs tracking-wide shadow-glow-emerald transition-all duration-200 self-start md:self-auto cursor-pointer"
-                >
-                  <FolderUp className="h-4 w-4 fill-ink-950" />
-                  <span>Choose Folder or Drop Files</span>
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </button>
-              </div>
-
-              {/* 3 Interactive Launch Modes */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div
-                  onClick={() => {
-                    setScanMode("folder");
-                    handleStartScanClick();
-                    setTimeout(() => folderInputRef.current?.click(), 250);
-                  }}
-                  className="p-5 rounded-xl bg-ink-900/70 border border-border/80 hover:border-emerald-500/50 hover:bg-ink-850/90 transition-all duration-200 cursor-pointer space-y-3 group"
-                >
-                  <div className="h-9 w-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
-                    <FolderUp className="h-4 w-4" />
-                  </div>
-                  <h4 className="text-sm font-semibold text-white group-hover:text-emerald-300 transition-colors">
-                    1. Drag &amp; Drop / Local Files
-                  </h4>
-                  <p className="text-xs text-ink-400 leading-relaxed">
-                    Drop any local folder, code files, or ZIP archive anywhere on screen. Fast in-browser packaging with zero untrusted code execution.
-                  </p>
-                  <div className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
-                    <span>Drop or choose files</span>
-                    <ArrowRight className="h-3 w-3" />
-                  </div>
-                </div>
-
-                <div
-                  onClick={() => {
-                    setScanMode("path");
-                    setRepoPath("https://github.com/expressjs/express");
-                    setRepoName("express-sample");
-                    handleStartScanClick();
-                  }}
-                  className="p-5 rounded-xl bg-ink-900/70 border border-border/80 hover:border-rose-500/50 hover:bg-ink-850/90 transition-all duration-200 cursor-pointer space-y-3 group"
-                >
-                  <div className="h-9 w-9 rounded-lg bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 group-hover:scale-105 transition-transform">
-                    <Code2 className="h-4 w-4" />
-                  </div>
-                  <h4 className="text-sm font-semibold text-white group-hover:text-rose-300 transition-colors">
-                    2. Remote Git URL Scan
-                  </h4>
-                  <p className="text-xs text-ink-400 leading-relaxed">
-                    Enter any public GitHub/GitLab URL. Entropy clones shallowly, audits the full topology, and generates scores.
-                  </p>
-                  <div className="text-[11px] font-mono text-rose-400 flex items-center gap-1">
-                    <span>Try GitHub URL</span>
-                    <ArrowRight className="h-3 w-3" />
-                  </div>
-                </div>
-
-                <div
-                  onClick={() => {
-                    setScanMode("path");
-                    setRepoPath("./backend/tests/fixtures/clean_python_project");
-                    setRepoName("clean-python-project");
-                    handleStartScanClick();
-                  }}
-                  className="p-5 rounded-xl bg-gradient-to-br from-emerald-950/30 to-ink-900/90 border border-emerald-500/40 hover:border-emerald-400 hover:shadow-glow-emerald transition-all duration-200 cursor-pointer space-y-3 group"
-                >
-                  <div className="h-9 w-9 rounded-lg bg-emerald-600/20 border border-emerald-500/50 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
-                    <CheckCircle2 className="h-4 w-4" />
-                  </div>
-                  <h4 className="text-sm font-semibold text-white group-hover:text-emerald-300 transition-colors">
-                    3. Clean Test Fixture
-                  </h4>
-                  <p className="text-xs text-ink-300 leading-relaxed">
-                    Instantly inspect our zero-finding baseline test fixture. Fast deterministic AST analysis in under 20ms.
-                  </p>
-                  <div className="text-[11px] font-mono text-emerald-400 font-bold flex items-center gap-1">
-                    <span>Scan test fixture</span>
-                    <ArrowRight className="h-3 w-3" />
-                  </div>
+                <div className="divide-y divide-border/60">
+                  {scans.slice(0, 5).map((s) => {
+                    const repoName = s.repository?.name || s.repo_name || "Repository";
+                    return (
+                      <div
+                        key={s.scan_id}
+                        onClick={() => handleSelectScan(s.scan_id)}
+                        className="px-5 py-3.5 flex items-center justify-between hover:bg-ink-850/60 transition-colors cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-lg bg-ink-800 border border-border flex items-center justify-center text-ink-400 group-hover:text-white transition-colors">
+                            <FolderGit2 className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-medium text-white group-hover:text-red-300 transition-colors">
+                              {repoName}
+                            </div>
+                            <div className="text-[11px] text-ink-500 font-mono mt-0.5">
+                              ID: {s.scan_id.slice(0, 8)}... • Status: {s.status}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-ink-400 group-hover:text-white transition-colors flex items-center gap-1 font-mono">
+                            View report
+                            <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-
-              {/* 5-Step Forensic Pipeline */}
-              <div className="pt-6 border-t border-border/80 space-y-3">
-                <div className="text-xs font-mono text-ink-400 uppercase tracking-wider">
-                  The Deterministic Analysis Pipeline:
+            ) : (
+              <div className="border border-border/70 rounded-xl p-8 bg-ink-900/30 text-center space-y-3">
+                <div className="h-10 w-10 rounded-xl bg-ink-850 border border-border mx-auto flex items-center justify-center text-ink-400">
+                  <FolderGit2 className="h-5 w-5" />
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs font-mono">
-                  {[
-                    { step: "01", name: "Scope Ingestion", desc: "Filters tests & fixtures" },
-                    { step: "02", name: "AST Extraction", desc: "Language visitor parse" },
-                    { step: "03", name: "Cross-File Topology", desc: "Maps route & import graph" },
-                    { step: "04", name: "Penalty Scoring", desc: "Normalized math audit" },
-                    { step: "05", name: "AI Remediation", desc: "Explains real AST nodes" },
-                  ].map((p) => (
-                    <div
-                      key={p.step}
-                      className="p-3 rounded-lg bg-ink-950/80 border border-border space-y-1"
-                    >
-                      <div className="text-red-400 font-bold text-[11px]">{p.step}</div>
-                      <div className="text-white font-medium text-[11px]">{p.name}</div>
-                      <div className="text-ink-500 text-[10px]">{p.desc}</div>
-                    </div>
-                  ))}
+                <div>
+                  <h3 className="text-sm font-semibold text-white">No scan loaded yet</h3>
+                  <p className="text-xs text-ink-400 mt-1 max-w-md mx-auto">
+                    Select a local project folder above or drop files to run an architectural security debt scan.
+                  </p>
+                </div>
+                <div className="pt-2 flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => {
+                      setScanMode("path");
+                      setRepoPath("./backend/tests/fixtures/clean_python_project");
+                      setRepoName("clean-python-project");
+                      handleStartScanClick();
+                    }}
+                    className="text-xs font-mono text-ink-300 hover:text-white transition-colors inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ink-850 border border-border cursor-pointer"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>Run test fixture sample</span>
+                  </button>
                 </div>
               </div>
-            </div>
+            )
           )}
         </>
       )}

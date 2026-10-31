@@ -10,7 +10,6 @@ import {
   getScan,
   getScore,
   listRepositoryScans,
-  listScans,
   triggerScan,
   uploadAndScanArchive,
 } from "@/lib/api";
@@ -297,47 +296,41 @@ export default function RepositoryIngestionDashboard() {
     }
   };
 
+  const handleClearSession = () => {
+    setScans([]);
+    setActiveScan(null);
+    setManifest(null);
+    setFindings([]);
+    setScore(null);
+    setHistory(null);
+    setTrend(null);
+    setComparison(null);
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("entropy_session_scans");
+    }
+  };
+
   useEffect(() => {
     async function init() {
       try {
-        const [healthData, scanList] = await Promise.all([
-          fetchHealth().catch(() => null),
-          listScans().catch(() => []),
-        ]);
+        const healthData = await fetchHealth().catch(() => null);
         setHealth(healthData);
-        setScans(scanList);
-        if (scanList.length > 0) {
-          const first = scanList[0];
-          try {
-            const fullScan = await getScan(first.scan_id);
-            setActiveScan(fullScan);
-            if (fullScan.manifest) {
-              setManifest(fullScan.manifest);
-            } else {
-              getManifest(fullScan.scan_id).then(setManifest).catch(() => null);
+
+        // Session-only isolation: Do NOT load global past scans from other users.
+        // Scans are only kept for the active browser session.
+        if (typeof window !== "undefined") {
+          const stored = sessionStorage.getItem("entropy_session_scans");
+          if (stored) {
+            try {
+              const sessionScans: RepositoryScanResult[] = JSON.parse(stored);
+              if (Array.isArray(sessionScans) && sessionScans.length > 0) {
+                setScans(sessionScans);
+                const first = sessionScans[0];
+                handleSelectScan(first.scan_id);
+              }
+            } catch (err) {
+              console.warn("Could not restore session scans:", err);
             }
-            loadFindingsForScan(fullScan.scan_id);
-            loadScoreForScan(fullScan.scan_id);
-            if (fullScan.repository?.repository_id) {
-              loadHistoryAndTrend(fullScan.repository.repository_id);
-            }
-          } catch {
-            const fallback: RepositoryScanResult = {
-              ...first,
-              repository: first.repository || {
-                name: (first as any).repo_name || "Repository",
-                path: (first as any).repo_path || "",
-                branch: first.branch,
-                commit_hash: first.commit_hash,
-                total_files: 0,
-                scannable_files: 0,
-                total_loc: 0,
-              },
-              findings: first.findings || [],
-              analyzers_executed: first.analyzers_executed || [],
-              errors: first.errors || [],
-            };
-            setActiveScan(fallback);
           }
         }
       } catch (err) {
@@ -345,6 +338,7 @@ export default function RepositoryIngestionDashboard() {
       }
     }
     init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleStartScan = async (e: React.FormEvent) => {
@@ -364,7 +358,17 @@ export default function RepositoryIngestionDashboard() {
       clearInterval(interval);
       setScanStepIndex(4);
 
-      setScans((prev) => [result, ...prev.filter((s) => s.scan_id !== result.scan_id)]);
+      setScans((prev) => {
+        const next = [result, ...prev.filter((s) => s.scan_id !== result.scan_id)];
+        if (typeof window !== "undefined") {
+          try {
+            sessionStorage.setItem("entropy_session_scans", JSON.stringify(next));
+          } catch {
+            // ignore
+          }
+        }
+        return next;
+      });
       setActiveScan(result);
       if (result.manifest) {
         setManifest(result.manifest);
@@ -605,7 +609,17 @@ export default function RepositoryIngestionDashboard() {
       clearInterval(interval);
       setScanStepIndex(4);
 
-      setScans((prev) => [result, ...prev.filter((s) => s.scan_id !== result.scan_id)]);
+      setScans((prev) => {
+        const next = [result, ...prev.filter((s) => s.scan_id !== result.scan_id)];
+        if (typeof window !== "undefined") {
+          try {
+            sessionStorage.setItem("entropy_session_scans", JSON.stringify(next));
+          } catch {
+            // ignore
+          }
+        }
+        return next;
+      });
       setActiveScan(result);
       if (result.manifest) {
         setManifest(result.manifest);
@@ -753,25 +767,35 @@ export default function RepositoryIngestionDashboard() {
 
         <div className="flex items-center gap-2.5">
           {scans.length > 0 && (
-            <div className="relative">
-              <select
-                value={activeScan?.scan_id || ""}
-                onChange={(e) => handleSelectScan(e.target.value)}
-                className="appearance-none bg-ink-900 border border-border text-xs text-ink-200 rounded-lg pl-3 pr-8 py-1.5 focus:outline-none focus:border-red-500/60 cursor-pointer font-mono"
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <select
+                  value={activeScan?.scan_id || ""}
+                  onChange={(e) => handleSelectScan(e.target.value)}
+                  className="appearance-none bg-ink-900 border border-border text-xs text-ink-200 rounded-lg pl-3 pr-8 py-1.5 focus:outline-none focus:border-red-500/60 cursor-pointer font-mono"
+                >
+                  <option value="" disabled>
+                    Session scans...
+                  </option>
+                  {scans.map((s) => {
+                    const repoName = s.repository?.name || s.repo_name || "Repository";
+                    return (
+                      <option key={s.scan_id} value={s.scan_id}>
+                        {repoName} ({s.status})
+                      </option>
+                    );
+                  })}
+                </select>
+                <ChevronDown className="h-3 w-3 text-ink-400 absolute right-2.5 top-2.5 pointer-events-none" />
+              </div>
+              <button
+                type="button"
+                onClick={handleClearSession}
+                className="text-xs text-ink-400 hover:text-white px-2 py-1 rounded bg-ink-900 border border-border transition-colors font-mono cursor-pointer"
+                title="Clear current session scans"
               >
-                <option value="" disabled>
-                  Past scans...
-                </option>
-                {scans.map((s) => {
-                  const repoName = s.repository?.name || s.repo_name || "Repository";
-                  return (
-                    <option key={s.scan_id} value={s.scan_id}>
-                      {repoName} ({s.status})
-                    </option>
-                  );
-                })}
-              </select>
-              <ChevronDown className="h-3 w-3 text-ink-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                Reset
+              </button>
             </div>
           )}
 
@@ -1596,11 +1620,11 @@ export default function RepositoryIngestionDashboard() {
                   <div className="flex items-center gap-2">
                     <History className="h-4 w-4 text-ink-400" />
                     <span className="text-xs font-semibold text-white tracking-wide uppercase">
-                      Recent Scans
+                      Session Scans
                     </span>
                   </div>
                   <span className="text-[11px] font-mono text-ink-400">
-                    {scans.length} recorded
+                    {scans.length} in this session
                   </span>
                 </div>
                 <div className="divide-y divide-border/60">

@@ -125,6 +125,11 @@ class ScoringCoverage(BaseModel):
     total_routes_detected: int = Field(
         default=0, ge=0, description="Total HTTP routes detected across all frameworks"
     )
+    public_endpoints_skipped: int = Field(
+        default=0,
+        ge=0,
+        description="Total public endpoints exempted from authentication/authorization",
+    )
 
 
 class WorstCategory(BaseModel):

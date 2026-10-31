@@ -23,7 +23,13 @@ from app.analyzers.security.models import (
 )
 from app.models.domain.enums import Confidence
 from app.parser.python.models import SourceLocation
-from app.scoring.weights import SENSITIVE_ROUTE_TERMS, is_intentionally_public_endpoint
+from app.scoring.weights import (
+    SENSITIVE_ROUTE_TERMS,
+    STATE_CHANGING_METHODS,
+    STATE_CHANGING_PUBLIC_ALLOWLIST,
+    is_intentionally_public_endpoint,
+    match_intentionally_public_endpoint,
+)
 
 # Auth-related keyword patterns for middleware identification
 AUTH_MIDDLEWARE_PATTERNS = [
@@ -289,7 +295,7 @@ class JSFrameworkRouteDetector:
             )
 
             # Public check
-            is_public, public_reasons = cls._evaluate_public(route)
+            is_public, public_reasons, matched_pat = cls._evaluate_public(route)
 
             # Security sensitivity check
             is_sensitive, sensitivity_reasons = cls._evaluate_sensitivity(route, symbol)
@@ -373,8 +379,17 @@ class JSFrameworkRouteDetector:
                 # Check for @Public()
                 for d in all_decs:
                     if re.search(r"\bpublic\b", d, re.IGNORECASE) or "ispublic" in d.lower():
-                        is_public = True
-                        public_reasons.append(f"NestJS @{d} decorator marks endpoint public")
+                        eval_override = match_intentionally_public_endpoint(
+                            route.path, route.handler_name, http_method=route.http_method
+                        )
+                        if eval_override.deny_term:
+                            is_public = False
+                            public_reasons = [
+                                f"Denied public status due to sensitive term '{eval_override.deny_term}' in route or handler"
+                            ]
+                        else:
+                            is_public = True
+                            public_reasons.append(f"NestJS @{d} decorator marks endpoint public")
 
                 # Check for @UseGuards(...)
                 for d in all_decs:
@@ -631,6 +646,7 @@ class JSFrameworkRouteDetector:
                     "framework": route.framework,
                     "middleware": route.middleware,
                     "handler_name": route.handler_name,
+                    **({"public_pattern": matched_pat} if matched_pat else {}),
                 },
             )
             endpoints.append(endpoint)
@@ -653,9 +669,38 @@ class JSFrameworkRouteDetector:
         return WebFramework.GENERIC
 
     @classmethod
-    def _evaluate_public(cls, route) -> tuple[bool, list[str]]:
+    def _evaluate_public(cls, route) -> tuple[bool, list[str], str | None]:
         reasons: list[str] = []
         path_norm = route.path.rstrip("/").lower()
+        http_method = getattr(route, "http_method", None)
+
+        eval_res = match_intentionally_public_endpoint(
+            route_path=route.path,
+            handler_name=route.handler_name,
+            http_method=http_method,
+        )
+
+        if eval_res.deny_term:
+            return (
+                False,
+                [f"Denied public status due to sensitive term '{eval_res.deny_term}' in route or handler"],
+                None,
+            )
+
+        mutating = {http_method.upper()} if http_method and http_method.upper() in STATE_CHANGING_METHODS else set()
+        if mutating:
+            has_sc_allow = any(term in path_norm for term in STATE_CHANGING_PUBLIC_ALLOWLIST)
+            if not has_sc_allow:
+                return (
+                    False,
+                    [f"State-changing method ({', '.join(sorted(mutating))}) not allowed on public endpoint '{route.path}'"],
+                    None,
+                )
+
+        matched_pattern = eval_res.matched_pattern
+        if eval_res.is_public and matched_pattern:
+            reasons.append(f"Intentionally public route pattern '{matched_pattern}' in '{route.path}'")
+
         if path_norm in PUBLIC_EXACT_PATHS or path_norm == "":
             reasons.append(f"Standard public path '{route.path}'")
 
@@ -664,14 +709,12 @@ class JSFrameworkRouteDetector:
             if any(re.search(p, mw_lower) for p in PUBLIC_MIDDLEWARE_PATTERNS):
                 reasons.append(f"Explicit public middleware '{mw}'")
 
-        if is_intentionally_public_endpoint(route.path, route.handler_name):
-            reasons.append(f"Intentionally public endpoint pattern in '{route.path or route.handler_name}'")
-
         # Standard user registration / signup POST endpoints
         if route.http_method == "POST" and path_norm in ("/users", "/user", "/api/users", "/api/v1/users"):
             reasons.append(f"Standard public user registration POST '{route.path}'")
 
-        return bool(reasons), reasons
+        is_public = len(reasons) > 0
+        return is_public, reasons, matched_pattern
 
     @classmethod
     def _evaluate_sensitivity(cls, route, symbol: str) -> tuple[bool, list[str]]:

@@ -22,7 +22,12 @@ from app.analyzers.security.models import (
 )
 from app.models.domain.enums import Confidence
 from app.parser.python.models import Decorator, FunctionDefinition, SourceLocation
-from app.scoring.weights import is_intentionally_public_endpoint
+from app.scoring.weights import (
+    STATE_CHANGING_METHODS,
+    STATE_CHANGING_PUBLIC_ALLOWLIST,
+    is_intentionally_public_endpoint,
+    match_intentionally_public_endpoint,
+)
 
 # Keywords indicating potential security sensitivity
 SENSITIVE_ROUTE_TERMS = {
@@ -314,8 +319,8 @@ class FrameworkRouteDetector:
         is_sensitive, sensitivity_reasons = cls._evaluate_sensitivity(
             func.name, route_path, http_methods
         )
-        is_public, public_reasons = cls._evaluate_public_status(
-            func.name, route_path, func.decorators
+        is_public, public_reasons, matched_pat = cls._evaluate_public_status(
+            func.name, route_path, func.decorators, http_methods
         )
 
         # 3. Extract Authentication Evidence
@@ -329,7 +334,7 @@ class FrameworkRouteDetector:
             context, func, detected_fw, route_decorator, raw_ast_node
         )
 
-        return EndpointDefinition(
+        ep_def = EndpointDefinition(
             symbol=func.qualified_name or func.name,
             file_path=context.file_path,
             location=func.location,
@@ -344,6 +349,9 @@ class FrameworkRouteDetector:
             authz_evidence=authz_evidences,
             function_def=func,
         )
+        if matched_pat:
+            ep_def.metadata["public_pattern"] = matched_pat
+        return ep_def
 
     @classmethod
     def _inspect_django_cbvs(
@@ -421,8 +429,8 @@ class FrameworkRouteDetector:
                     is_sensitive, sens_reasons = cls._evaluate_sensitivity(
                         method.name, route_path, [method_name]
                     )
-                    is_public, pub_reasons = cls._evaluate_public_status(
-                        method.name, route_path, method.decorators
+                    is_public, pub_reasons, matched_pat = cls._evaluate_public_status(
+                        method.name, route_path, method.decorators, [method_name]
                     )
 
                     raw_ast_node = ast_func_map.get((method.name, method.location.line_start))
@@ -439,25 +447,26 @@ class FrameworkRouteDetector:
                         )
                     )
 
-                    endpoints.append(
-                        EndpointDefinition(
-                            symbol=f"{cls_def.name}.{method.name}",
-                            file_path=context.file_path,
-                            location=method.location,
-                            http_methods=[method_name],
-                            route_path=route_path,
-                            framework=WebFramework.DJANGO,
-                            is_security_sensitive=is_sensitive,
-                            sensitivity_reasons=sens_reasons,
-                            is_public=is_public,
-                            public_reasons=pub_reasons,
-                            auth_evidence=m_auth_ev,
-                            authz_evidence=m_authz_ev,
-                            enclosing_class=cls_def.name,
-                            function_def=method,
-                            class_def=cls_def,
-                        )
+                    cbv_ep = EndpointDefinition(
+                        symbol=f"{cls_def.name}.{method.name}",
+                        file_path=context.file_path,
+                        location=method.location,
+                        http_methods=[method_name],
+                        route_path=route_path,
+                        framework=WebFramework.DJANGO,
+                        is_security_sensitive=is_sensitive,
+                        sensitivity_reasons=sens_reasons,
+                        is_public=is_public,
+                        public_reasons=pub_reasons,
+                        auth_evidence=m_auth_ev,
+                        authz_evidence=m_authz_ev,
+                        enclosing_class=cls_def.name,
+                        function_def=method,
+                        class_def=cls_def,
                     )
+                    if matched_pat:
+                        cbv_ep.metadata["public_pattern"] = matched_pat
+                    endpoints.append(cbv_ep)
 
         return endpoints
 
@@ -540,36 +549,60 @@ class FrameworkRouteDetector:
         func_name: str,
         route_path: str | None,
         decorators: list[Decorator],
-    ) -> tuple[bool, list[str]]:
+        http_methods: list[str] | None = None,
+    ) -> tuple[bool, list[str], str | None]:
         """Evaluate whether an endpoint is explicitly public / anonymous."""
         reasons: list[str] = []
         path_lower = (route_path or "").lower().rstrip("/")
-        func_lower = func_name.lower()
 
-        # Exact public path match
+        # Check anchored pattern matching, deny override, and mutating method allowlist
+        eval_res = match_intentionally_public_endpoint(
+            route_path=route_path,
+            handler_name=func_name,
+            http_method=http_methods,
+        )
+
+        # Deny override: if ANY sensitive/admin term matched in route or handler, NEVER public!
+        if eval_res.deny_term:
+            return (
+                False,
+                [f"Denied public status due to sensitive term '{eval_res.deny_term}' in route or handler"],
+                None,
+            )
+
+        # Check state-changing method constraints across all paths
+        mutating = set(http_methods or []).intersection(STATE_CHANGING_METHODS)
+        if mutating:
+            has_sc_allow = any(term in path_lower for term in STATE_CHANGING_PUBLIC_ALLOWLIST)
+            if not has_sc_allow:
+                return (
+                    False,
+                    [f"State-changing method ({', '.join(sorted(mutating))}) not allowed on public endpoint '{route_path}'"],
+                    None,
+                )
+
+        matched_pattern = eval_res.matched_pattern
+        if eval_res.is_public and matched_pattern:
+            reasons.append(f"Intentionally public route pattern '{matched_pattern}' in '{route_path}'")
+
+        # Exact public path match (subject to deny override and mutating constraints)
         if path_lower in PUBLIC_EXACT_PATHS or (route_path or "") in PUBLIC_EXACT_PATHS:
             reasons.append(f"Recognized public route '{route_path or '/'}'")
 
-        # Public path prefix
+        # Public path prefix (subject to deny override and mutating constraints)
         if any(path_lower.startswith(p.rstrip("/")) for p in PUBLIC_PREFIXES):
             reasons.append(f"Public prefix in route '{route_path}'")
 
-        # Public decorators
+        # Public decorators (subject to deny override and mutating constraints)
         for dec in decorators:
             dname = dec.name.lower()
             if any(term in dname for term in ("public", "allow_anonymous", "permit_all")):
                 reasons.append(f"Public decorator @{dec.name}")
 
-        # Function name indicates public utility
-        if func_lower in ("health", "health_check", "ping", "live", "ready", "public_index"):
-            reasons.append(f"Public utility function name '{func_name}'")
-
-        # Configured intentionally public terms (login, token, reset-password, callback, etc.)
-        if is_intentionally_public_endpoint(route_path, func_name):
-            reasons.append(f"Intentionally public endpoint pattern in '{route_path or func_name}'")
+        # Note: handler name alone is a hint only and cannot make an endpoint public
 
         is_public = len(reasons) > 0
-        return is_public, reasons
+        return is_public, reasons, matched_pattern
 
     @classmethod
     def _collect_auth_evidence(

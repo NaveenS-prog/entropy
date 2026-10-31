@@ -14,7 +14,12 @@ from app.analyzers.security.models import EndpointDefinition
 from app.models.domain.enums import Confidence, DebtCategory, Severity, SupportedLanguage
 from app.models.domain.finding import Finding
 from app.models.domain.rule import RuleDefinition
-from app.scoring.weights import SENSITIVE_ROUTE_TERMS, is_intentionally_public_endpoint
+from app.scoring.weights import (
+    SENSITIVE_ROUTE_TERMS,
+    handler_has_public_hint,
+    is_intentionally_public_endpoint,
+    match_intentionally_public_endpoint,
+)
 
 
 class JSMissingAuthorizationRule:
@@ -90,7 +95,7 @@ class JSMissingAuthorizationRule:
 
     @classmethod
     def _requires_access_control(cls, ep: EndpointDefinition) -> bool:
-        if ep.is_public or is_intentionally_public_endpoint(ep.route_path, ep.symbol):
+        if ep.is_public or is_intentionally_public_endpoint(ep.route_path, ep.symbol, http_method=ep.http_methods):
             return False
 
         path_lower = (ep.route_path or "").lower()
@@ -146,6 +151,10 @@ class JSMissingAuthorizationRule:
             severity = self.default_severity
             confidence = self.default_confidence
 
+        # Check handler name hint: lowers confidence, never removes finding
+        if handler_has_public_hint(ep.symbol):
+            confidence = Confidence.LOW
+
         desc = (
             f"Privileged endpoint '{ep.display_route}' contains no recognizable authorization "
             f"evidence (e.g. role guard, permission check, or ownership validation). "
@@ -161,6 +170,25 @@ class JSMissingAuthorizationRule:
             symbol=ep.symbol,
             evidence_signature=sig,
         )
+
+        eval_res = match_intentionally_public_endpoint(
+            route_path=ep.route_path,
+            handler_name=ep.symbol,
+            http_method=ep.http_methods,
+        )
+        finding_meta = {
+            "route_path": ep.route_path,
+            "http_methods": ep.http_methods,
+            "has_authentication": ep.has_authentication,
+        }
+        if eval_res.matched_pattern:
+            finding_meta["matched_public_pattern"] = eval_res.matched_pattern
+        if eval_res.deny_term:
+            finding_meta["public_deny_reason"] = f"Denied public status due to sensitive term '{eval_res.deny_term}' in route or handler"
+        if eval_res.reason:
+            finding_meta["public_evaluation_reason"] = eval_res.reason
+        if handler_has_public_hint(ep.symbol):
+            finding_meta["handler_hint"] = f"Handler name '{ep.symbol}' suggests public utility, but route path is not in public allowlist; confidence lowered to LOW"
 
         return Finding(
             id=fid,
@@ -185,11 +213,7 @@ class JSMissingAuthorizationRule:
                 symbol=ep.symbol,
                 pattern_signature=sig,
             ),
-            metadata={
-                "route_path": ep.route_path,
-                "http_methods": ep.http_methods,
-                "has_authentication": ep.has_authentication,
-            },
+            metadata=finding_meta,
         )
 
 

@@ -194,6 +194,7 @@ class ScoringService:
         detected_frameworks: set[str] = set()
         unsupported_frameworks: set[str] = set()
         total_routes_count = 0
+        public_endpoints_skipped_count = 0
 
         # Parse units safely
         py_units = self.repo_service.parse_python_files(scan_id)
@@ -228,6 +229,8 @@ class ScoringService:
                 for ep in endpoints:
                     if ep.framework and ep.framework.value in SUPPORTED_WEB_FRAMEWORKS:
                         detected_frameworks.add(ep.framework.value)
+                    if ep.is_public:
+                        public_endpoints_skipped_count += 1
 
         # Inspect JS/TS units
         if jsts_units:
@@ -265,6 +268,8 @@ class ScoringService:
                 for ep in endpoints:
                     if ep.framework and ep.framework.value in SUPPORTED_WEB_FRAMEWORKS:
                         detected_frameworks.add(ep.framework.value)
+                    if ep.is_public:
+                        public_endpoints_skipped_count += 1
 
                 # Direct routes from structure
                 for r in ju.structure.routes:
@@ -336,6 +341,7 @@ class ScoringService:
             frameworks_with_route_support=sorted(list(detected_frameworks & FRAMEWORKS_WITH_ROUTE_SUPPORT)),
             unsupported_frameworks=sorted(list(unsupported_frameworks)),
             total_routes_detected=total_routes_count,
+            public_endpoints_skipped=public_endpoints_skipped_count,
         )
 
         # 6. Restrict active categories to those supported by repository languages

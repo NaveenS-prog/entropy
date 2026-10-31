@@ -16,7 +16,9 @@ from app.scoring.weights import (
     SENSITIVE_DATA_TERMS,
     SENSITIVE_ROUTE_TERMS,
     drop_severity_one_level,
+    handler_has_public_hint,
     is_intentionally_public_endpoint,
+    match_intentionally_public_endpoint,
 )
 
 # =============================================================================
@@ -76,7 +78,7 @@ class PotentiallyUnprotectedEndpointRule(BaseRule):
             if (
                 ep.is_security_sensitive
                 and not ep.is_public
-                and not is_intentionally_public_endpoint(ep.route_path, ep.symbol)
+                and not is_intentionally_public_endpoint(ep.route_path, ep.symbol, http_method=ep.http_methods)
                 and not ep.has_authentication
                 and not ep.has_authorization
             ):
@@ -122,6 +124,10 @@ class PotentiallyUnprotectedEndpointRule(BaseRule):
                 else self.default_confidence
             )
 
+        # Check handler name hint: handler name matching is a hint only (may lower confidence, never removes finding)
+        if handler_has_public_hint(ep.symbol):
+            conf = Confidence.LOW
+
         # If response model or body shows no sensitive data, drop severity by one level
         func = context.get_enclosing_function(ep.location.line_start)
         response_data_str = ""
@@ -152,6 +158,27 @@ class PotentiallyUnprotectedEndpointRule(BaseRule):
             evidence_signature=sig,
         )
 
+        eval_res = match_intentionally_public_endpoint(
+            route_path=ep.route_path,
+            handler_name=ep.symbol,
+            http_method=ep.http_methods,
+        )
+        finding_meta = {
+            "http_methods": ep.http_methods,
+            "route_path": ep.route_path,
+            "framework": ep.framework.value,
+            "sensitivity_reasons": ep.sensitivity_reasons,
+            "route_group": ep.route_group,
+        }
+        if eval_res.matched_pattern:
+            finding_meta["matched_public_pattern"] = eval_res.matched_pattern
+        if eval_res.deny_term:
+            finding_meta["public_deny_reason"] = f"Denied public status due to sensitive term '{eval_res.deny_term}' in route or handler"
+        if eval_res.reason:
+            finding_meta["public_evaluation_reason"] = eval_res.reason
+        if handler_has_public_hint(ep.symbol):
+            finding_meta["handler_hint"] = f"Handler name '{ep.symbol}' suggests public utility, but route path is not in public allowlist; confidence lowered to LOW"
+
         return Finding(
             id=fid,
             category=self.category,
@@ -175,13 +202,7 @@ class PotentiallyUnprotectedEndpointRule(BaseRule):
                 symbol=ep.symbol,
                 pattern_signature=sig,
             ),
-            metadata={
-                "http_methods": ep.http_methods,
-                "route_path": ep.route_path,
-                "framework": ep.framework.value,
-                "sensitivity_reasons": ep.sensitivity_reasons,
-                "route_group": ep.route_group,
-            },
+            metadata=finding_meta,
         )
 
 
@@ -253,7 +274,7 @@ class InconsistentAuthenticationRule(BaseRule):
                 e for e in eps
                 if not e.has_authentication
                 and not e.is_public
-                and not is_intentionally_public_endpoint(e.route_path, e.symbol)
+                and not is_intentionally_public_endpoint(e.route_path, e.symbol, http_method=e.http_methods)
             ]
 
             # Inconsistency: group has authenticated routes, but some non-public routes lack auth
@@ -560,7 +581,7 @@ class PotentiallyMissingAuthorizationRule(BaseRule):
     @classmethod
     def _requires_access_control(cls, ep: EndpointDefinition) -> bool:
         """Evaluate if an endpoint represents a privileged / administrative domain."""
-        if ep.is_public or is_intentionally_public_endpoint(ep.route_path, ep.symbol):
+        if ep.is_public or is_intentionally_public_endpoint(ep.route_path, ep.symbol, http_method=ep.http_methods):
             return False
 
         path_lower = (ep.route_path or "").lower()
@@ -606,6 +627,9 @@ class PotentiallyMissingAuthorizationRule(BaseRule):
             severity = self.default_severity
             confidence = self.default_confidence
 
+        # Check handler name hint: lowers confidence, never removes finding
+        if handler_has_public_hint(ep.symbol):
+            confidence = Confidence.LOW
 
         desc = (
             f"Privileged endpoint '{ep.display_route}' contains no recognizable authorization "
@@ -622,6 +646,25 @@ class PotentiallyMissingAuthorizationRule(BaseRule):
             symbol=ep.symbol,
             evidence_signature=sig,
         )
+
+        eval_res = match_intentionally_public_endpoint(
+            route_path=ep.route_path,
+            handler_name=ep.symbol,
+            http_method=ep.http_methods,
+        )
+        finding_meta = {
+            "route_path": ep.route_path,
+            "http_methods": ep.http_methods,
+            "has_authentication": ep.has_authentication,
+        }
+        if eval_res.matched_pattern:
+            finding_meta["matched_public_pattern"] = eval_res.matched_pattern
+        if eval_res.deny_term:
+            finding_meta["public_deny_reason"] = f"Denied public status due to sensitive term '{eval_res.deny_term}' in route or handler"
+        if eval_res.reason:
+            finding_meta["public_evaluation_reason"] = eval_res.reason
+        if handler_has_public_hint(ep.symbol):
+            finding_meta["handler_hint"] = f"Handler name '{ep.symbol}' suggests public utility, but route path is not in public allowlist; confidence lowered to LOW"
 
         return Finding(
             id=fid,
@@ -646,11 +689,7 @@ class PotentiallyMissingAuthorizationRule(BaseRule):
                 symbol=ep.symbol,
                 pattern_signature=sig,
             ),
-            metadata={
-                "route_path": ep.route_path,
-                "http_methods": ep.http_methods,
-                "has_authentication": ep.has_authentication,
-            },
+            metadata=finding_meta,
         )
 
 

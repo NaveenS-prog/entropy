@@ -9,6 +9,7 @@ static-analysis rules. It does not measure vulnerability exploitability or AI au
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import math
 import re
 
@@ -95,8 +96,90 @@ SENSITIVE_ROUTE_TERMS: set[str] = {
     "token",
 }
 
-# Intentionally public endpoint terms (configurable)
-# When an endpoint path or handler name matches any of these terms, it is treated as intentionally public.
+# Generic prefix segments that can prefix public patterns (up to two segments)
+PUBLIC_ROUTE_PREFIX_SEGMENTS: set[str] = {
+    "api",
+    "v1",
+    "v2",
+    "auth",
+    "oauth",
+    "oauth2",
+    "accounts",
+    "public",
+}
+
+# Known intentionally public route path patterns
+KNOWN_PUBLIC_ROUTE_PATTERNS: list[str] = [
+    "/login",
+    "/login/access-token",
+    "/auth/login",
+    "/logout",
+    "/signup",
+    "/register",
+    "/signin",
+    "/token",
+    "/oauth/token",
+    "/oauth/callback",
+    "/refresh",
+    "/password-recovery/{email}",
+    "/reset-password",
+    "/forgot-password",
+    "/password-reset",
+    "/verify-email/{token}",
+    "/health",
+    "/healthz",
+    "/live",
+    "/ready",
+    "/ping",
+    "/status",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/openapi",
+    "/metrics",
+    "/favicon.ico",
+]
+
+# Sensitive / Administrative terms that trigger deny override:
+# If ANY path segment or the handler name contains any of these terms, the route is NEVER public.
+PUBLIC_DENY_TERMS: set[str] = {
+    "admin",
+    "internal",
+    "manage",
+    "management",
+    "root",
+    "superuser",
+    "sudo",
+    "impersonate",
+    "any-user",
+    "all-users",
+    "delete",
+    "export",
+    "debug",
+    "console",
+    "payment",
+    "payments",
+    "refund",
+}
+
+# State-changing HTTP methods
+STATE_CHANGING_METHODS: set[str] = {"POST", "PUT", "PATCH", "DELETE"}
+
+# Explicit allowlist of terms required for state-changing public endpoints
+STATE_CHANGING_PUBLIC_ALLOWLIST: set[str] = {
+    "login",
+    "signup",
+    "register",
+    "token",
+    "refresh",
+    "reset",
+    "forgot",
+    "verify",
+    "logout",
+    "recovery",
+}
+
+# Legacy alias for backward compatibility
 INTENTIONALLY_PUBLIC_ENDPOINT_TERMS: set[str] = {
     "login",
     "signin",
@@ -152,46 +235,177 @@ SENSITIVE_DATA_TERMS: set[str] = {
 }
 
 
+@dataclass(frozen=True)
+class PublicEndpointEvaluation:
+    """Detailed result of evaluating whether an endpoint is intentionally public."""
+
+    is_public: bool
+    matched_pattern: str | None = None
+    deny_term: str | None = None
+    reason: str | None = None
+
+
+def _is_wildcard_segment(seg: str) -> bool:
+    """Check if a path segment represents a parameter wildcard."""
+    if seg.startswith(":") and len(seg) > 1:
+        return True
+    if seg.startswith("{") and seg.endswith("}"):
+        return True
+    if seg.startswith("[") and seg.endswith("]"):
+        return True
+    return False
+
+
+def _segment_matches(route_seg: str, pattern_seg: str) -> bool:
+    """Compare a normalized route segment with a pattern segment."""
+    if route_seg == pattern_seg:
+        return True
+    if _is_wildcard_segment(pattern_seg):
+        # The pattern expects a wildcard param here, so any param or path token matches
+        return True
+    return False
+
+
+def match_intentionally_public_endpoint(
+    route_path: str | None,
+    handler_name: str | None = None,
+    http_method: str | list[str] | set[str] | None = None,
+    known_patterns: list[str] | None = None,
+    deny_terms: set[str] | None = None,
+    prefix_segments: set[str] | None = None,
+    state_changing_allowlist: set[str] | None = None,
+) -> PublicEndpointEvaluation:
+    """Evaluate whether a route is intentionally public using anchored matching, prefix rules, and deny override."""
+    if not route_path:
+        return PublicEndpointEvaluation(is_public=False, reason="Empty route path")
+
+    patterns = known_patterns if known_patterns is not None else KNOWN_PUBLIC_ROUTE_PATTERNS
+    denies = deny_terms if deny_terms is not None else PUBLIC_DENY_TERMS
+    prefixes = prefix_segments if prefix_segments is not None else PUBLIC_ROUTE_PREFIX_SEGMENTS
+    sc_allowlist = state_changing_allowlist if state_changing_allowlist is not None else STATE_CHANGING_PUBLIC_ALLOWLIST
+
+    # 1. Path normalization: strip query, collapse slashes, strip whitespace, lowercase
+    clean_path = route_path.split("?")[0].strip().lower()
+    clean_path = re.sub(r"/+", "/", clean_path)
+    segments = [s for s in clean_path.strip("/").split("/") if s]
+
+    if not segments:
+        if clean_path in ("", "/"):
+            return PublicEndpointEvaluation(is_public=False, reason="Root path without public pattern")
+        return PublicEndpointEvaluation(is_public=False, reason="Invalid route path")
+
+    # 2. Deny override: if ANY path segment or handler name contains a sensitive/administrative term
+    candidates = list(segments)
+    if handler_name:
+        candidates.append(handler_name)
+
+    for item in candidates:
+        i_lower = item.lower()
+        i_hyphen = i_lower.replace("_", "-")
+        i_under = i_lower.replace("-", "_")
+        for deny in denies:
+            d_lower = deny.lower()
+            d_hyphen = d_lower.replace("_", "-")
+            d_under = d_lower.replace("-", "_")
+            if d_lower in i_lower or d_hyphen in i_hyphen or d_under in i_under:
+                return PublicEndpointEvaluation(
+                    is_public=False,
+                    deny_term=deny,
+                    reason=f"Deny override: sensitive term '{deny}' found in route/handler item '{item}'",
+                )
+
+    # 3. Strip up to two generic prefix segments
+    candidate_segment_lists: list[list[str]] = [segments]
+    if len(segments) >= 2 and segments[0] in prefixes:
+        candidate_segment_lists.append(segments[1:])
+    if len(segments) >= 3 and segments[0] in prefixes and segments[1] in prefixes:
+        candidate_segment_lists.append(segments[2:])
+
+    matched_pattern: str | None = None
+    for cand in candidate_segment_lists:
+        for pat in patterns:
+            pat_clean = pat.split("?")[0].strip().lower()
+            pat_clean = re.sub(r"/+", "/", pat_clean)
+            pat_segments = [p for p in pat_clean.strip("/").split("/") if p]
+
+            if len(cand) != len(pat_segments):
+                continue
+
+            if all(_segment_matches(c, p) for c, p in zip(cand, pat_segments, strict=True)):
+                matched_pattern = pat
+                break
+        if matched_pattern:
+            break
+
+    if not matched_pattern:
+        return PublicEndpointEvaluation(is_public=False, reason=f"No public pattern matched route '{clean_path}'")
+
+    # 4. State-changing HTTP method validation
+    methods: set[str] = set()
+    if http_method:
+        if isinstance(http_method, str):
+            methods = {http_method.upper()}
+        else:
+            methods = {m.upper() for m in http_method if isinstance(m, str)}
+
+    mutating_methods = methods.intersection(STATE_CHANGING_METHODS)
+    if mutating_methods:
+        # Must be in explicit state-changing allowlist
+        pat_lower = matched_pattern.lower()
+        has_allowed_sc = any(
+            term in pat_lower or any(term in s for s in segments)
+            for term in sc_allowlist
+        )
+        if not has_allowed_sc:
+            return PublicEndpointEvaluation(
+                is_public=False,
+                matched_pattern=matched_pattern,
+                reason=f"State-changing method ({', '.join(sorted(mutating_methods))}) not allowed on public endpoint '{clean_path}'",
+            )
+
+    return PublicEndpointEvaluation(
+        is_public=True,
+        matched_pattern=matched_pattern,
+        reason=f"Matched public pattern '{matched_pattern}'",
+    )
+
+
 def is_intentionally_public_endpoint(
     route_path: str | None,
-    handler_name: str | None,
+    handler_name: str | None = None,
+    http_method: str | list[str] | set[str] | None = None,
     terms: set[str] | None = None,
 ) -> bool:
-    """Check if a route path or handler name matches configured intentionally public terms."""
-    check_terms = terms if terms is not None else INTENTIONALLY_PUBLIC_ENDPOINT_TERMS
-    path_lower = (route_path or "").lower()
+    """Check if a route path matches configured intentionally public patterns."""
+    res = match_intentionally_public_endpoint(
+        route_path=route_path,
+        handler_name=handler_name,
+        http_method=http_method,
+    )
+    return res.is_public
 
-    # Only treat handler_name as a name if it's an identifier or simple name (not a code snippet/arrow function)
-    clean_handler = ""
-    if handler_name:
-        h_str = handler_name.strip()
-        if re.match(r"^[a-zA-Z_$][a-zA-Z0-9_$-]*$", h_str):
-            clean_handler = h_str.lower()
 
-    path_tokens = set(re.findall(r"[a-z0-9]+", path_lower))
-    handler_tokens = set(re.findall(r"[a-z0-9]+", clean_handler)) if clean_handler else set()
-    combined_tokens = path_tokens | handler_tokens
-
-    for term in check_terms:
-        term_clean = term.lower()
-        if "-" in term_clean or "_" in term_clean:
-            term_alt = term_clean.replace("-", "_")
-            term_hyphen = term_clean.replace("_", "-")
-            if (
-                term_clean in path_lower
-                or term_alt in path_lower
-                or term_hyphen in path_lower
-                or (clean_handler and (
-                    term_clean in clean_handler
-                    or term_alt in clean_handler
-                    or term_hyphen in clean_handler
-                ))
-            ):
-                return True
-        else:
-            if term_clean in combined_tokens:
-                return True
-    return False
+def handler_has_public_hint(handler_name: str | None) -> bool:
+    """Check if a handler name suggests intentionally public utility (hint only, lowers confidence)."""
+    if not handler_name:
+        return False
+    h_tokens = set(re.findall(r"[a-z0-9]+", handler_name.lower()))
+    public_hint_tokens = {
+        "login",
+        "signin",
+        "signup",
+        "register",
+        "logout",
+        "token",
+        "refresh",
+        "health",
+        "healthz",
+        "ping",
+        "status",
+        "docs",
+        "metrics",
+    }
+    return bool(h_tokens.intersection(public_hint_tokens))
 
 
 def drop_severity_one_level(severity: Severity) -> Severity:

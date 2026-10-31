@@ -200,7 +200,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="ENTROPY_",
-        env_file=".env",
+        env_file=(".env", str(Path(__file__).resolve().parent.parent.parent / ".env")),
         extra="ignore",
     )
 

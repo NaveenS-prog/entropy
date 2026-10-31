@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { AIExplanation, DebtCategory, Finding, Severity } from "@/types";
 import { getSeverityBadge } from "@/lib/utils";
-import { getStoredGeminiApiKey, requestAIExplanation, setStoredGeminiApiKey } from "@/lib/api";
+import { requestAIExplanation } from "@/lib/api";
 import {
   Code,
   AlertCircle,
@@ -18,8 +18,6 @@ import {
   Loader2,
   RefreshCw,
   Info,
-  KeyRound,
-  X,
 } from "lucide-react";
 
 interface FindingsViewerProps {
@@ -40,15 +38,10 @@ export function FindingsViewer({
   const [selectedRule, setSelectedRule] = useState<string>("all");
   const [expandedFindings, setExpandedFindings] = useState<Record<string, boolean>>({});
 
-  // AI Explanation States
+  // AI Explanation States (automatic server-side Gemini integration)
   const [aiExplanations, setAiExplanations] = useState<Record<string, AIExplanation>>({});
   const [loadingAI, setLoadingAI] = useState<Record<string, boolean>>({});
   const [aiErrors, setAiErrors] = useState<Record<string, string>>({});
-  const [inlineKeyInputs, setInlineKeyInputs] = useState<Record<string, string>>({});
-  const [showKeyModal, setShowKeyModal] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState(() =>
-    typeof window !== "undefined" ? getStoredGeminiApiKey() || "" : ""
-  );
 
   const toggleExpand = (id: string) => {
     setExpandedFindings((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -66,7 +59,7 @@ export function FindingsViewer({
     setExpandedFindings({});
   };
 
-  const handleRequestAIExplanation = async (findingId: string, customKey?: string) => {
+  const handleRequestAIExplanation = async (findingId: string) => {
     setLoadingAI((prev) => ({ ...prev, [findingId]: true }));
     setAiErrors((prev) => {
       const copy = { ...prev };
@@ -74,13 +67,8 @@ export function FindingsViewer({
       return copy;
     });
 
-    if (customKey) {
-      setStoredGeminiApiKey(customKey);
-      setApiKeyInput(customKey);
-    }
-
     try {
-      const result = await requestAIExplanation(findingId, scanId, customKey);
+      const result = await requestAIExplanation(findingId, scanId);
       setAiExplanations((prev) => ({ ...prev, [findingId]: result }));
     } catch (err: unknown) {
       const message =
@@ -173,18 +161,8 @@ export function FindingsViewer({
             <option value="info">Info</option>
           </select>
 
-          {/* Expand/Collapse All & Gemini Config */}
+          {/* Expand/Collapse All */}
           <div className="flex items-center gap-1.5 ml-auto">
-            <button
-              type="button"
-              onClick={() => setShowKeyModal(true)}
-              className="flex items-center gap-1.5 text-[11px] text-violet-300 hover:text-white px-2.5 py-1 rounded bg-violet-950/40 border border-violet-700/50 hover:bg-violet-900/50 transition-colors shadow-sm"
-              title="Configure Google Gemini API Key for AI Explanation"
-            >
-              <KeyRound className="h-3 w-3 text-violet-400" />
-              <span>Gemini Key</span>
-            </button>
-
             {filtered.length > 0 && (
               <>
                 <button
@@ -205,86 +183,6 @@ export function FindingsViewer({
             )}
           </div>
         </div>
-
-        {/* Gemini API Key Configuration Modal */}
-        {showKeyModal && (
-          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-ink-900 border border-violet-500/30 rounded-xl p-5 max-w-md w-full shadow-2xl space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-border">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-400">
-                    <Sparkles className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-white">Google Gemini API Key</h3>
-                    <p className="text-[11px] text-ink-400">Used for browser AI explanations</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowKeyModal(false)}
-                  className="text-ink-400 hover:text-white p-1 rounded"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="space-y-2 text-xs text-ink-300">
-                <label className="block text-ink-200 font-medium">Gemini API Key</label>
-                <input
-                  type="password"
-                  placeholder="AIzaSy..."
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  className="w-full bg-ink-950 border border-border rounded-lg px-3 py-2 text-xs text-white placeholder-ink-600 focus:outline-none focus:border-violet-500 font-mono"
-                />
-                <p className="text-[11px] text-ink-400">
-                  Key is saved locally in your browser. Get a key from{" "}
-                  <a
-                    href="https://aistudio.google.com/app/apikey"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-violet-400 underline hover:text-violet-300"
-                  >
-                    Google AI Studio
-                  </a>
-                  .
-                </p>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
-                <button
-                  type="button"
-                  onClick={() => setShowKeyModal(false)}
-                  className="px-3 py-1.5 rounded-lg border border-border text-xs text-ink-300 hover:bg-ink-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStoredGeminiApiKey("demo");
-                    setApiKeyInput("demo");
-                    setShowKeyModal(false);
-                  }}
-                  className="px-3 py-1.5 rounded-lg border border-violet-500/30 text-xs text-violet-300 hover:bg-violet-950/40 font-medium"
-                >
-                  Use Demo Mode (No Key)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStoredGeminiApiKey(apiKeyInput);
-                    setShowKeyModal(false);
-                  }}
-                  className="px-4 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium shadow-md transition-colors"
-                >
-                  Save Key
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Findings List */}
@@ -500,9 +398,9 @@ export function FindingsViewer({
                         </div>
                       )}
 
-                      {/* Error & Inline API Key Configuration */}
+                      {/* Error & Retry */}
                       {aiError && (
-                        <div className="p-3.5 rounded-md bg-ink-850 border border-border space-y-2.5 text-ink-300">
+                        <div className="p-3.5 rounded-md bg-ink-850 border border-border space-y-2 text-ink-300">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-start gap-2">
                               <AlertCircle className="h-4 w-4 text-amber-400 flex-shrink-0 mt-0.5" />
@@ -511,9 +409,7 @@ export function FindingsViewer({
                                   Gemini AI Explanation Unavailable
                                 </p>
                                 <p className="text-ink-400 text-[11px] mt-0.5">
-                                  {aiError.includes("disabled")
-                                    ? "AI explanations are disabled in the environment. Set AI_ENABLED=true or provide a Gemini API key below."
-                                    : aiError}
+                                  {aiError}
                                 </p>
                               </div>
                             </div>
@@ -524,44 +420,6 @@ export function FindingsViewer({
                             >
                               <RefreshCw className="h-3 w-3" />
                               <span>Retry</span>
-                            </button>
-                          </div>
-
-                          {/* Quick inline Gemini API Key entry */}
-                          <div className="pt-2 border-t border-border/60 flex items-center gap-2">
-                            <input
-                              type="password"
-                              placeholder="Enter Gemini API key (AIzaSy...)"
-                              value={inlineKeyInputs[finding.id] || ""}
-                              onChange={(e) =>
-                                setInlineKeyInputs((prev) => ({
-                                  ...prev,
-                                  [finding.id]: e.target.value,
-                                }))
-                              }
-                              className="flex-1 bg-ink-950 border border-border rounded px-2.5 py-1 text-xs text-white placeholder-ink-600 focus:outline-none focus:border-violet-500 font-mono"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleRequestAIExplanation(finding.id, "demo");
-                              }}
-                              className="px-2.5 py-1 rounded border border-violet-500/30 text-violet-300 hover:bg-violet-950/40 text-xs font-medium transition-colors flex-shrink-0"
-                              title="Test explanation without API key"
-                            >
-                              Demo (No Key)
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const key = inlineKeyInputs[finding.id];
-                                if (key) {
-                                  handleRequestAIExplanation(finding.id, key);
-                                }
-                              }}
-                              className="px-3 py-1 rounded bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors flex-shrink-0"
-                            >
-                              Save &amp; Explain
                             </button>
                           </div>
                         </div>

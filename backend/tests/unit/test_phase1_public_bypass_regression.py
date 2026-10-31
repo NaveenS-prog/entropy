@@ -24,7 +24,7 @@ from app.analyzers.security.auth.rules import (
     PotentiallyMissingAuthorizationRule,
     PotentiallyUnprotectedEndpointRule,
 )
-from app.models.domain.enums import Confidence, SupportedLanguage
+from app.models.domain.enums import SupportedLanguage
 from app.parser.jsts.parser import JSTSParser
 from app.parser.python.parser import PythonParser
 from app.scoring.weights import (

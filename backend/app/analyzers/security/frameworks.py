@@ -25,7 +25,6 @@ from app.parser.python.models import Decorator, FunctionDefinition, SourceLocati
 from app.scoring.weights import (
     STATE_CHANGING_METHODS,
     STATE_CHANGING_PUBLIC_ALLOWLIST,
-    is_intentionally_public_endpoint,
     match_intentionally_public_endpoint,
 )
 

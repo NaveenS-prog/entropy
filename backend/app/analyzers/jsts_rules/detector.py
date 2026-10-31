@@ -27,7 +27,6 @@ from app.scoring.weights import (
     SENSITIVE_ROUTE_TERMS,
     STATE_CHANGING_METHODS,
     STATE_CHANGING_PUBLIC_ALLOWLIST,
-    is_intentionally_public_endpoint,
     match_intentionally_public_endpoint,
 )
 

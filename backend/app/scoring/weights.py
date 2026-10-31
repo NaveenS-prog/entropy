@@ -9,9 +9,9 @@ static-analysis rules. It does not measure vulnerability exploitability or AI au
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import math
 import re
+from dataclasses import dataclass
 
 from app.models.domain.enums import Confidence, DebtCategory, Severity
 

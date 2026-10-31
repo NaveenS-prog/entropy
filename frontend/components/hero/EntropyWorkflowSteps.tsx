@@ -1,6 +1,7 @@
 "use client";
 
 import { Shield, Sparkles, FolderGit2, CheckCircle2, ArrowRight, Zap, Lock, Cpu } from "lucide-react";
+import { EntropyLogo } from "@/components/brand/EntropyLogo";
 
 interface EntropyWorkflowStepsProps {
   onQuickStartSample?: () => void;
@@ -43,8 +44,8 @@ export function EntropyWorkflowSteps({ onQuickStartSample }: EntropyWorkflowStep
   return (
     <section className="w-full space-y-6 pt-4" aria-labelledby="workflow-steps-heading">
       <div className="text-center max-w-xl mx-auto space-y-2">
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-ink-900 border border-border text-[11px] font-mono text-ink-300">
-          <Zap className="w-3 h-3 text-orange-400" />
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-ink-900 border border-border text-[11px] font-mono text-ink-300">
+          <EntropyLogo size={16} roundedClassName="rounded-xs" />
           <span>how it works &bull; 3-step forensic loop</span>
         </div>
         <h2
@@ -78,9 +79,15 @@ export function EntropyWorkflowSteps({ onQuickStartSample }: EntropyWorkflowStep
 
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
-                    <div className="h-7 w-7 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400 group-hover:scale-110 transition-transform">
-                      <Icon className="w-4 h-4" />
-                    </div>
+                    {s.step === "02" ? (
+                      <div className="h-7 w-7 rounded-lg overflow-hidden border border-border/80 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                        <EntropyLogo size={28} roundedClassName="rounded-lg" />
+                      </div>
+                    ) : (
+                      <div className="h-7 w-7 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400 group-hover:scale-110 transition-transform">
+                        <Icon className="w-4 h-4" />
+                      </div>
+                    )}
                     <span className="text-xs font-mono uppercase tracking-wider text-ink-400">
                       {s.subhead}
                     </span>

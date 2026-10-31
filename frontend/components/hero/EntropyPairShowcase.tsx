@@ -16,6 +16,7 @@ import {
   Terminal,
   ExternalLink,
 } from "lucide-react";
+import { EntropyLogo } from "@/components/brand/EntropyLogo";
 
 export function EntropyPairShowcase() {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -82,19 +83,24 @@ ${currentPair.explanation.suggested_pattern}
     <section className="w-full space-y-4" aria-labelledby="showcase-title">
       {/* Section Header with Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 pb-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-orange-400 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-orange-400 animate-pulse" />
-              <span>Interactive Forensic Showcase</span>
-            </span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-300 border border-orange-500/20">
-              AST Evidence &rarr; AI Remediation
-            </span>
+        <div className="flex items-center gap-3">
+          <div className="p-0.5 rounded-lg border border-border/80 bg-ink-900 shrink-0">
+            <EntropyLogo size={24} roundedClassName="rounded-md" />
           </div>
-          <h2 id="showcase-title" className="text-sm font-semibold text-white mt-1">
-            Real AST Findings vs Grounded Explanations
-          </h2>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-orange-400 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-orange-400 animate-pulse" />
+                <span>Interactive Forensic Showcase</span>
+              </span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-300 border border-orange-500/20">
+                AST Evidence &rarr; AI Remediation
+              </span>
+            </div>
+            <h2 id="showcase-title" className="text-sm font-semibold text-white mt-0.5">
+              Real AST Findings vs Grounded Explanations
+            </h2>
+          </div>
         </div>
 
         {/* Example Switcher Controls */}

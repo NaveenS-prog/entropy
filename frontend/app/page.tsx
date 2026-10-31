@@ -33,6 +33,7 @@ import { ScanComparisonView } from "@/components/comparison/ScanComparisonView";
 import { PRWorkflowView } from "@/components/github/PRWorkflowView";
 import { EntropyPairShowcase } from "@/components/hero/EntropyPairShowcase";
 import { EntropyWorkflowSteps } from "@/components/hero/EntropyWorkflowSteps";
+import { EntropyLogo } from "@/components/brand/EntropyLogo";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FolderGit2,
@@ -819,12 +820,13 @@ export default function RepositoryIngestionDashboard() {
         <PRWorkflowView />
       ) : (
         <>
-          {/* letsbrag.app Inspired Hero Headline & Subhead */}
+          {/* letsbrag.app Inspired Hero Headline & Subhead with Entropy Brand Mark */}
           {!activeScan && (
-            <div className="text-center max-w-3xl mx-auto space-y-4 pt-2 pb-4">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/25 text-orange-400 text-xs font-mono shadow-sm">
-                <Sparkles className="w-3.5 h-3.5 text-orange-400 animate-pulse" />
-                <span>phase 7 ai explanation &bull; 100% grounded in observable AST evidence</span>
+            <div className="text-center max-w-3xl mx-auto space-y-4 pt-3 pb-4">
+              <div className="flex justify-center">
+                <div className="p-1 rounded-2xl bg-ink-900/90 border border-border/80 shadow-2xl hover:border-orange-500/50 hover:scale-105 transition-all duration-300">
+                  <EntropyLogo size={64} roundedClassName="rounded-xl" priority />
+                </div>
               </div>
 
               <h1 className="text-4xl sm:text-6xl font-extrabold text-white tracking-tight leading-[1.08]">
@@ -842,8 +844,10 @@ export default function RepositoryIngestionDashboard() {
           <div id="scan-trigger-box" className="border border-border/90 rounded-2xl p-6 bg-card/60 space-y-5 relative">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 pb-4">
               <div>
-                <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <Terminal className="h-4 w-4 text-ink-400" />
+                <h2 className="text-sm font-semibold text-white flex items-center gap-2.5">
+                  <div className="p-0.5 rounded border border-border/80 bg-ink-900">
+                    <EntropyLogo size={18} roundedClassName="rounded-sm" />
+                  </div>
                   <span>Security Scanner</span>
                 </h2>
                 <p className="text-xs text-ink-400 mt-0.5">
@@ -1675,8 +1679,8 @@ export default function RepositoryIngestionDashboard() {
                           className="px-5 py-3.5 flex items-center justify-between hover:bg-ink-850/60 transition-colors cursor-pointer group"
                         >
                           <div className="flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-lg bg-ink-800 border border-border flex items-center justify-center text-ink-400 group-hover:text-white transition-colors">
-                              <FolderGit2 className="h-4 w-4" />
+                            <div className="h-8 w-8 rounded-lg overflow-hidden border border-border/80 flex items-center justify-center shrink-0 group-hover:border-orange-500/50 transition-colors">
+                              <EntropyLogo size={32} roundedClassName="rounded-lg" />
                             </div>
                             <div>
                               <div className="text-xs font-medium text-white group-hover:text-orange-300 transition-colors">

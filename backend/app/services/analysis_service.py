@@ -48,12 +48,14 @@ class AnalysisService:
             root_path = Path(scan.repository.path)
             python_units = self.repo_service.parse_python_files(scan_id)
             jsts_units = self.repo_service.parse_jsts_files(scan_id)
+            other_files = self.repo_service.parse_other_language_files(scan_id)
 
             context = AnalysisContext.from_python_units(
                 repo_path=root_path,
                 units=python_units,
                 manifest=scan.manifest,
                 jsts_units=jsts_units,
+                other_files=other_files,
             )
 
             findings = self.registry.analyze(context)
@@ -87,6 +89,13 @@ class AnalysisService:
                                 js_unit.source_code, js_unit.file_path, valid_rules=valid_rules
                             )
                         )
+                for other_f in other_files:
+                    if other_f.source_code:
+                        inline_suppressions.extend(
+                            extract_inline_suppressions(
+                                other_f.source_code, other_f.relative_path, valid_rules=valid_rules
+                            )
+                        )
 
                 _active_findings, suppressed_findings = apply_suppressions(
                     findings=findings,
@@ -109,11 +118,12 @@ class AnalysisService:
             scan.analyzers_executed = [a.analyzer_id for a in self.registry.get_all()]
             self.repo_service.save_scan(scan)
             logger.info(
-                "Scan '%s' analysis complete: %d finding(s) discovered across %d Python file(s) and %d JS/TS file(s)",
+                "Scan '%s' analysis complete: %d finding(s) discovered across %d Python file(s), %d JS/TS file(s), and %d other language file(s)",
                 scan_id,
                 len(findings),
                 len(python_units),
                 len(jsts_units),
+                len(other_files),
             )
         else:
             findings = scan.findings

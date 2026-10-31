@@ -38,7 +38,7 @@ class ParsedFile:
             language=unit.language,
             source_code=unit.source_code,
             lines=unit.lines,
-            ast_root=unit.ast_root,
+            ast_root=getattr(unit, "ast_root", getattr(unit, "tree", None)),
             parse_errors=unit.errors,
             structure=unit.structure,
             unit=unit,

@@ -108,4 +108,5 @@ class SupportedLanguage(StrEnum):
     CPP = "cpp"
     GO = "go"
     RUST = "rust"
+    PHP = "php"
     UNKNOWN = "unknown"

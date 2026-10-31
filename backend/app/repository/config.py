@@ -1,6 +1,7 @@
 import fnmatch
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
+from typing import Any
 
 DEFAULT_EXCLUDED_PATHS: list[str] = [
     "test",
@@ -27,6 +28,14 @@ DEFAULT_EXCLUDED_PATHS: list[str] = [
     "*.spec.*",
     "test_*.py",
     "*_test.py",
+    "*_test.go",
+    "*Test.java",
+    "*Tests.java",
+    "*TestCase.java",
+    "*_test.c",
+    "*_test.cpp",
+    "*_test.rs",
+    "*Test.php",
     "*.stories.*",
 ]
 
@@ -60,6 +69,7 @@ class ScannerConfig:
     include_tests: bool = False
     excluded_paths: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDED_PATHS))
     custom_exclude_patterns: list[str] = field(default_factory=list)
+    analyzable_languages: set[Any] | None = None
 
     ignored_directories: set[str] = field(
         default_factory=lambda: {

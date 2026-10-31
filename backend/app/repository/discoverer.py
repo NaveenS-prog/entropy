@@ -300,8 +300,12 @@ class RepositoryDiscoverer:
                     )
                     continue
 
-                analysis_supported = is_analysis_supported(language)
-                skip_reason = get_analysis_skip_reason(language)
+                if self.config.analyzable_languages is not None:
+                    analysis_supported = language in self.config.analyzable_languages
+                    skip_reason = None if analysis_supported else (get_analysis_skip_reason(language) or "language_detected_but_analyzer_unavailable")
+                else:
+                    analysis_supported = is_analysis_supported(language)
+                    skip_reason = get_analysis_skip_reason(language)
 
                 discovered = DiscoveredFile(
                     absolute_path=full_path,

@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from app.models.domain.enums import Confidence, DebtCategory, Severity
+from app.models.domain.enums import Confidence, DebtCategory, Severity, SupportedLanguage
 
 
 class SourceLocation(BaseModel):
@@ -92,6 +92,14 @@ class Finding(BaseModel):
     status: str | None = Field(
         default=None,
         description="Finding status: 'active', 'suppressed', 'new', 'resolved', or 'unchanged'",
+    )
+    language: SupportedLanguage | str | None = Field(
+        default=None,
+        description="Programming language of the source file where finding was detected",
+    )
+    reference: str | None = Field(
+        default=None,
+        description="External reference URL, standard documentation link, or CVE/CWE reference",
     )
 
     @classmethod

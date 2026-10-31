@@ -29,7 +29,7 @@ from app.comparison.models import ScanComparisonResult
 from app.comparison.service import comparison_service
 from app.core.config import settings
 from app.core.errors import RepositoryError
-from app.models.domain.enums import Confidence, DebtCategory, Severity
+from app.models.domain.enums import Confidence, DebtCategory, Severity, SupportedLanguage
 from app.models.domain.finding import Finding
 from app.models.domain.scan import RepositoryScanResult
 from app.policy.evaluator import PolicyEvaluator
@@ -67,6 +67,27 @@ CATEGORY_LABELS = {
 }
 
 
+def _parse_languages_arg(lang_str: str | None) -> set[SupportedLanguage] | None:
+    """Parse comma-separated language names into a set of SupportedLanguage enums."""
+    if not lang_str:
+        return None
+    valid_map: dict[str, SupportedLanguage] = {lang.value: lang for lang in SupportedLanguage}
+    valid_map["c++"] = SupportedLanguage.CPP
+    valid_map["js"] = SupportedLanguage.JAVASCRIPT
+    valid_map["ts"] = SupportedLanguage.TYPESCRIPT
+    selected: set[SupportedLanguage] = set()
+    for item in lang_str.split(","):
+        cleaned = item.strip().lower()
+        if not cleaned:
+            continue
+        if cleaned in valid_map:
+            selected.add(valid_map[cleaned])
+        else:
+            supported_str = ", ".join(l.value for l in SupportedLanguage)
+            raise ValueError(f"Unknown language '{cleaned}'. Supported languages: {supported_str}")
+    return selected or None
+
+
 def _run_single_scan_pipeline(
     repo_path: str | Path,
     repo_name: str | None = None,
@@ -75,6 +96,7 @@ def _run_single_scan_pipeline(
     rule_id: str | None = None,
     file_filter: str | None = None,
     include_tests: bool = False,
+    languages: set[SupportedLanguage] | list[SupportedLanguage] | None = None,
 ) -> tuple[RepositoryScanResult, list[Finding]]:
     """Execute exactly ONE safe scan, ONE analysis pass, and ONE scoring pass.
 
@@ -91,6 +113,7 @@ def _run_single_scan_pipeline(
         repo_name=repo_name,
         check_allowed_roots=False,
         include_tests=include_tests,
+        languages=languages,
     )
 
     # 2. Execute static AST analysis across all registered analyzers
@@ -245,13 +268,15 @@ def format_scan_json_dict(scan: RepositoryScanResult) -> dict[str, Any]:
             "category": f.category.value,
             "severity": f.severity.value,
             "confidence": f.confidence.value,
+            "language": (f.language.value if hasattr(f.language, "value") else str(f.language)) if getattr(f, "language", None) else None,
             "file": f.file,
             "line_start": f.line_start,
             "line_end": f.line_end,
             "column_start": f.column_start,
             "column_end": f.column_end,
             "symbol": f.symbol,
-            "message": f.description,
+            "remediation": getattr(f, "recommendation", None) or getattr(f, "remediation", None),
+            "reference": getattr(f, "reference", None),
             "fingerprint": f.fingerprint,
             "is_suppressed": getattr(f, "is_suppressed", False),
             "suppression_source": getattr(f, "suppression_source", None),
@@ -408,6 +433,16 @@ def format_findings_text(findings: list[Finding]) -> str:
         lines.append(f"[{f.severity.value.upper()}]{status_tag}{supp_tag} {f.rule_id} ({f.category.value})")
         lines.append(f"  Location: {loc}")
         lines.append(f"  Message:  {f.title}")
+        if getattr(f, "language", None):
+            lang_str = f.language.value if hasattr(f.language, "value") else str(f.language)
+            lines.append(f"  Language: {lang_str}")
+        if getattr(f, "confidence", None):
+            lines.append(f"  Confidence: {f.confidence.value}")
+        remedy = getattr(f, "recommendation", None) or getattr(f, "remediation", None)
+        if remedy:
+            lines.append(f"  Remedy:   {remedy}")
+        if getattr(f, "reference", None):
+            lines.append(f"  Ref:      {f.reference}")
         if getattr(f, "suppression_reason", None):
             lines.append(f"  Suppressed: {f.suppression_reason}")
         if f.symbol:
@@ -511,9 +546,16 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
     start_time = time.perf_counter()
     try:
+        langs = _parse_languages_arg(getattr(args, "languages", None))
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    try:
         scan, findings = _run_single_scan_pipeline(
             repo_path=target_path,
             include_tests=getattr(args, "include_tests", False),
+            languages=langs,
         )
     except RepositoryError as exc:
         print(f"Scan failed: {exc}", file=sys.stderr)
@@ -633,9 +675,16 @@ def cmd_check(args: argparse.Namespace) -> int:
 
     # 3. Run ONE scan pass, ONE analysis pass, ONE scoring pass
     try:
+        langs = _parse_languages_arg(getattr(args, "languages", None))
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    try:
         scan, findings = _run_single_scan_pipeline(
             repo_path=target_path,
             include_tests=getattr(args, "include_tests", False),
+            languages=langs,
         )
     except RepositoryError as exc:
         print(f"Check failed: {exc}", file=sys.stderr)
@@ -735,6 +784,12 @@ def cmd_findings(args: argparse.Namespace) -> int:
             return EXIT_CONFIG_ERROR
 
     try:
+        langs = _parse_languages_arg(getattr(args, "languages", None))
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    try:
         scan, findings = _run_single_scan_pipeline(
             repo_path=target_path,
             category=cat_filter,
@@ -742,6 +797,7 @@ def cmd_findings(args: argparse.Namespace) -> int:
             rule_id=getattr(args, "rule", None),
             file_filter=getattr(args, "file", None),
             include_tests=getattr(args, "include_tests", False),
+            languages=langs,
         )
     except RepositoryError as exc:
         print(f"Findings query failed: {exc}", file=sys.stderr)
@@ -1346,6 +1402,11 @@ def build_parser() -> argparse.ArgumentParser:
     scan_parser.add_argument("path", default=".", nargs="?", help="Path to repository directory (default: current directory)")
     scan_parser.add_argument("--format", choices=["text", "json", "sarif"], default="text", help="Output format (default: text)")
     scan_parser.add_argument(
+        "--languages",
+        "-l",
+        help="Comma-separated list of languages to scan (e.g. python,rust,c,cpp,java,go,javascript,typescript,php)",
+    )
+    scan_parser.add_argument(
         "--fail-on-new",
         action="store_true",
         help="Fail with exit code 1 if scan introduces new findings relative to baseline",
@@ -1363,6 +1424,7 @@ def build_parser() -> argparse.ArgumentParser:
     # 2. check <path>
     check_parser = subparsers.add_parser("check", help="Scan repository and evaluate against policy (primary CI gate)")
     check_parser.add_argument("path", default=".", nargs="?", help="Path to repository directory (default: current directory)")
+    check_parser.add_argument("--languages", "-l", help="Comma-separated list of languages to scan")
     check_parser.add_argument("--policy", "-p", help="Path to custom policy file (default: built-in policy)")
     check_parser.add_argument("--fail-on-warn", action="store_true", help="Treat policy warnings as failures (exit 1)")
     check_parser.add_argument("--include-tests", action="store_true", help="Include test, example, and fixture files in scan (default: False)")
@@ -1371,6 +1433,7 @@ def build_parser() -> argparse.ArgumentParser:
     # 3. findings <path>
     findings_parser = subparsers.add_parser("findings", help="Inspect detailed findings for a repository")
     findings_parser.add_argument("path", default=".", nargs="?", help="Path to repository directory (default: current directory)")
+    findings_parser.add_argument("--languages", "-l", help="Comma-separated list of languages to scan")
     findings_parser.add_argument("--severity", choices=["critical", "high", "medium", "low", "info"], help="Filter by severity")
     findings_parser.add_argument("--category", help="Filter by debt category")
     findings_parser.add_argument("--rule", help="Filter by specific rule ID (e.g. ENT-ERR-001)")

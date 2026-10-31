@@ -55,14 +55,25 @@ class InputValidationConsistencyAnalyzer(BaseAnalyzer):
             SupportedLanguage.PYTHON,
             SupportedLanguage.JAVASCRIPT,
             SupportedLanguage.TYPESCRIPT,
+            SupportedLanguage.C,
+            SupportedLanguage.CPP,
+            SupportedLanguage.RUST,
+            SupportedLanguage.JAVA,
+            SupportedLanguage.GO,
+            SupportedLanguage.PHP,
         }
 
     @property
     def rules(self) -> list[RuleDefinition]:
-        return self._rules_meta
+        from app.analyzers.adapters.registry import default_adapter_registry
+
+        adapter_rules = default_adapter_registry.get_rules_for_category(self.category)
+        existing_ids = {r.rule_id for r in self._rules_meta}
+        extra = [r for r in adapter_rules if r.rule_id not in existing_ids]
+        return self._rules_meta + extra
 
     def analyze(self, context: AnalysisContext) -> list[Finding]:
-        """Execute input validation rules across all Python and JS/TS files in the repository."""
+        """Execute input validation rules across all Python, JS/TS, and multi-language files in the repository."""
         valid_python_contexts = context.get_valid_python_contexts()
         raw_findings: list[Finding] = []
 
@@ -94,6 +105,27 @@ class InputValidationConsistencyAnalyzer(BaseAnalyzer):
                         e,
                         exc_info=True,
                     )
+
+        # Multi-language adapter execution for Input Validation & Memory Safety rules
+        from app.analyzers.adapters.registry import default_adapter_registry
+
+        for pf in context.parsed_files:
+            if pf.language != SupportedLanguage.PYTHON:
+                adapter = default_adapter_registry.get_adapter(pf.language)
+                if adapter and self.category in adapter.supported_categories:
+                    try:
+                        adapter_findings = [
+                            f for f in adapter.analyze_file(pf) if f.category == self.category
+                        ]
+                        raw_findings.extend(adapter_findings)
+                    except Exception as e:
+                        logger.error(
+                            "Adapter '%s' failed on file '%s': %s",
+                            adapter.name,
+                            pf.relative_path,
+                            e,
+                            exc_info=True,
+                        )
 
         # Apply suppression and deduplication
         processed = self._suppress_and_deduplicate(raw_findings)

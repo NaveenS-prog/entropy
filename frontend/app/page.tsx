@@ -829,11 +829,6 @@ export default function RepositoryIngestionDashboard() {
                 </div>
               </div>
 
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/25 text-orange-400 text-xs font-mono shadow-sm">
-                <Sparkles className="w-3.5 h-3.5 text-orange-400 animate-pulse" />
-                <span>phase 7 ai explanation &bull; 100% grounded in observable AST evidence</span>
-              </div>
-
               <h1 className="text-4xl sm:text-6xl font-extrabold text-white tracking-tight leading-[1.08]">
                 you built it.<br />
                 let&apos;s <span className="font-serif italic font-normal text-orange-400">audit.</span>

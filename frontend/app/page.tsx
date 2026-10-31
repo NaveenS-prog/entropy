@@ -740,7 +740,27 @@ export default function RepositoryIngestionDashboard() {
         )}
       </AnimatePresence>
 
-      {/* Top Toolbar: Mode Switcher & Server Status */}
+      {/* letsbrag.app Inspired Hero Headline & Subhead with Entropy Brand Mark */}
+      {!activeScan && (
+        <div className="text-center max-w-3xl mx-auto space-y-4 pt-3 pb-6">
+          <div className="flex justify-center">
+            <div className="p-1 rounded-2xl bg-ink-900/90 border border-border/80 shadow-2xl hover:border-orange-500/50 hover:scale-105 transition-all duration-300">
+              <EntropyLogo size={64} roundedClassName="rounded-xl" priority />
+            </div>
+          </div>
+
+          <h1 className="text-4xl sm:text-6xl font-extrabold text-white tracking-tight leading-[1.08]">
+            you built it.<br />
+            let&apos;s <span className="font-serif italic font-normal text-orange-400">audit.</span>
+          </h1>
+
+          <p className="text-xs sm:text-sm md:text-base text-ink-300 max-w-xl mx-auto leading-relaxed">
+            Drop your project folder or paste a repo link. Get instant <strong>mathematical debt scores</strong> and <strong>advisory AI remediation</strong>.
+          </p>
+        </div>
+      )}
+
+      {/* Mode Switcher: Repository vs Pull Requests & Server Status */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
         <div className="flex items-center gap-1.5 bg-ink-900 p-1 rounded-lg border border-border">
           <button
@@ -775,7 +795,7 @@ export default function RepositoryIngestionDashboard() {
                 <select
                   value={activeScan?.scan_id || ""}
                   onChange={(e) => handleSelectScan(e.target.value)}
-                  className="appearance-none bg-ink-900 border border-border text-xs text-ink-200 rounded-lg pl-3 pr-8 py-1.5 focus:outline-none focus:border-red-500/60 cursor-pointer font-mono"
+                  className="appearance-none bg-ink-900 border border-border text-xs text-ink-200 rounded-lg pl-3 pr-8 py-1.5 focus:outline-none focus:border-orange-500/60 cursor-pointer font-mono"
                 >
                   <option value="" disabled>
                     Session scans...
@@ -820,25 +840,6 @@ export default function RepositoryIngestionDashboard() {
         <PRWorkflowView />
       ) : (
         <>
-          {/* letsbrag.app Inspired Hero Headline & Subhead with Entropy Brand Mark */}
-          {!activeScan && (
-            <div className="text-center max-w-3xl mx-auto space-y-4 pt-3 pb-4">
-              <div className="flex justify-center">
-                <div className="p-1 rounded-2xl bg-ink-900/90 border border-border/80 shadow-2xl hover:border-orange-500/50 hover:scale-105 transition-all duration-300">
-                  <EntropyLogo size={64} roundedClassName="rounded-xl" priority />
-                </div>
-              </div>
-
-              <h1 className="text-4xl sm:text-6xl font-extrabold text-white tracking-tight leading-[1.08]">
-                you built it.<br />
-                let&apos;s <span className="font-serif italic font-normal text-orange-400">audit.</span>
-              </h1>
-
-              <p className="text-xs sm:text-sm md:text-base text-ink-300 max-w-xl mx-auto leading-relaxed">
-                Drop your project folder or paste a repo link. Get instant <strong>mathematical debt scores</strong> and <strong>advisory AI remediation</strong>.
-              </p>
-            </div>
-          )}
 
           {/* Main Scan Trigger Box */}
           <div id="scan-trigger-box" className="border border-border/90 rounded-2xl p-6 bg-card/60 space-y-5 relative">

@@ -94,7 +94,10 @@ const config: Config = {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
       },
       boxShadow: {
+        "glow-red": "0 0 25px -5px rgba(239, 68, 68, 0.45)",
+        "glow-crimson": "0 0 30px -5px rgba(225, 29, 72, 0.4)",
         "glow-emerald": "0 0 25px -5px rgba(52, 211, 153, 0.35)",
+        "glow-rose": "0 0 25px -5px rgba(244, 63, 94, 0.35)",
         "glow-cyan": "0 0 25px -5px rgba(56, 189, 248, 0.35)",
         "glow-amber": "0 0 25px -5px rgba(251, 191, 36, 0.3)",
       },

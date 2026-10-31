@@ -17,10 +17,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className="bg-background text-foreground antialiased flex flex-col min-h-screen relative selection:bg-emerald-500/30 selection:text-emerald-200">
-        {/* Subtle ambient lighting orbs */}
-        <div className="fixed top-0 left-1/4 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none -z-10" />
-        <div className="fixed top-1/3 right-10 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none -z-10" />
+      <body className="bg-background text-foreground antialiased flex flex-col min-h-screen relative selection:bg-red-500/30 selection:text-red-200">
+        {/* Subtle ambient lighting orbs with deep crimson & ruby hues */}
+        <div className="fixed top-0 left-1/4 w-96 h-96 bg-red-600/8 rounded-full blur-3xl pointer-events-none -z-10" />
+        <div className="fixed top-1/3 right-10 w-96 h-96 bg-rose-600/6 rounded-full blur-3xl pointer-events-none -z-10" />
 
         <header className="sticky top-0 z-50 border-b border-border/80 bg-ink-950/85 backdrop-blur-xl px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -28,11 +28,11 @@ export default function RootLayout({
               href="/"
               className="flex items-center gap-2.5 font-semibold text-sm tracking-tight text-ink-100 hover:text-white transition-colors group"
             >
-              <div className="h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-105 group-hover:border-emerald-500/60 shadow-glow-emerald transition-all duration-200">
+              <div className="h-8 w-8 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 group-hover:scale-105 group-hover:border-red-500/60 shadow-glow-red transition-all duration-200">
                 <ShieldAlert className="h-4 w-4" />
               </div>
               <span className="font-bold tracking-tight text-white text-base">Entropy</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 font-mono font-medium">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-950/60 border border-red-800/60 text-red-300 font-mono font-medium">
                 v0.1.0-forensic
               </span>
             </Link>
@@ -49,7 +49,7 @@ export default function RootLayout({
               href="/constitution"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-ink-300 hover:text-white hover:bg-ink-850/80 transition-all"
             >
-              <ScrollText className="h-3.5 w-3.5 text-emerald-400" />
+              <ScrollText className="h-3.5 w-3.5 text-red-400" />
               <span>Constitution</span>
             </Link>
           </nav>
@@ -67,8 +67,8 @@ export default function RootLayout({
                 Quantifying structural disorder in AI-assisted codebases • 100% Deterministic AST
               </p>
             </div>
-            <div className="flex items-center gap-2 font-mono text-[11px] text-emerald-400/90 bg-ink-900 border border-border px-3 py-1 rounded-full">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="flex items-center gap-2 font-mono text-[11px] text-red-400/90 bg-ink-900 border border-border px-3 py-1 rounded-full">
+              <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
               <span>Hermetic AST Engine</span>
             </div>
           </div>

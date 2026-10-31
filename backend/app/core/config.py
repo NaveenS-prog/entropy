@@ -62,7 +62,11 @@ class Settings(BaseSettings):
         description="Allow public non-localhost access without API key when no key is configured",
     )
     SCAN_ALLOWED_ROOTS: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: [str(Path.cwd().resolve())],
+        default_factory=lambda: [
+            str(Path.cwd().resolve()),
+            str(Path.cwd().parent.resolve()),
+            str(Path.home().resolve()),
+        ],
         validation_alias=AliasChoices("SCAN_ALLOWED_ROOTS", "ENTROPY_SCAN_ALLOWED_ROOTS"),
         description="Allowed root directory paths for repository scanning",
     )

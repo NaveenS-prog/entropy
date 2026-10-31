@@ -57,7 +57,7 @@ router.get("/invoices/export", exportInvoices); // ⚠️ ZERO AUTH GUARD!`,
       id: "duplication",
       title: "AST Structural Duplication",
       badge: "Maintenance Sink",
-      badgeColor: "text-cyan-400 bg-cyan-950/60 border-cyan-800/60",
+      badgeColor: "text-rose-400 bg-rose-950/60 border-rose-800/60",
       icon: Copy,
       metric: "Up to 4.2x duplicate AST subtrees",
       desc: "Instead of modular abstractions, AI developers prompt for new features and receive 90% identical syntax with different local variable names. Traditional token hashing misses this, but Entropy's AST normalizer catches it deterministically.",
@@ -101,7 +101,7 @@ data.forEach(job => {
       id: "topology",
       title: "Topology & Cyclic Coupling",
       badge: "System Fragility",
-      badgeColor: "text-emerald-400 bg-emerald-950/60 border-emerald-800/60",
+      badgeColor: "text-red-400 bg-red-950/60 border-red-800/60",
       icon: Network,
       metric: "Circular dependencies & tight coupling",
       desc: "AI prompts lack holistic topological awareness. Prompting for cross-domain features introduces circular imports and unmanaged dependency cascades between unrelated domain modules.",
@@ -132,11 +132,11 @@ data.forEach(job => {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs font-mono font-medium tracking-wide shadow-glow-emerald"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-950/40 border border-red-500/30 text-red-300 text-xs font-mono font-medium tracking-wide shadow-glow-red"
           >
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
             </span>
             <span>FORENSIC ARCHITECTURAL SECURITY DEBT ENGINE</span>
           </motion.div>
@@ -187,7 +187,7 @@ data.forEach(job => {
         >
           <button
             onClick={onStartScanClick}
-            className="group flex items-center gap-2.5 px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-ink-950 font-bold text-sm tracking-wide shadow-glow-emerald transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+            className="group flex items-center gap-2.5 px-6 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-ink-950 font-bold text-sm tracking-wide shadow-glow-red transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
           >
             <Play className="h-4 w-4 fill-ink-950 transition-transform group-hover:translate-x-0.5" />
             <span>Scan Your Repository</span>
@@ -198,12 +198,12 @@ data.forEach(job => {
             onClick={onLoadDemoSample}
             className="flex items-center gap-2 px-5 py-3 rounded-xl bg-ink-850 hover:bg-ink-800 border border-border/90 hover:border-ink-500 text-white font-medium text-sm transition-all duration-200"
           >
-            <Sparkles className="h-4 w-4 text-cyan-400" />
+            <Sparkles className="h-4 w-4 text-rose-400" />
             <span>Load Sample Forensic Audit</span>
           </button>
 
           <div className="flex items-center gap-2 text-xs text-ink-400 font-mono ml-auto">
-            <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
+            <span className="h-2 w-2 rounded-full bg-red-500"></span>
             <span>Zero untrusted execution</span>
             <span className="text-ink-600">•</span>
             <span>Hermetic AST verification</span>
@@ -247,7 +247,7 @@ data.forEach(job => {
                 {stat.label}
               </div>
               <div className="text-base font-bold text-white mt-1">{stat.value}</div>
-              <div className="text-xs text-emerald-400/90 font-mono mt-0.5">{stat.sub}</div>
+              <div className="text-xs text-red-400/90 font-mono mt-0.5">{stat.sub}</div>
             </div>
           ))}
         </motion.div>
@@ -303,7 +303,7 @@ data.forEach(job => {
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono text-emerald-400 flex items-center gap-1.5">
+                    <span className="text-xs font-mono text-red-400 flex items-center gap-1.5">
                       <CheckCircle2 className="h-4 w-4" />
                       Standard Linter / SAST Tool: PASS
                     </span>
@@ -314,7 +314,7 @@ data.forEach(job => {
                     there are no raw string interpolations in SQL, traditional scanners give a green
                     check.
                   </p>
-                  <div className="p-3 rounded-lg bg-ink-950 border border-border text-[11px] font-mono text-emerald-400 space-y-1">
+                  <div className="p-3 rounded-lg bg-ink-950 border border-border text-[11px] font-mono text-red-400 space-y-1">
                     <div>✓ ESLint: 0 errors, 0 warnings</div>
                     <div>✓ SonarQube: 0 vulnerabilities (A-grade)</div>
                     <div>✓ Unit tests: 14/14 passing</div>
@@ -360,7 +360,7 @@ data.forEach(job => {
                   <p className="text-xs text-ink-300 leading-relaxed">
                     Entropy maps the whole-repository topology. It flagged that{" "}
                     <code className="text-white">/invoices/export</code> lacks the{" "}
-                    <code className="text-emerald-400">verifyOrgTenant</code> middleware present on
+                    <code className="text-red-400">verifyOrgTenant</code> middleware present on
                     11 sibling routes in <code className="text-white">routes/billing.ts</code>.
                   </p>
                   <div className="space-y-1.5 text-xs font-mono">
@@ -382,12 +382,12 @@ data.forEach(job => {
                   </div>
                   <pre className="text-[11px] leading-relaxed">
 {`// routes/billing.ts (Standard convention)
-router.get("/invoices", `}<span className="text-emerald-400 font-bold">{`[verifyOrgTenant, requireAuth]`}</span>{`, getInvoices);
+router.get("/invoices", `}<span className="text-red-400 font-bold">{`[verifyOrgTenant, requireAuth]`}</span>{`, getInvoices);
 
 // routes/billing_export.ts (AI Hallucinated shortcut)
 router.get("/invoices/export", `}<span className="text-rose-400 font-bold bg-rose-950/60 px-1">{`/* MISSING MIDDLEWARE! */`}</span>{`, handleBillingExport);`}
                   </pre>
-                  <div className="mt-2 text-[10px] text-emerald-300 bg-emerald-950/30 p-2 rounded border border-emerald-900/40">
+                  <div className="mt-2 text-[10px] text-red-300 bg-red-950/30 p-2 rounded border border-red-900/40">
                     Entropy flags structural inconsistency without needing human code review or tests.
                   </div>
                 </div>
@@ -401,7 +401,7 @@ router.get("/invoices/export", `}<span className="text-rose-400 font-bold bg-ros
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold uppercase tracking-wider text-ink-200 flex items-center gap-2">
-                <Layers className="h-4 w-4 text-emerald-400" />
+                <Layers className="h-4 w-4 text-red-400" />
                 <span>The 5 Architectural Debt Dimensions</span>
               </h3>
               <p className="text-xs text-ink-400 mt-0.5">
@@ -425,14 +425,14 @@ router.get("/invoices/export", `}<span className="text-rose-400 font-bold bg-ros
                     onClick={() => setActiveDimension(idx)}
                     className={`w-full text-left p-3.5 rounded-xl border transition-all duration-200 flex items-start gap-3.5 ${
                       isSelected
-                        ? "bg-ink-850 border-emerald-500/60 shadow-glow-emerald"
+                        ? "bg-ink-850 border-red-500/60 shadow-glow-red"
                         : "bg-ink-900/70 border-border/80 hover:bg-ink-850 hover:border-ink-600"
                     }`}
                   >
                     <div
                       className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${
                         isSelected
-                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                          ? "bg-red-600/20 text-red-400 border border-red-500/40"
                           : "bg-ink-800 text-ink-400 border border-border"
                       }`}
                     >
@@ -477,8 +477,8 @@ router.get("/invoices/export", `}<span className="text-rose-400 font-bold bg-ros
                   >
                     {copiedCode ? (
                       <>
-                        <Check className="h-3 w-3 text-emerald-400" />
-                        <span className="text-emerald-400">Copied</span>
+                        <Check className="h-3 w-3 text-red-400" />
+                        <span className="text-red-400">Copied</span>
                       </>
                     ) : (
                       <>
@@ -502,7 +502,7 @@ router.get("/invoices/export", `}<span className="text-rose-400 font-bold bg-ros
 
               <div className="flex items-center justify-between pt-3 border-t border-border/80 text-xs font-mono text-ink-400">
                 <span>Vector: {dimensions[activeDimension].id.toUpperCase()}</span>
-                <span className="text-emerald-400 flex items-center gap-1">
+                <span className="text-red-400 flex items-center gap-1">
                   <Activity className="h-3.5 w-3.5" />
                   Deterministic AST Extraction
                 </span>

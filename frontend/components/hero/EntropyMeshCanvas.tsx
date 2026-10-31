@@ -36,17 +36,17 @@ export function EntropyMeshCanvas() {
     window.addEventListener("resize", handleResize);
 
     const colors = [
-      "rgba(52, 211, 153, ", // Emerald
-      "rgba(56, 189, 248, ", // Cyan
-      "rgba(129, 140, 248, ", // Indigo
-      "rgba(251, 191, 36, ", // Amber (occasional high entropy anomaly)
+      "rgba(239, 68, 68, ",   // Ruby Red
+      "rgba(244, 63, 94, ",   // Rose Crimson
+      "rgba(251, 113, 133, ", // Coral Tint
+      "rgba(251, 191, 36, ",  // Amber (critical architectural hotspot)
     ];
 
     const particleCount = Math.min(Math.floor((width * height) / 14000), 75);
     const particles: Particle[] = [];
 
     for (let i = 0; i < particleCount; i++) {
-      const isAnomaly = Math.random() < 0.12;
+      const isAnomaly = Math.random() < 0.14;
       particles.push({
         x: Math.random() * width,
         y: Math.random() * height,
@@ -79,7 +79,7 @@ export function EntropyMeshCanvas() {
     const render = () => {
       ctx.clearRect(0, 0, width, height);
 
-      // Draw subtle background radial gradients
+      // Draw subtle background radial gradients with deep crimson ambiance
       const radialGradient = ctx.createRadialGradient(
         width / 2,
         height / 2,
@@ -88,8 +88,8 @@ export function EntropyMeshCanvas() {
         height / 2,
         Math.max(width, height) / 1.4
       );
-      radialGradient.addColorStop(0, "rgba(16, 24, 39, 0.45)");
-      radialGradient.addColorStop(1, "rgba(13, 15, 18, 0)");
+      radialGradient.addColorStop(0, "rgba(28, 12, 16, 0.5)");
+      radialGradient.addColorStop(1, "rgba(11, 12, 14, 0)");
       ctx.fillStyle = radialGradient;
       ctx.fillRect(0, 0, width, height);
 
@@ -138,11 +138,11 @@ export function EntropyMeshCanvas() {
           const dist = Math.sqrt(dx * dx + dy * dy);
 
           if (dist < maxDistance) {
-            const alpha = (1 - dist / maxDistance) * 0.22;
+            const alpha = (1 - dist / maxDistance) * 0.24;
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = `rgba(52, 211, 153, ${alpha})`;
+            ctx.strokeStyle = `rgba(239, 68, 68, ${alpha})`;
             ctx.lineWidth = 0.8;
             ctx.stroke();
           }

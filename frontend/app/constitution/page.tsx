@@ -1,96 +1,82 @@
 "use client";
 
-import { ScrollText, CheckCircle2, AlertOctagon, Scale, Shield, Terminal } from "lucide-react";
+import { ScrollText, CheckCircle2, AlertOctagon, Scale, Shield } from "lucide-react";
 
 export default function ConstitutionPage() {
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="border-b border-border pb-6">
-        <div className="flex items-center gap-3 text-emerald-400 mb-2">
-          <ScrollText className="h-6 w-6" />
-          <span className="text-xs uppercase font-mono tracking-widest text-emerald-500">
-            ENGINEERING FOUNDATION
+    <div className="max-w-3xl mx-auto space-y-6">
+      <div className="border-b border-border pb-5">
+        <div className="flex items-center gap-2 text-ink-400 mb-1.5">
+          <ScrollText className="h-4 w-4" />
+          <span className="text-xs font-mono text-ink-400">
+            Engineering constitution
           </span>
         </div>
-        <h1 className="text-3xl font-extrabold text-white tracking-tight">
-          The Entropy Engineering Constitution
+        <h1 className="text-xl font-semibold text-white tracking-tight">
+          Entropy Engineering Constitution
         </h1>
-        <p className="text-sm text-slate-400 mt-2 leading-relaxed">
-          Binding principles, architectural covenants, and product boundaries governing the
-          development and operation of Entropy.
+        <p className="text-xs text-ink-400 mt-1 leading-relaxed">
+          Principles, architectural covenants, and system boundaries governing the development and analysis of Entropy
         </p>
       </div>
 
       {/* Article 1: Core Definition */}
-      <section className="bg-card border border-border rounded-xl p-6 space-y-3">
-        <div className="flex items-center gap-2 text-white font-bold text-base">
-          <Shield className="h-5 w-5 text-emerald-400" />
-          <h2>Article I: The Concept of Architectural Security Debt</h2>
+      <section className="bg-card border border-border rounded-xl p-5 space-y-2.5">
+        <div className="flex items-center gap-2 text-white font-medium text-sm">
+          <Shield className="h-4 w-4 text-ink-400" />
+          <h2>Article 1: Concept of architectural security debt</h2>
         </div>
-        <p className="text-xs text-slate-300 leading-relaxed">
-          Traditional security scanners primarily focus on vulnerabilities that exist in the code{" "}
-          <strong className="text-white">TODAY</strong> (e.g. SQL injection, known CVEs).
-          Entropy focuses on something different:
+        <p className="text-xs text-ink-300 leading-relaxed">
+          Traditional scanners look for acute vulnerabilities in source code today (such as SQL injection or known CVEs). Entropy quantifies structural drift:
         </p>
-        <blockquote className="border-l-2 border-emerald-500 pl-4 py-1 text-xs text-emerald-300 italic bg-emerald-950/20 rounded-r">
-          &ldquo;Architectural patterns that may not represent an immediate vulnerability today, but
-          accumulate security and maintenance risk over time.&rdquo;
+        <blockquote className="border-l-2 border-border pl-3.5 py-1 text-xs text-ink-200 bg-ink-850 rounded-r">
+          Architectural patterns that do not represent an immediate exploit today, but accumulate structural disorder, maintenance friction, and security debt over time.
         </blockquote>
       </section>
 
       {/* Article 2: The Non-Attribution Covenant */}
-      <section className="bg-card border border-border rounded-xl p-6 space-y-3">
-        <div className="flex items-center gap-2 text-white font-bold text-base">
-          <AlertOctagon className="h-5 w-5 text-amber-400" />
-          <h2>Article II: The Non-Attribution Covenant (Anti-Hallucination)</h2>
+      <section className="bg-card border border-border rounded-xl p-5 space-y-2.5">
+        <div className="flex items-center gap-2 text-white font-medium text-sm">
+          <AlertOctagon className="h-4 w-4 text-ink-400" />
+          <h2>Article 2: Non-attribution covenant</h2>
         </div>
-        <div className="p-3 rounded-lg bg-amber-950/20 border border-amber-900/40 text-xs text-amber-200">
-          <strong>Mandatory Principle:</strong> Entropy must NEVER claim &ldquo;This code was
-          written by AI.&rdquo;
+        <div className="p-3 rounded-md bg-ink-850 border border-border text-xs text-ink-300">
+          <strong className="text-white font-medium">Core rule:</strong> Entropy must never claim &ldquo;This code was written by AI.&rdquo;
         </div>
-        <p className="text-xs text-slate-300 leading-relaxed">
-          Entropy identifies{" "}
-          <em>
-            &ldquo;AI-assisted development patterns / generated-code-like structural patterns /
-            architectural inconsistencies.&rdquo;
-          </em>{" "}
-          The product must never present uncertain AI authorship as a fact. The system evaluates
-          measurable, observable properties such as structural duplication, repeated AST
-          structures, inconsistent security controls, and fragmented error handling.
+        <p className="text-xs text-ink-300 leading-relaxed">
+          Entropy identifies observable structural patterns, AST inconsistencies, and security divergence. The platform evaluates verifiable syntax properties—such as repeated AST structures, missing validation boundaries, and inconsistent authorization—rather than guessing authorship.
         </p>
       </section>
 
       {/* Article 3: Separation of Concerns */}
-      <section className="bg-card border border-border rounded-xl p-6 space-y-4">
-        <div className="flex items-center gap-2 text-white font-bold text-base">
-          <Scale className="h-5 w-5 text-cyan-400" />
-          <h2>Article III: Separation of Concerns & Source of Truth</h2>
+      <section className="bg-card border border-border rounded-xl p-5 space-y-3">
+        <div className="flex items-center gap-2 text-white font-medium text-sm">
+          <Scale className="h-4 w-4 text-ink-400" />
+          <h2>Article 3: Separation of concerns &amp; source of truth</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-          <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800">
-            <h4 className="font-semibold text-cyan-400">Strict Layer Boundaries</h4>
-            <p className="text-slate-400 mt-1">
-              Ingestion → Parsing → Analysis → Findings → Scoring → AI Explanation → API → Frontend.
-              Static analysis rules never live in API routes or UI components.
+          <div className="p-3 bg-ink-850 rounded-md border border-border">
+            <h4 className="font-medium text-white">Strict layer boundaries</h4>
+            <p className="text-ink-400 mt-1 leading-relaxed">
+              Ingestion → Parsing → Analysis → Findings → Scoring → AI Explanation → API → Frontend. Static analysis rules never live in UI components.
             </p>
           </div>
-          <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800">
-            <h4 className="font-semibold text-cyan-400">Backend Is Source of Truth</h4>
-            <p className="text-slate-400 mt-1">
-              The frontend is strictly a presentation and visualization tier. The frontend NEVER
-              calculates or adjusts security scores.
+          <div className="p-3 bg-ink-850 rounded-md border border-border">
+            <h4 className="font-medium text-white">Backend is source of truth</h4>
+            <p className="text-ink-400 mt-1 leading-relaxed">
+              The frontend is strictly a presentation layer. It never calculates, overrides, or invents scores.
             </p>
           </div>
         </div>
       </section>
 
       {/* Article 4: The 10 Inviolable Rules */}
-      <section className="bg-card border border-border rounded-xl p-6 space-y-4">
-        <div className="flex items-center gap-2 text-white font-bold text-base">
-          <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-          <h2>Article IV: The 10 Inviolable Engineering Rules</h2>
+      <section className="bg-card border border-border rounded-xl p-5 space-y-3">
+        <div className="flex items-center gap-2 text-white font-medium text-sm">
+          <CheckCircle2 className="h-4 w-4 text-ink-400" />
+          <h2>Article 4: Ten engineering principles</h2>
         </div>
-        <ul className="space-y-2.5 text-xs text-slate-300">
+        <ul className="space-y-2 text-xs text-ink-300">
           {[
             "No mock security findings. Every finding must trace to real AST syntax.",
             "No fake scan results. Empty scans remain empty until actual code is analyzed.",
@@ -104,7 +90,7 @@ export default function ConstitutionPage() {
             "Make analyzers modular and write unit tests for every analysis rule.",
           ].map((rule, idx) => (
             <li key={idx} className="flex items-start gap-2.5">
-              <span className="text-emerald-400 font-mono font-bold mt-0.5">{idx + 1}.</span>
+              <span className="text-ink-500 font-mono text-[11px] mt-0.5">{idx + 1}.</span>
               <span>{rule}</span>
             </li>
           ))}

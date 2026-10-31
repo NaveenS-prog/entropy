@@ -40,7 +40,9 @@ setup_logging()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not settings.API_KEY:
-        if settings.ALLOW_LOCALHOST_NO_KEY:
+        if getattr(settings, "ALLOW_PUBLIC_ACCESS", False):
+            logger.info("Entropy API running in public access mode (ALLOW_PUBLIC_ACCESS=true).")
+        elif settings.ALLOW_LOCALHOST_NO_KEY:
             logger.warning(
                 "SECURITY WARNING: ENTROPY_API_KEY is not configured! "
                 "Localhost fallback is ENABLED (ENTROPY_ALLOW_LOCALHOST_NO_KEY=true). "

@@ -110,14 +110,14 @@ class Settings(BaseSettings):
 
     # Phase 7: AI Explanation Layer Settings
     AI_ENABLED: bool = Field(
-        default=False,
+        default=True,
         validation_alias=AliasChoices("AI_ENABLED", "ENTROPY_AI_ENABLED"),
         description="Toggle AI explanation and remediation advisory layer",
     )
     AI_PROVIDER: str = Field(
         default="gemini",
         validation_alias=AliasChoices("AI_PROVIDER", "ENTROPY_AI_PROVIDER"),
-        description="AI provider name: gemini, fake, openai",
+        description="AI provider name: gemini, fake, openai, local",
     )
     AI_MODEL: str = Field(
         default="gemini-1.5-flash",
@@ -128,6 +128,21 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("AI_API_KEY", "ENTROPY_AI_API_KEY", "GEMINI_API_KEY"),
         description="API key for the configured AI provider",
+    )
+    LOCAL_LLM_URL: str = Field(
+        default="http://localhost:11434",
+        validation_alias=AliasChoices("LOCAL_LLM_URL", "ENTROPY_LOCAL_LLM_URL"),
+        description="Base URL for local LLM server (Ollama / OpenAI-compatible endpoint)",
+    )
+    LOCAL_LLM_MODEL: str = Field(
+        default="k2-horizon:7b-q4",
+        validation_alias=AliasChoices("LOCAL_LLM_MODEL", "ENTROPY_LOCAL_LLM_MODEL"),
+        description="Model name for local LLM (k2 horizon 7b in 4Q)",
+    )
+    LOCAL_LLM_TIMEOUT_SECONDS: int = Field(
+        default=60,
+        validation_alias=AliasChoices("LOCAL_LLM_TIMEOUT_SECONDS", "ENTROPY_LOCAL_LLM_TIMEOUT_SECONDS"),
+        description="HTTP timeout for local LLM provider requests",
     )
     AI_TIMEOUT_SECONDS: int = Field(
         default=30,

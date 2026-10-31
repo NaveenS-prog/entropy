@@ -329,6 +329,32 @@ def test_cli_explain_when_ai_enabled_mocked(capsys):
             assert "strictly advisory and does not affect" in captured.out
 
 
+def test_cli_explanation_alias_and_local_llm(capsys):
+    """entropy explanation invokes advisory explanation with local LLM default model."""
+    mock_explanation = AIExplanation(
+        finding_id="finding-456",
+        summary="Local LLM analysis using k2-horizon-7b.",
+        why_it_matters="Detects unhandled promise rejections.",
+        evidence_explanation="Found missing catch block.",
+        architectural_impact="Causes node process crash on rejection.",
+        remediation="Add catch handler or use async/await with try-catch.",
+        suggested_pattern="await fn().catch(err => ...)",
+        model="k2-horizon:7b-q4",
+        prompt_version="1.0",
+    )
+
+    with patch.object(settings, "AI_ENABLED", True):
+        with patch("app.ai.service.ai_service.explain_finding", return_value=mock_explanation):
+            # Test explanation command alias with default local provider
+            exit_code = main(["explanation", "finding-456"])
+            assert exit_code == EXIT_PASS
+            captured = capsys.readouterr()
+            assert "Entropy AI Advisory Explanation" in captured.out
+            assert "Local LLM: k2-horizon:7b-q4" in captured.out
+            assert "Local LLM analysis using k2-horizon-7b" in captured.out
+            assert "k2-horizon:7b-q4" in captured.out
+
+
 # -----------------------------------------------------------------------------
 # 8. GLOBAL OPTIONS (QUIET, VERBOSE, NO-COLOR)
 # -----------------------------------------------------------------------------

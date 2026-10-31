@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ShieldAlert, BookOpen, ScrollText } from "lucide-react";
+import { ShieldAlert, ScrollText } from "lucide-react";
 import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 
@@ -15,12 +15,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const docsUrl =
-    process.env.NEXT_PUBLIC_API_DOCS_URL ||
-    (process.env.NEXT_PUBLIC_API_URL
-      ? `${process.env.NEXT_PUBLIC_API_URL.replace(/\/api\/v1\/?$/, "")}/docs`
-      : "http://localhost:8000/docs");
-
   return (
     <html lang="en" className="dark">
       <body className="bg-background text-foreground antialiased flex flex-col min-h-screen">
@@ -54,15 +48,6 @@ export default function RootLayout({
               <ScrollText className="h-3.5 w-3.5" />
               <span>Constitution</span>
             </Link>
-            <a
-              href={docsUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 text-ink-400 hover:text-white transition-colors"
-            >
-              <BookOpen className="h-3.5 w-3.5" />
-              <span>API Reference</span>
-            </a>
           </nav>
         </header>
 

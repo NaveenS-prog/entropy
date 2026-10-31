@@ -10,7 +10,6 @@ import {
   Copy,
   Layers,
   Clock,
-  CheckCircle2,
   Globe,
   Radio,
 } from "lucide-react";
@@ -26,13 +25,13 @@ const CATEGORY_META: Record<
   DebtCategory,
   { title: string; icon: React.ComponentType<{ className?: string }> }
 > = {
-  error_handling: { title: "Error Handling Debt", icon: AlertTriangle },
-  authentication_consistency: { title: "Authentication Consistency", icon: KeyRound },
-  authorization_consistency: { title: "Authorization Consistency", icon: ShieldCheck },
-  input_validation: { title: "Input Validation Debt", icon: CheckSquare },
-  logging_and_secrets: { title: "Logging & Secret-Handling", icon: FileText },
-  code_duplication: { title: "Duplication & Boilerplate", icon: Copy },
-  architectural_consistency: { title: "Architectural Consistency", icon: Layers },
+  error_handling: { title: "Error handling debt", icon: AlertTriangle },
+  authentication_consistency: { title: "Authentication consistency", icon: KeyRound },
+  authorization_consistency: { title: "Authorization consistency", icon: ShieldCheck },
+  input_validation: { title: "Input validation debt", icon: CheckSquare },
+  logging_and_secrets: { title: "Logging & secret hygiene", icon: FileText },
+  code_duplication: { title: "Duplication & boilerplate", icon: Copy },
+  architectural_consistency: { title: "Architectural consistency", icon: Layers },
 };
 
 export function CategoryMatrix({
@@ -46,49 +45,46 @@ export function CategoryMatrix({
   const routesCount = coverage?.total_routes_detected ?? 0;
 
   return (
-    <div className="mt-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-            <span>Architectural Debt Categories Breakdown</span>
-            <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-              Analyzed vs Scheduled
-            </span>
+          <h2 className="text-sm font-semibold text-white tracking-tight flex items-center gap-2">
+            <span>Architectural debt categories</span>
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Only categories with implemented analyzers contribute to the Entropy Score. Unanalyzed categories never receive fabricated scores.
+          <p className="text-xs text-ink-400 mt-0.5">
+            Categories with implemented analyzers contribute to the score.
           </p>
 
           {/* Framework-level coverage indicator */}
           {(frameworks.length > 0 || unsupported.length > 0 || routesCount > 0) && (
-            <div className="flex flex-wrap items-center gap-2 mt-2 pt-1 border-t border-slate-800/60">
-              <span className="text-[10px] uppercase font-mono text-slate-400 flex items-center gap-1">
-                <Globe className="h-3 w-3 text-cyan-400" />
+            <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-border">
+              <span className="text-[11px] font-mono text-ink-400 flex items-center gap-1">
+                <Globe className="h-3 w-3 text-ink-400" />
                 Frameworks:
               </span>
               {frameworks.length > 0 ? (
                 frameworks.map((fw) => (
                   <span
                     key={fw}
-                    className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-950/70 border border-cyan-800/80 text-cyan-300"
+                    className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-ink-800 border border-border text-ink-200"
                   >
                     {fw}
                   </span>
                 ))
               ) : (
-                <span className="text-[10px] font-mono text-slate-500 italic">None detected</span>
+                <span className="text-[11px] font-mono text-ink-500 italic">None detected</span>
               )}
 
               {unsupported.map((fw) => (
                 <span
                   key={fw}
-                  className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-950/70 border border-amber-800/80 text-amber-300"
+                  className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-ink-800 border border-border text-amber-300"
                 >
                   {fw} (unsupported)
                 </span>
               ))}
 
-              <span className="text-[10px] font-mono text-slate-400 ml-auto flex items-center gap-1">
+              <span className="text-[11px] font-mono text-ink-400 ml-auto flex items-center gap-1">
                 <Radio className="h-2.5 w-2.5 text-emerald-400" />
                 Routes: {routesCount}
               </span>
@@ -98,39 +94,20 @@ export function CategoryMatrix({
         {selectedCategory && (
           <button
             onClick={() => onSelectCategory && onSelectCategory(null)}
-            className="text-xs text-emerald-400 hover:underline font-mono"
+            className="text-xs text-ink-300 hover:text-white transition-colors font-mono"
           >
-            Clear category filter
+            Clear filter
           </button>
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {Object.entries(categories).map(([key, breakdown]) => {
           const categoryKey = key as DebtCategory;
           const meta = CATEGORY_META[categoryKey];
           const Icon = meta ? meta.icon : Layers;
           const isSelected = selectedCategory === categoryKey;
           const isAnalyzed = breakdown.status === "analyzed";
-
-          // Color scale for category score
-          let scoreColor = "text-slate-500";
-          let barBg = "bg-slate-700";
-          if (isAnalyzed && breakdown.score !== null) {
-            if (breakdown.score > 60) {
-              scoreColor = "text-red-400";
-              barBg = "bg-red-500";
-            } else if (breakdown.score > 30) {
-              scoreColor = "text-amber-400";
-              barBg = "bg-amber-500";
-            } else if (breakdown.score > 0) {
-              scoreColor = "text-cyan-400";
-              barBg = "bg-cyan-500";
-            } else {
-              scoreColor = "text-emerald-400";
-              barBg = "bg-emerald-500";
-            }
-          }
 
           return (
             <div
@@ -140,75 +117,77 @@ export function CategoryMatrix({
                   onSelectCategory(isSelected ? null : categoryKey);
                 }
               }}
-              className={`p-4 rounded-xl border transition-all bg-card ${
-                isAnalyzed ? "cursor-pointer hover:border-slate-700" : "opacity-75 cursor-default"
+              className={`p-4 rounded-lg border transition-colors bg-card ${
+                isAnalyzed
+                  ? "cursor-pointer hover:border-ink-600"
+                  : "opacity-60 cursor-default"
               } ${
                 isSelected
-                  ? "border-emerald-500 ring-1 ring-emerald-500/50 shadow-lg"
+                  ? "border-emerald-500/80 bg-ink-850"
                   : "border-border"
               }`}
             >
               {/* Header with status badge */}
               <div className="flex items-center justify-between">
-                <div className="h-8 w-8 rounded-lg bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-slate-300">
-                  <Icon className="h-4 w-4" />
+                <div className="h-7 w-7 rounded-md bg-ink-800 border border-border flex items-center justify-center text-ink-300">
+                  <Icon className="h-3.5 w-3.5" />
                 </div>
 
                 <div className="text-right">
                   {isAnalyzed && breakdown.score !== null ? (
                     <div>
-                      <span className={`text-lg font-bold font-mono ${scoreColor}`}>
+                      <span className="text-base font-semibold font-mono tabular-nums text-white">
                         {breakdown.score}
                       </span>
-                      <span className="text-[10px] text-slate-500 ml-0.5">/100</span>
+                      <span className="text-[11px] text-ink-500 ml-0.5 font-mono">/100</span>
                     </div>
                   ) : (
-                    <span className="text-xs font-mono text-slate-500 font-semibold">—</span>
+                    <span className="text-xs font-mono text-ink-500">—</span>
                   )}
                 </div>
               </div>
 
               <div className="mt-3">
-                <div className="flex items-center justify-between gap-1.5">
-                  <h3 className="text-xs font-semibold text-white tracking-tight truncate">
-                    {meta ? meta.title : categoryKey}
-                  </h3>
-                </div>
+                <h3 className="text-xs font-medium text-white tracking-tight truncate">
+                  {meta ? meta.title : categoryKey}
+                </h3>
 
-                <div className="flex items-center gap-1.5 mt-1.5">
+                <div className="flex items-center gap-1.5 mt-1.5 text-xs">
                   {isAnalyzed ? (
-                    <span className="text-[10px] text-emerald-400 bg-emerald-950/60 border border-emerald-900 px-1.5 py-0.5 rounded font-mono flex items-center gap-1">
-                      <CheckCircle2 className="h-2.5 w-2.5" />
-                      <span>ANALYZED ({breakdown.finding_count} findings)</span>
+                    <span className="text-[11px] text-ink-400 font-mono">
+                      {breakdown.finding_count} finding{breakdown.finding_count !== 1 ? "s" : ""}
                     </span>
                   ) : (
-                    <span className="text-[10px] text-amber-400 bg-amber-950/60 border border-amber-900 px-1.5 py-0.5 rounded font-mono flex items-center gap-1">
-                      <Clock className="h-2.5 w-2.5 text-amber-500" />
-                      <span>NOT ANALYZED</span>
+                    <span className="text-[11px] text-ink-500 font-mono flex items-center gap-1">
+                      <Clock className="h-2.5 w-2.5 text-ink-500" />
+                      <span>Not analyzed</span>
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Progress mini bar */}
-              <div className="w-full h-1.5 bg-slate-800 rounded-full mt-3 overflow-hidden">
+              {/* Progress track */}
+              <div className="w-full h-1 bg-ink-800 rounded-full mt-3 overflow-hidden">
                 <div
-                  className={`h-full ${barBg} transition-all duration-500`}
+                  className="h-full bg-ink-400 transition-all duration-300"
                   style={{
-                    width: isAnalyzed && breakdown.score !== null ? `${Math.max(breakdown.score > 0 ? 5 : 0, breakdown.score)}%` : "0%",
+                    width:
+                      isAnalyzed && breakdown.score !== null
+                        ? `${Math.max(breakdown.score > 0 ? 4 : 0, breakdown.score)}%`
+                        : "0%",
                   }}
                 />
               </div>
 
               {/* Description & Status text */}
-              <div className="mt-2.5 text-[10px] text-slate-400 leading-tight">
+              <div className="mt-2 text-[11px] text-ink-400 leading-tight">
                 {isAnalyzed ? (
                   <span>
-                    Base Weight: {(breakdown.weight * 100).toFixed(0)}% • Contributes to overall score
+                    Base weight: {(breakdown.weight * 100).toFixed(0)}%
                   </span>
                 ) : (
-                  <span className="text-amber-400/90 italic">
-                    {breakdown.explanation || "No supported-language files for this analyzer."}
+                  <span className="text-ink-500 italic">
+                    {breakdown.explanation || "No supported files"}
                   </span>
                 )}
               </div>

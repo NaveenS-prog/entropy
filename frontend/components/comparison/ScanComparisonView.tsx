@@ -19,10 +19,6 @@ import {
   Layers,
   FileCode,
   ShieldAlert,
-  ArrowUpRight,
-  ArrowDownRight,
-  Sparkles,
-  Info,
 } from "lucide-react";
 
 interface ScanComparisonViewProps {
@@ -40,41 +36,39 @@ export function ScanComparisonView({
 
   const { summary, score_comparison, category_comparisons, rule_comparisons } = comparison;
 
-  // Directional formatting
   const delta = summary.score_delta;
   const isIncreased = delta > 0;
   const isDecreased = delta < 0;
 
   return (
-    <div className="bg-card border border-border rounded-xl shadow-xl p-6 space-y-6">
+    <div className="bg-card border border-border rounded-xl p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-border">
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-950/60 border border-emerald-800 text-emerald-400">
-              <GitCompare className="w-5 h-5" />
+            <div className="h-7 w-7 rounded-md bg-ink-800 border border-border flex items-center justify-center text-ink-300">
+              <GitCompare className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white tracking-tight">
-                Scan Comparison
+              <h2 className="text-sm font-semibold text-white tracking-tight">
+                Scan comparison
               </h2>
-              <p className="text-xs text-slate-400">
-                Deterministic debt differential and finding lifecycle analysis.
+              <p className="text-xs text-ink-400">
+                Deterministic debt differential and lifecycle analysis
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          {/* Scan IDs comparison indicator */}
-          <div className="flex items-center gap-2 text-xs font-mono bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg">
-            <div className="text-slate-400">
-              <span className="text-[10px] text-slate-500 uppercase block">Baseline</span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-xs font-mono bg-ink-850 border border-border px-3 py-1.5 rounded-md">
+            <div className="text-ink-400">
+              <span className="text-[10px] text-ink-500 uppercase block">Baseline</span>
               {comparison.previous_scan_id.slice(0, 8)}
             </div>
-            <ArrowRight className="w-4 h-4 text-slate-500" />
+            <ArrowRight className="w-3.5 h-3.5 text-ink-500" />
             <div className="text-emerald-400">
-              <span className="text-[10px] text-slate-500 uppercase block">Current</span>
+              <span className="text-[10px] text-ink-500 uppercase block">Current</span>
               {comparison.current_scan_id.slice(0, 8)}
             </div>
           </div>
@@ -82,7 +76,7 @@ export function ScanComparisonView({
           {onClose && (
             <button
               onClick={onClose}
-              className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+              className="text-xs px-3 py-1.5 rounded-md bg-ink-800 hover:bg-ink-700 text-ink-300 hover:text-white transition-colors border border-border"
             >
               Close
             </button>
@@ -91,34 +85,34 @@ export function ScanComparisonView({
       </div>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Score Delta */}
-        <div className="bg-slate-900/60 border border-border rounded-lg p-4 space-y-2">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>Score Delta</span>
+        <div className="bg-ink-850 border border-border rounded-lg p-3.5 space-y-1">
+          <div className="flex items-center justify-between text-xs text-ink-400">
+            <span>Score delta</span>
             {isIncreased ? (
-              <TrendingUp className="w-4 h-4 text-rose-400" />
+              <TrendingUp className="w-3.5 h-3.5 text-red-400" />
             ) : isDecreased ? (
-              <TrendingDown className="w-4 h-4 text-emerald-400" />
+              <TrendingDown className="w-3.5 h-3.5 text-emerald-400" />
             ) : (
-              <Minus className="w-4 h-4 text-slate-400" />
+              <Minus className="w-3.5 h-3.5 text-ink-400" />
             )}
           </div>
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-baseline gap-1.5">
             <span
-              className={`text-2xl font-bold font-mono ${
+              className={`text-xl font-semibold font-mono tabular-nums ${
                 isIncreased
-                  ? "text-rose-400"
+                  ? "text-red-400"
                   : isDecreased
                   ? "text-emerald-400"
-                  : "text-slate-200"
+                  : "text-ink-200"
               }`}
             >
               {isIncreased ? `+${delta}` : delta}
             </span>
-            <span className="text-xs text-slate-400">pts</span>
+            <span className="text-xs text-ink-500 font-mono">pts</span>
           </div>
-          <p className="text-[11px] text-slate-400 leading-tight">
+          <p className="text-[11px] text-ink-400 leading-tight">
             {score_comparison.explanation}
           </p>
         </div>
@@ -126,155 +120,155 @@ export function ScanComparisonView({
         {/* New Findings */}
         <div
           onClick={() => setActiveTab("new")}
-          className={`bg-slate-900/60 border rounded-lg p-4 space-y-2 cursor-pointer transition-colors ${
-            activeTab === "new" ? "border-amber-500/80 bg-amber-950/10" : "border-border hover:border-slate-700"
+          className={`bg-ink-850 border rounded-lg p-3.5 space-y-1 cursor-pointer transition-colors ${
+            activeTab === "new" ? "border-amber-500/60 bg-ink-800" : "border-border hover:border-ink-600"
           }`}
         >
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>New Findings</span>
-            <AlertTriangle className="w-4 h-4 text-amber-400" />
+          <div className="flex items-center justify-between text-xs text-ink-400">
+            <span>New findings</span>
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold font-mono text-amber-400">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-semibold font-mono tabular-nums text-amber-300">
               +{summary.new_findings_count}
             </span>
-            <span className="text-xs text-slate-400">introduced</span>
+            <span className="text-xs text-ink-500 font-mono">introduced</span>
           </div>
-          <p className="text-[11px] text-slate-400 leading-tight">
-            Debt patterns not present in baseline scan.
+          <p className="text-[11px] text-ink-400 leading-tight">
+            Patterns not in baseline scan
           </p>
         </div>
 
         {/* Resolved Findings */}
         <div
           onClick={() => setActiveTab("resolved")}
-          className={`bg-slate-900/60 border rounded-lg p-4 space-y-2 cursor-pointer transition-colors ${
-            activeTab === "resolved" ? "border-emerald-500/80 bg-emerald-950/10" : "border-border hover:border-slate-700"
+          className={`bg-ink-850 border rounded-lg p-3.5 space-y-1 cursor-pointer transition-colors ${
+            activeTab === "resolved" ? "border-emerald-500/60 bg-ink-800" : "border-border hover:border-ink-600"
           }`}
         >
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>Resolved Findings</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <div className="flex items-center justify-between text-xs text-ink-400">
+            <span>Resolved findings</span>
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold font-mono text-emerald-400">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-semibold font-mono tabular-nums text-emerald-400">
               -{summary.resolved_findings_count}
             </span>
-            <span className="text-xs text-slate-400">eliminated</span>
+            <span className="text-xs text-ink-500 font-mono">eliminated</span>
           </div>
-          <p className="text-[11px] text-slate-400 leading-tight">
-            Previously detected debt patterns now eliminated.
+          <p className="text-[11px] text-ink-400 leading-tight">
+            Previously detected debt cleared
           </p>
         </div>
 
         {/* Persistent Findings */}
         <div
           onClick={() => setActiveTab("persistent")}
-          className={`bg-slate-900/60 border rounded-lg p-4 space-y-2 cursor-pointer transition-colors ${
-            activeTab === "persistent" ? "border-slate-500/80 bg-slate-800/30" : "border-border hover:border-slate-700"
+          className={`bg-ink-850 border rounded-lg p-3.5 space-y-1 cursor-pointer transition-colors ${
+            activeTab === "persistent" ? "border-ink-500 bg-ink-800" : "border-border hover:border-ink-600"
           }`}
         >
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>Persistent Findings</span>
-            <Layers className="w-4 h-4 text-slate-400" />
+          <div className="flex items-center justify-between text-xs text-ink-400">
+            <span>Persistent findings</span>
+            <Layers className="w-3.5 h-3.5 text-ink-400" />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold font-mono text-slate-300">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-semibold font-mono tabular-nums text-ink-200">
               {summary.persistent_findings_count}
             </span>
-            <span className="text-xs text-slate-400">retained</span>
+            <span className="text-xs text-ink-500 font-mono">retained</span>
           </div>
-          <p className="text-[11px] text-slate-400 leading-tight">
-            Debt patterns persisting across both scans.
+          <p className="text-[11px] text-ink-400 leading-tight">
+            Patterns across both scans
           </p>
         </div>
       </div>
 
       {/* Category Deltas Table */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-          <Layers className="w-4 h-4 text-emerald-400" />
-          <span>Category Score &amp; Finding Deltas</span>
+        <h3 className="text-xs font-medium text-ink-200 uppercase tracking-wider flex items-center gap-2">
+          <Layers className="w-3.5 h-3.5 text-ink-400" />
+          <span>Category deltas</span>
         </h3>
 
         <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-900/80 border-b border-border text-slate-400 font-mono">
-                <th className="py-2.5 px-3">Category</th>
-                <th className="py-2.5 px-3">Status</th>
-                <th className="py-2.5 px-3 text-right">Previous Score</th>
-                <th className="py-2.5 px-3 text-right">Current Score</th>
-                <th className="py-2.5 px-3 text-right">Score Delta</th>
-                <th className="py-2.5 px-3 text-right">Findings Delta</th>
+              <tr className="bg-ink-850 border-b border-border text-ink-400 font-mono text-[11px]">
+                <th className="py-2.5 px-3 font-normal">Category</th>
+                <th className="py-2.5 px-3 font-normal">Status</th>
+                <th className="py-2.5 px-3 text-right font-normal">Baseline</th>
+                <th className="py-2.5 px-3 text-right font-normal">Current</th>
+                <th className="py-2.5 px-3 text-right font-normal">Score delta</th>
+                <th className="py-2.5 px-3 text-right font-normal">Findings delta</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody className="divide-y divide-border font-mono text-xs">
               {Object.entries(category_comparisons).map(([catKey, catComp]: [string, CategoryComparison]) => {
                 const displayName = getCategoryDisplayName(catComp.category);
                 const isCatAnalyzed =
                   catComp.previous_status === "analyzed" && catComp.current_status === "analyzed";
 
                 return (
-                  <tr key={catKey} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="py-2.5 px-3 font-medium text-slate-200">
+                  <tr key={catKey} className="hover:bg-ink-850/40 transition-colors">
+                    <td className="py-2.5 px-3 font-sans font-medium text-ink-100">
                       {displayName}
                     </td>
                     <td className="py-2.5 px-3">
                       {isCatAnalyzed ? (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-800">
+                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-ink-800 text-emerald-400 border border-border">
                           analyzed
                         </span>
                       ) : (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-ink-800 text-ink-400 border border-border">
                           {catComp.previous_status === "not_analyzed" && catComp.current_status === "not_analyzed"
                             ? "not analyzed"
-                            : `${catComp.previous_status} -> ${catComp.current_status}`}
+                            : `${catComp.previous_status} → ${catComp.current_status}`}
                         </span>
                       )}
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono text-slate-400">
+                    <td className="py-2.5 px-3 text-right text-ink-400 tabular-nums">
                       {catComp.previous_score !== null && catComp.previous_score !== undefined
                         ? catComp.previous_score
                         : "—"}
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono text-slate-400">
+                    <td className="py-2.5 px-3 text-right text-ink-400 tabular-nums">
                       {catComp.current_score !== null && catComp.current_score !== undefined
                         ? catComp.current_score
                         : "—"}
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono">
+                    <td className="py-2.5 px-3 text-right tabular-nums">
                       {catComp.score_delta !== null && catComp.score_delta !== undefined ? (
                         <span
-                          className={`font-semibold ${
+                          className={`font-medium ${
                             catComp.score_delta > 0
-                              ? "text-rose-400"
+                              ? "text-red-400"
                               : catComp.score_delta < 0
                               ? "text-emerald-400"
-                              : "text-slate-400"
+                              : "text-ink-400"
                           }`}
                         >
                           {catComp.score_delta > 0 ? `+${catComp.score_delta}` : catComp.score_delta}
                         </span>
                       ) : (
-                        <span className="text-slate-500 italic">n/a</span>
+                        <span className="text-ink-500 italic">n/a</span>
                       )}
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono">
+                    <td className="py-2.5 px-3 text-right tabular-nums">
                       <span
-                        className={`${
+                        className={
                           catComp.finding_delta > 0
-                            ? "text-amber-400 font-semibold"
+                            ? "text-amber-400 font-medium"
                             : catComp.finding_delta < 0
-                            ? "text-emerald-400 font-semibold"
-                            : "text-slate-400"
-                        }`}
+                            ? "text-emerald-400 font-medium"
+                            : "text-ink-400"
+                        }
                       >
                         {catComp.finding_delta > 0
                           ? `+${catComp.finding_delta}`
                           : catComp.finding_delta}
                       </span>
-                      <span className="text-slate-500 text-[10px] ml-1">
+                      <span className="text-ink-500 text-[10px] ml-1">
                         ({catComp.previous_finding_count} → {catComp.current_finding_count})
                       </span>
                     </td>
@@ -286,50 +280,50 @@ export function ScanComparisonView({
         </div>
       </div>
 
-      {/* Dynamic Rule-Level Deltas (if any changes) */}
+      {/* Dynamic Rule-Level Deltas */}
       {rule_comparisons.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4 text-emerald-400" />
-            <span>Rule-Level Shift ({rule_comparisons.length} rules changed)</span>
+          <h3 className="text-xs font-medium text-ink-200 uppercase tracking-wider flex items-center gap-2">
+            <ShieldAlert className="w-3.5 h-3.5 text-ink-400" />
+            <span>Rule changes ({rule_comparisons.length})</span>
           </h3>
 
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-900/80 border-b border-border text-slate-400 font-mono">
-                  <th className="py-2 px-3">Rule ID</th>
-                  <th className="py-2 px-3">Title</th>
-                  <th className="py-2 px-3">Category</th>
-                  <th className="py-2 px-3 text-right">Previous</th>
-                  <th className="py-2 px-3 text-right">Current</th>
-                  <th className="py-2 px-3 text-right">Delta</th>
+                <tr className="bg-ink-850 border-b border-border text-ink-400 font-mono text-[11px]">
+                  <th className="py-2 px-3 font-normal">Rule ID</th>
+                  <th className="py-2 px-3 font-normal">Title</th>
+                  <th className="py-2 px-3 font-normal">Category</th>
+                  <th className="py-2 px-3 text-right font-normal">Previous</th>
+                  <th className="py-2 px-3 text-right font-normal">Current</th>
+                  <th className="py-2 px-3 text-right font-normal">Delta</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody className="divide-y divide-border font-mono text-xs">
                 {rule_comparisons.map((r: RuleComparison) => (
-                  <tr key={r.rule_id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="py-2 px-3 font-mono text-emerald-400 font-medium">
+                  <tr key={r.rule_id} className="hover:bg-ink-850/40 transition-colors">
+                    <td className="py-2 px-3 text-emerald-400 font-medium">
                       {r.rule_id}
                     </td>
-                    <td className="py-2 px-3 text-slate-200">{r.title}</td>
-                    <td className="py-2 px-3 text-slate-400">
+                    <td className="py-2 px-3 font-sans text-ink-100">{r.title}</td>
+                    <td className="py-2 px-3 font-sans text-ink-400">
                       {getCategoryDisplayName(r.category)}
                     </td>
-                    <td className="py-2 px-3 text-right font-mono text-slate-400">
+                    <td className="py-2 px-3 text-right text-ink-400 tabular-nums">
                       {r.previous_count}
                     </td>
-                    <td className="py-2 px-3 text-right font-mono text-slate-400">
+                    <td className="py-2 px-3 text-right text-ink-400 tabular-nums">
                       {r.current_count}
                     </td>
-                    <td className="py-2 px-3 text-right font-mono font-semibold">
+                    <td className="py-2 px-3 text-right font-medium tabular-nums">
                       <span
                         className={
                           r.delta > 0
                             ? "text-amber-400"
                             : r.delta < 0
                             ? "text-emerald-400"
-                            : "text-slate-400"
+                            : "text-ink-400"
                         }
                       >
                         {r.delta > 0 ? `+${r.delta}` : r.delta}
@@ -343,43 +337,43 @@ export function ScanComparisonView({
         </div>
       )}
 
-      {/* Findings Detail Tabs (New, Resolved, Persistent) */}
-      <div className="space-y-4 pt-2">
-        <div className="flex items-center gap-2 border-b border-border pb-2">
+      {/* Findings Detail Tabs */}
+      <div className="space-y-3 pt-2">
+        <div className="flex items-center gap-1.5 border-b border-border pb-2">
           <button
             onClick={() => setActiveTab("new")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
               activeTab === "new"
-                ? "bg-amber-950/60 border border-amber-800 text-amber-300"
-                : "text-slate-400 hover:text-white"
+                ? "bg-ink-800 text-white border border-border"
+                : "text-ink-400 hover:text-white"
             }`}
           >
-            <AlertTriangle className="w-3.5 h-3.5" />
-            <span>New Findings ({comparison.new_findings.length})</span>
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+            <span>New findings ({comparison.new_findings.length})</span>
           </button>
 
           <button
             onClick={() => setActiveTab("resolved")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
               activeTab === "resolved"
-                ? "bg-emerald-950/60 border border-emerald-800 text-emerald-300"
-                : "text-slate-400 hover:text-white"
+                ? "bg-ink-800 text-white border border-border"
+                : "text-ink-400 hover:text-white"
             }`}
           >
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Resolved Findings ({comparison.resolved_findings.length})</span>
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Resolved findings ({comparison.resolved_findings.length})</span>
           </button>
 
           <button
             onClick={() => setActiveTab("persistent")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
               activeTab === "persistent"
-                ? "bg-slate-800 border border-slate-700 text-slate-200"
-                : "text-slate-400 hover:text-white"
+                ? "bg-ink-800 text-white border border-border"
+                : "text-ink-400 hover:text-white"
             }`}
           >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Persistent Findings ({comparison.persistent_findings.length})</span>
+            <Layers className="w-3.5 h-3.5 text-ink-400" />
+            <span>Persistent findings ({comparison.persistent_findings.length})</span>
           </button>
         </div>
 
@@ -387,40 +381,40 @@ export function ScanComparisonView({
         {activeTab === "new" && (
           <div className="space-y-2">
             {comparison.new_findings.length === 0 ? (
-              <div className="p-6 text-center text-xs text-slate-500 bg-slate-900/40 rounded-lg border border-border">
-                No new debt findings were introduced in this scan.
+              <div className="p-6 text-center text-xs text-ink-500 bg-ink-850 rounded-lg border border-border">
+                No new findings introduced in this scan
               </div>
             ) : (
               comparison.new_findings.map((item: ComparisonFindingItem) => (
                 <div
                   key={item.id}
-                  className="bg-slate-900/60 border border-amber-900/40 rounded-lg p-3 flex items-start justify-between gap-3 text-xs"
+                  className="bg-ink-850 border border-border rounded-lg p-3 flex items-start justify-between gap-3 text-xs"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-emerald-400 font-semibold">
+                      <span className="font-mono text-emerald-400 font-medium">
                         {item.rule_id}
                       </span>
                       <span className="font-medium text-white">{item.title}</span>
-                      <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold border ${getSeverityColor(item.severity)}`}>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono border ${getSeverityColor(item.severity)}`}>
                         {item.severity}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 font-mono text-[11px] text-slate-400">
-                      <FileCode className="w-3.5 h-3.5 text-slate-500" />
+                    <div className="flex items-center gap-2 font-mono text-[11px] text-ink-400">
+                      <FileCode className="w-3 h-3 text-ink-500" />
                       <span>{item.file}</span>
-                      <span className="text-slate-600">:</span>
+                      <span className="text-ink-600">:</span>
                       <span>L{item.line_start}-{item.line_end}</span>
                       {item.symbol && (
                         <>
-                          <span className="text-slate-600">•</span>
-                          <span className="text-slate-300">{item.symbol}</span>
+                          <span className="text-ink-600">•</span>
+                          <span className="text-ink-300">{item.symbol}</span>
                         </>
                       )}
                     </div>
                   </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-amber-950/70 border border-amber-800 text-amber-300 font-mono">
-                    NEW
+                  <span className="text-[11px] px-2 py-0.5 rounded bg-ink-800 border border-border text-amber-300 font-mono">
+                    New
                   </span>
                 </div>
               ))
@@ -431,43 +425,43 @@ export function ScanComparisonView({
         {activeTab === "resolved" && (
           <div className="space-y-2">
             {comparison.resolved_findings.length === 0 ? (
-              <div className="p-6 text-center text-xs text-slate-500 bg-slate-900/40 rounded-lg border border-border">
-                No previous debt findings were resolved between these scans.
+              <div className="p-6 text-center text-xs text-ink-500 bg-ink-850 rounded-lg border border-border">
+                No findings resolved between these scans
               </div>
             ) : (
               comparison.resolved_findings.map((item: ComparisonFindingItem) => (
                 <div
                   key={item.id}
-                  className="bg-slate-900/60 border border-emerald-900/40 rounded-lg p-3 flex items-start justify-between gap-3 text-xs"
+                  className="bg-ink-850 border border-border rounded-lg p-3 flex items-start justify-between gap-3 text-xs"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-emerald-400 font-semibold">
+                      <span className="font-mono text-emerald-400 font-medium">
                         {item.rule_id}
                       </span>
                       <span className="font-medium text-white">{item.title}</span>
-                      <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold border ${getSeverityColor(item.severity)}`}>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono border ${getSeverityColor(item.severity)}`}>
                         {item.severity}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 font-mono text-[11px] text-slate-400">
-                      <FileCode className="w-3.5 h-3.5 text-slate-500" />
+                    <div className="flex items-center gap-2 font-mono text-[11px] text-ink-400">
+                      <FileCode className="w-3 h-3 text-ink-500" />
                       <span>{item.file}</span>
-                      <span className="text-slate-600">:</span>
+                      <span className="text-ink-600">:</span>
                       <span>L{item.line_start}-{item.line_end}</span>
                       {item.symbol && (
                         <>
-                          <span className="text-slate-600">•</span>
-                          <span className="text-slate-300">{item.symbol}</span>
+                          <span className="text-ink-600">•</span>
+                          <span className="text-ink-300">{item.symbol}</span>
                         </>
                       )}
                     </div>
-                    <p className="text-[11px] text-emerald-400 italic">
-                      {item.resolution_status || "No longer detected since previous scan"}
+                    <p className="text-[11px] text-emerald-400">
+                      {item.resolution_status || "No longer detected"}
                     </p>
                   </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/70 border border-emerald-800 text-emerald-300 font-mono">
-                    RESOLVED
+                  <span className="text-[11px] px-2 py-0.5 rounded bg-ink-800 border border-border text-emerald-400 font-mono">
+                    Resolved
                   </span>
                 </div>
               ))
@@ -478,40 +472,40 @@ export function ScanComparisonView({
         {activeTab === "persistent" && (
           <div className="space-y-2">
             {comparison.persistent_findings.length === 0 ? (
-              <div className="p-6 text-center text-xs text-slate-500 bg-slate-900/40 rounded-lg border border-border">
-                No persistent findings between these scans.
+              <div className="p-6 text-center text-xs text-ink-500 bg-ink-850 rounded-lg border border-border">
+                No persistent findings between these scans
               </div>
             ) : (
               comparison.persistent_findings.map((item: ComparisonFindingItem) => (
                 <div
                   key={item.id}
-                  className="bg-slate-900/40 border border-border rounded-lg p-3 flex items-start justify-between gap-3 text-xs"
+                  className="bg-ink-850 border border-border rounded-lg p-3 flex items-start justify-between gap-3 text-xs"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-emerald-400 font-semibold">
+                      <span className="font-mono text-emerald-400 font-medium">
                         {item.rule_id}
                       </span>
                       <span className="font-medium text-white">{item.title}</span>
-                      <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold border ${getSeverityColor(item.severity)}`}>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono border ${getSeverityColor(item.severity)}`}>
                         {item.severity}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 font-mono text-[11px] text-slate-400">
-                      <FileCode className="w-3.5 h-3.5 text-slate-500" />
+                    <div className="flex items-center gap-2 font-mono text-[11px] text-ink-400">
+                      <FileCode className="w-3 h-3 text-ink-500" />
                       <span>{item.file}</span>
-                      <span className="text-slate-600">:</span>
+                      <span className="text-ink-600">:</span>
                       <span>L{item.line_start}-{item.line_end}</span>
                       {item.symbol && (
                         <>
-                          <span className="text-slate-600">•</span>
-                          <span className="text-slate-300">{item.symbol}</span>
+                          <span className="text-ink-600">•</span>
+                          <span className="text-ink-300">{item.symbol}</span>
                         </>
                       )}
                     </div>
                   </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 font-mono">
-                    PERSISTENT
+                  <span className="text-[11px] px-2 py-0.5 rounded bg-ink-800 border border-border text-ink-300 font-mono">
+                    Persistent
                   </span>
                 </div>
               ))

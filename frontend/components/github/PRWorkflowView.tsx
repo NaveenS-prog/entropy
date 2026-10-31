@@ -1,7 +1,18 @@
 "use client";
 
 import React, { useState } from "react";
-import { GitPullRequest, Search, Play, ArrowRight, CheckCircle2, AlertTriangle, RefreshCw, Layers, ShieldAlert, GitCommit } from "lucide-react";
+import {
+  GitPullRequest,
+  Search,
+  Play,
+  ArrowRight,
+  CheckCircle2,
+  AlertTriangle,
+  AlertCircle,
+  RefreshCw,
+  ShieldAlert,
+  GitCommit,
+} from "lucide-react";
 import { PRAnalysisRecord, ScanComparisonResult } from "@/types";
 import { getPRAnalysis, getPRComparison, triggerPRAnalysis } from "@/lib/api";
 import { ScanComparisonView } from "@/components/comparison/ScanComparisonView";
@@ -16,7 +27,6 @@ export function PRWorkflowView() {
 
   const parseOwnerRepo = () => {
     let clean = ownerRepo.trim();
-    // Support full URLs like https://github.com/owner/repo or https://github.com/owner/repo/pull/123
     clean = clean.replace(/^(https?:\/\/)?(www\.)?github\.com\//i, "");
     clean = clean.replace(/\.git$/i, "");
     const segments = clean.split("/").filter(Boolean);
@@ -81,24 +91,24 @@ export function PRWorkflowView() {
   return (
     <div className="space-y-6">
       {/* Header and Input Bar */}
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
+      <div className="bg-card border border-border rounded-xl p-5 space-y-4">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-indigo-950/60 border border-indigo-800 text-indigo-400">
-            <GitPullRequest className="w-6 h-6" />
+          <div className="h-8 w-8 rounded-md bg-ink-800 border border-border flex items-center justify-center text-ink-300">
+            <GitPullRequest className="w-4 h-4" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-white tracking-tight">
-              GitHub Pull Request Security & Debt Workflow
+            <h2 className="text-base font-semibold text-white tracking-tight">
+              Pull request analysis
             </h2>
-            <p className="text-sm text-slate-400">
-              Deterministic Base vs Head architectural debt delta analysis and Check Run reporting.
+            <p className="text-xs text-ink-400">
+              Deterministic base versus head architectural debt delta analysis
             </p>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+        <div className="flex flex-col sm:flex-row items-center gap-3 pt-1">
           <div className="flex-1 w-full">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1">
+            <label className="text-xs text-ink-400 block mb-1">
               Repository (owner/repo)
             </label>
             <input
@@ -106,20 +116,20 @@ export function PRWorkflowView() {
               value={ownerRepo}
               onChange={(e) => setOwnerRepo(e.target.value)}
               placeholder="e.g. facebook/react"
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full bg-ink-850 border border-border rounded-md px-3 py-1.5 text-xs text-white placeholder-ink-500 font-mono focus:outline-none focus:border-ink-500"
             />
           </div>
 
-          <div className="w-full sm:w-32">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1">
-              PR #
+          <div className="w-full sm:w-28">
+            <label className="text-xs text-ink-400 block mb-1">
+              PR number
             </label>
             <input
               type="number"
               value={prNumber}
               onChange={(e) => setPrNumber(e.target.value)}
               placeholder="42"
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full bg-ink-850 border border-border rounded-md px-3 py-1.5 text-xs text-white placeholder-ink-500 font-mono focus:outline-none focus:border-ink-500"
             />
           </div>
 
@@ -127,25 +137,29 @@ export function PRWorkflowView() {
             <button
               onClick={handleFetch}
               disabled={loading}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 bg-ink-800 hover:bg-ink-700 border border-border text-ink-200 hover:text-white rounded-md text-xs font-medium transition-colors disabled:opacity-50"
             >
-              <Search className="w-4 h-4" />
-              Inspect
+              <Search className="w-3.5 h-3.5" />
+              <span>Inspect</span>
             </button>
             <button
               onClick={handleTrigger}
               disabled={loading}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-50"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 bg-ink-100 hover:bg-white text-ink-950 rounded-md text-xs font-medium transition-colors disabled:opacity-50"
             >
-              {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-              Analyze PR
+              {loading ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Play className="w-3.5 h-3.5" />
+              )}
+              <span>Analyze PR</span>
             </button>
           </div>
         </div>
 
         {error && (
-          <div className="p-3 bg-rose-950/40 border border-rose-800 rounded-lg text-rose-300 text-xs flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0" />
+          <div className="p-3 bg-ink-850 border border-border rounded-md text-xs text-red-300 flex items-center gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
             <span>{error}</span>
           </div>
         )}
@@ -153,67 +167,59 @@ export function PRWorkflowView() {
 
       {/* PR Summary Card */}
       {analysis && (
-        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6 shadow-sm space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+        <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-mono uppercase bg-indigo-950 text-indigo-400 border border-indigo-800 px-2 py-0.5 rounded">
+                <span className="text-xs font-mono bg-ink-800 text-ink-300 border border-border px-2 py-0.5 rounded">
                   PR #{analysis.pr_number}
                 </span>
-                <span className="text-sm font-semibold text-white">
+                <span className="text-sm font-medium text-white">
                   {analysis.owner}/{analysis.repo}
                 </span>
-                <span
-                  className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    analysis.status === "completed"
-                      ? "bg-emerald-950 text-emerald-400 border border-emerald-800"
-                      : analysis.status === "failed"
-                      ? "bg-rose-950 text-rose-400 border border-rose-800"
-                      : "bg-amber-950 text-amber-400 border border-amber-800"
-                  }`}
-                >
+                <span className="text-[11px] px-2 py-0.5 rounded bg-ink-800 border border-border font-mono text-ink-300">
                   {analysis.status}
                 </span>
                 {analysis.policy_status && (
                   <span
-                    className={`text-xs px-2 py-0.5 rounded-full font-bold uppercase ${
+                    className={`text-[11px] px-2 py-0.5 rounded border font-mono ${
                       analysis.policy_status === "pass"
-                        ? "bg-emerald-950 text-emerald-300 border border-emerald-700"
+                        ? "bg-ink-800 text-emerald-400 border-border"
                         : analysis.policy_status === "warn"
-                        ? "bg-amber-950 text-amber-300 border border-amber-700"
-                        : "bg-rose-950 text-rose-300 border border-rose-700"
+                        ? "bg-ink-800 text-amber-300 border-border"
+                        : "bg-ink-800 text-red-400 border-border"
                     }`}
                   >
                     Policy: {analysis.policy_status}
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
-                <GitCommit className="w-3.5 h-3.5 text-slate-500" />
+              <div className="flex items-center gap-2 text-xs text-ink-400 font-mono">
+                <GitCommit className="w-3 h-3 text-ink-500" />
                 <span>Base: {analysis.base_sha.slice(0, 8)}</span>
-                <ArrowRight className="w-3 h-3 text-slate-600" />
+                <ArrowRight className="w-3 h-3 text-ink-600" />
                 <span className="text-emerald-400">Head: {analysis.head_sha.slice(0, 8)}</span>
               </div>
             </div>
 
             {/* Score Delta Badge */}
-            <div className="flex items-center gap-4">
-              <div className="bg-slate-950 border border-slate-800 px-4 py-2 rounded-lg text-center">
-                <span className="text-[10px] text-slate-500 uppercase block font-semibold">Base Score</span>
-                <span className="text-base font-bold text-slate-300">{analysis.base_score ?? "--"}</span>
+            <div className="flex items-center gap-3">
+              <div className="bg-ink-850 border border-border px-3 py-1.5 rounded-md text-center">
+                <span className="text-[10px] text-ink-500 block font-mono">Base score</span>
+                <span className="text-sm font-medium text-ink-200 font-mono tabular-nums">{analysis.base_score ?? "--"}</span>
               </div>
-              <ArrowRight className="w-4 h-4 text-slate-600" />
-              <div className="bg-slate-950 border border-slate-800 px-4 py-2 rounded-lg text-center">
-                <span className="text-[10px] text-slate-500 uppercase block font-semibold">Head Score</span>
-                <span className="text-base font-bold text-emerald-400">{analysis.head_score ?? "--"}</span>
+              <ArrowRight className="w-3.5 h-3.5 text-ink-600" />
+              <div className="bg-ink-850 border border-border px-3 py-1.5 rounded-md text-center">
+                <span className="text-[10px] text-ink-500 block font-mono">Head score</span>
+                <span className="text-sm font-medium text-emerald-400 font-mono tabular-nums">{analysis.head_score ?? "--"}</span>
               </div>
               <div
-                className={`px-3 py-1.5 rounded-lg border text-xs font-bold ${
+                className={`px-2.5 py-1.5 rounded-md border text-xs font-mono tabular-nums ${
                   (analysis.score_delta ?? 0) > 0
-                    ? "bg-rose-950/60 border-rose-800 text-rose-400"
+                    ? "bg-ink-850 border-border text-red-400"
                     : (analysis.score_delta ?? 0) < 0
-                    ? "bg-emerald-950/60 border-emerald-800 text-emerald-400"
-                    : "bg-slate-800 border-slate-700 text-slate-300"
+                    ? "bg-ink-850 border-border text-emerald-400"
+                    : "bg-ink-850 border-border text-ink-300"
                 }`}
               >
                 Delta: {analysis.score_delta != null ? (analysis.score_delta > 0 ? `+${analysis.score_delta}` : analysis.score_delta) : 0}
@@ -222,54 +228,59 @@ export function PRWorkflowView() {
           </div>
 
           {/* Finding Counts */}
-          <div className="grid grid-cols-3 gap-3 pt-2">
-            <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-3 text-center">
-              <span className="text-xs text-rose-400 block font-semibold">New Debt</span>
-              <span className="text-lg font-bold text-white">+{analysis.new_findings_count}</span>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-ink-850 border border-border rounded-lg p-3 text-center">
+              <span className="text-xs text-ink-400 block">New debt</span>
+              <span className="text-base font-semibold font-mono text-red-400 tabular-nums">+{analysis.new_findings_count}</span>
             </div>
-            <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-3 text-center">
-              <span className="text-xs text-emerald-400 block font-semibold">Resolved</span>
-              <span className="text-lg font-bold text-white">-{analysis.resolved_findings_count}</span>
+            <div className="bg-ink-850 border border-border rounded-lg p-3 text-center">
+              <span className="text-xs text-ink-400 block">Resolved</span>
+              <span className="text-base font-semibold font-mono text-emerald-400 tabular-nums">-{analysis.resolved_findings_count}</span>
             </div>
-            <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-3 text-center">
-              <span className="text-xs text-slate-400 block font-semibold">Persistent</span>
-              <span className="text-lg font-bold text-white">{analysis.persistent_findings_count}</span>
+            <div className="bg-ink-850 border border-border rounded-lg p-3 text-center">
+              <span className="text-xs text-ink-400 block">Persistent</span>
+              <span className="text-base font-semibold font-mono text-ink-200 tabular-nums">{analysis.persistent_findings_count}</span>
             </div>
           </div>
 
           {/* Policy Decision Section */}
           {analysis.policy_evaluation && (
-            <div className="mt-4 border border-slate-800 bg-slate-950/50 rounded-lg p-4 space-y-3">
+            <div className="border border-border bg-ink-850 rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 text-indigo-400" />
-                  <span className="text-xs font-semibold text-white uppercase tracking-wider">
-                    Policy Evaluation: {analysis.policy_evaluation.policy_name} (v{analysis.policy_evaluation.policy_version})
+                  <ShieldAlert className="w-4 h-4 text-ink-400" />
+                  <span className="text-xs font-medium text-white">
+                    Policy: {analysis.policy_evaluation.policy_name} (v{analysis.policy_evaluation.policy_version})
                   </span>
                 </div>
-                <div className="flex items-center gap-3 text-xs">
-                  <span className="text-rose-400 font-medium">
-                    {analysis.policy_evaluation.violations.length} Violation(s)
+                <div className="flex items-center gap-3 text-xs font-mono">
+                  <span className="text-red-400">
+                    {analysis.policy_evaluation.violations.length} violation(s)
                   </span>
-                  <span className="text-amber-400 font-medium">
-                    {analysis.policy_evaluation.warnings.length} Warning(s)
+                  <span className="text-amber-300">
+                    {analysis.policy_evaluation.warnings.length} warning(s)
                   </span>
-                  <span className="text-emerald-400 font-medium">
-                    {analysis.policy_evaluation.passed_rules.length} Passed
+                  <span className="text-emerald-400">
+                    {analysis.policy_evaluation.passed_rules.length} passed
                   </span>
                 </div>
               </div>
 
               {analysis.policy_evaluation.violations.length > 0 && (
                 <div className="space-y-1.5 pt-1">
-                  <span className="text-[11px] font-bold text-rose-400 uppercase tracking-wide">Blocking Violations</span>
+                  <span className="text-[11px] font-medium text-red-400">Blocking violations</span>
                   {analysis.policy_evaluation.violations.map((v, idx) => (
-                    <div key={idx} className="p-2.5 rounded bg-rose-950/30 border border-rose-900/60 text-xs text-rose-200 flex flex-col gap-0.5">
-                      <div className="flex items-center justify-between font-semibold">
-                        <span>❌ {v.rule_name}</span>
-                        <span className="font-mono text-[11px] text-rose-300">Actual: {String(v.actual_value)} | Limit: {String(v.threshold)}</span>
+                    <div key={idx} className="p-2.5 rounded bg-ink-800 border border-border text-xs text-ink-200 flex flex-col gap-0.5">
+                      <div className="flex items-center justify-between font-medium">
+                        <span className="flex items-center gap-1.5 text-red-300">
+                          <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                          <span>{v.rule_name}</span>
+                        </span>
+                        <span className="font-mono text-[11px] text-ink-400">
+                          Actual: {String(v.actual_value)} | Limit: {String(v.threshold)}
+                        </span>
                       </div>
-                      <p className="text-rose-300/90 text-[11px]">{v.message}</p>
+                      <p className="text-ink-400 text-xs pl-5">{v.message}</p>
                     </div>
                   ))}
                 </div>
@@ -277,23 +288,28 @@ export function PRWorkflowView() {
 
               {analysis.policy_evaluation.warnings.length > 0 && (
                 <div className="space-y-1.5 pt-1">
-                  <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wide">Warnings</span>
+                  <span className="text-[11px] font-medium text-amber-300">Warnings</span>
                   {analysis.policy_evaluation.warnings.map((w, idx) => (
-                    <div key={idx} className="p-2.5 rounded bg-amber-950/30 border border-amber-900/60 text-xs text-amber-200 flex flex-col gap-0.5">
-                      <div className="flex items-center justify-between font-semibold">
-                        <span>⚠️ {w.rule_name}</span>
-                        <span className="font-mono text-[11px] text-amber-300">Actual: {String(w.actual_value)} | Limit: {String(w.threshold)}</span>
+                    <div key={idx} className="p-2.5 rounded bg-ink-800 border border-border text-xs text-ink-200 flex flex-col gap-0.5">
+                      <div className="flex items-center justify-between font-medium">
+                        <span className="flex items-center gap-1.5 text-amber-300">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span>{w.rule_name}</span>
+                        </span>
+                        <span className="font-mono text-[11px] text-ink-400">
+                          Actual: {String(w.actual_value)} | Limit: {String(w.threshold)}
+                        </span>
                       </div>
-                      <p className="text-amber-300/90 text-[11px]">{w.message}</p>
+                      <p className="text-ink-400 text-xs pl-5">{w.message}</p>
                     </div>
                   ))}
                 </div>
               )}
 
               {analysis.policy_evaluation.violations.length === 0 && analysis.policy_evaluation.warnings.length === 0 && (
-                <div className="p-2.5 rounded bg-emerald-950/30 border border-emerald-900/60 text-xs text-emerald-300 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>All policy thresholds satisfied. Pull request conforms to organizational security debt policy.</span>
+                <div className="p-2.5 rounded bg-ink-800 border border-border text-xs text-emerald-400 flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>All policy thresholds satisfied. Pull request conforms to security policy.</span>
                 </div>
               )}
             </div>

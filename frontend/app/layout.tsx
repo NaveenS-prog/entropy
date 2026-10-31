@@ -6,7 +6,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Entropy — Architectural Security Debt Platform",
-  description: "Entropy is an architectural security-debt analyzer for AI-assisted codebases. Measure hidden structural disorder in AI-assisted codebases.",
+  description:
+    "Entropy is an architectural security-debt analyzer for AI-assisted codebases. Quantify structural disorder through deterministic AST analysis.",
 };
 
 export default function RootLayout({
@@ -23,41 +24,44 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="bg-background text-foreground antialiased flex flex-col min-h-screen">
-        <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md px-6 py-3.5 flex items-center justify-between">
+        <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2.5 font-bold tracking-tight text-lg text-white">
-              <div className="h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                <ShieldAlert className="h-5 w-5" />
+            <Link
+              href="/"
+              className="flex items-center gap-2.5 font-semibold text-sm tracking-tight text-ink-100 hover:text-white transition-colors"
+            >
+              <div className="h-7 w-7 rounded-md bg-ink-800 border border-border flex items-center justify-center text-emerald-400">
+                <ShieldAlert className="h-4 w-4" />
               </div>
-              <span>ENTROPY</span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono font-normal">
-                v0.1.0-alpha
+              <span className="font-medium tracking-tight text-white">Entropy</span>
+              <span className="text-[11px] px-1.5 py-0.5 rounded bg-ink-800 border border-border/80 text-ink-400 font-mono">
+                v0.1.0
               </span>
             </Link>
           </div>
 
-          <nav className="flex items-center gap-5 text-sm font-medium">
+          <nav className="flex items-center gap-5 text-xs font-medium">
             <Link
               href="/"
-              className="text-slate-300 hover:text-white transition-colors"
+              className="text-ink-200 hover:text-white transition-colors"
             >
               Dashboard
             </Link>
             <Link
               href="/constitution"
-              className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors"
+              className="flex items-center gap-1.5 text-ink-400 hover:text-white transition-colors"
             >
-              <ScrollText className="h-4 w-4" />
+              <ScrollText className="h-3.5 w-3.5" />
               <span>Constitution</span>
             </Link>
             <a
               href={docsUrl}
               target="_blank"
               rel="noreferrer"
-              className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors"
+              className="flex items-center gap-1.5 text-ink-400 hover:text-white transition-colors"
             >
-              <BookOpen className="h-4 w-4" />
-              <span>API Specs</span>
+              <BookOpen className="h-3.5 w-3.5" />
+              <span>API Reference</span>
             </a>
           </nav>
         </header>
@@ -66,9 +70,13 @@ export default function RootLayout({
           {children}
         </main>
 
-        <footer className="border-t border-border py-6 px-8 text-center text-xs text-slate-500">
-          <p>Entropy — Architectural Security Debt Analyzer for AI-Assisted Codebases</p>
-          <p className="mt-1 text-slate-600">Deterministic Static Analysis • AST Verification • Production Engine</p>
+        <footer className="border-t border-border py-6 px-6 text-center text-xs text-ink-500">
+          <div className="flex flex-col sm:flex-row items-center justify-between max-w-7xl mx-auto gap-2">
+            <p>Entropy — Architectural security-debt engine</p>
+            <p className="font-mono text-[11px] text-ink-500">
+              Deterministic AST analysis
+            </p>
+          </div>
         </footer>
         <Analytics />
       </body>

@@ -33,13 +33,6 @@ import { ScanHistoryTable } from "@/components/history/ScanHistoryTable";
 import { ScanComparisonView } from "@/components/comparison/ScanComparisonView";
 import { PRWorkflowView } from "@/components/github/PRWorkflowView";
 import { motion, AnimatePresence } from "framer-motion";
-import { EntropyExplainerHero } from "@/components/hero/EntropyExplainerHero";
-import {
-  DEMO_SCAN_RESULT,
-  DEMO_SCORE_RESULT,
-  DEMO_FINDINGS,
-  DEMO_MANIFEST,
-} from "@/lib/demoData";
 import {
   FolderGit2,
   FileCode,
@@ -201,9 +194,12 @@ export default function RepositoryIngestionDashboard() {
   const [selectedZipFile, setSelectedZipFile] = useState<File | null>(null);
   const [folderDisplayName, setFolderDisplayName] = useState<string>("");
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [isWindowDragging, setIsWindowDragging] = useState<boolean>(false);
+  const dragCounter = useRef<number>(0);
   const [packagingMessage, setPackagingMessage] = useState<string>("");
 
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
 
   const totalFolderSize = selectedZipFile
@@ -226,8 +222,6 @@ export default function RepositoryIngestionDashboard() {
   const [selectedLanguageFilter, setSelectedLanguageFilter] = useState<string>("ALL");
   const [showJsonManifest, setShowJsonManifest] = useState(false);
 
-  const [showExplainer, setShowExplainer] = useState(true);
-
   const [activeTab, setActiveTab] = useState<"overview" | "history" | "comparison" | "pull_requests">("overview");
   const [history, setHistory] = useState<PaginatedScanSnapshots | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -236,31 +230,6 @@ export default function RepositoryIngestionDashboard() {
   const [comparison, setComparison] = useState<ScanComparisonResult | null>(null);
   const [isLoadingComparison, setIsLoadingComparison] = useState(false);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
-
-  const handleLoadDemoSample = () => {
-    setActiveScan(DEMO_SCAN_RESULT);
-    setManifest(DEMO_MANIFEST);
-    setFindings(DEMO_FINDINGS);
-    setScore(DEMO_SCORE_RESULT);
-    setSelectedCategory(null);
-    setActiveTab("overview");
-    setTimeout(() => {
-      const el = document.getElementById("scan-results-view");
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth" });
-      }
-    }, 100);
-  };
-
-  const handleStartScanClick = () => {
-    setActiveTab("overview");
-    const el = document.getElementById("scan-trigger-box");
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth" });
-      const input = el.querySelector("input");
-      if (input) input.focus();
-    }
-  };
 
   const loadHistoryAndTrend = async (repoId: string, page = 1) => {
     if (!repoId) return;
@@ -449,52 +418,140 @@ export default function RepositoryIngestionDashboard() {
     }
   };
 
+  const processDroppedData = async (dataTransfer: DataTransfer) => {
+    setError(null);
+    setScanMode("folder");
+
+    if (!dataTransfer.files || dataTransfer.files.length === 0) return;
+
+    // 1. Single .zip file dropped
+    if (
+      dataTransfer.files.length === 1 &&
+      dataTransfer.files[0].name.toLowerCase().endsWith(".zip")
+    ) {
+      const file = dataTransfer.files[0];
+      setSelectedZipFile(file);
+      setSelectedFolderFiles([]);
+      const detectedName = file.name.replace(/\.zip$/i, "");
+      setFolderDisplayName(detectedName);
+      if (!repoName.trim()) setRepoName(detectedName);
+      return;
+    }
+
+    // 2. Folder items via DataTransferItemList traversal
+    if (dataTransfer.items && dataTransfer.items.length > 0) {
+      try {
+        const files = await getFilesFromDataTransfer(dataTransfer.items);
+        if (files.length > 0) {
+          setSelectedFolderFiles(files);
+          setSelectedZipFile(null);
+          const firstPath = files[0].webkitRelativePath || files[0].name;
+          const detectedName = firstPath.includes("/")
+            ? firstPath.split("/")[0]
+            : files.length === 1
+            ? files[0].name.replace(/\.[^/.]+$/, "")
+            : "local-files";
+          setFolderDisplayName(detectedName);
+          if (!repoName.trim()) setRepoName(detectedName);
+          return;
+        }
+      } catch (err) {
+        console.warn("Folder item traversal fallback:", err);
+      }
+    }
+
+    // 3. Fallback to flat files list
+    const files = Array.from(dataTransfer.files);
+    if (files.length > 0) {
+      setSelectedFolderFiles(files);
+      setSelectedZipFile(null);
+      const detectedName =
+        files.length === 1
+          ? files[0].name.replace(/\.[^/.]+$/, "")
+          : "local-files";
+      setFolderDisplayName(detectedName);
+      if (!repoName.trim()) setRepoName(detectedName);
+    }
+  };
+
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      if (
-        e.dataTransfer.files.length === 1 &&
-        e.dataTransfer.files[0].name.toLowerCase().endsWith(".zip")
-      ) {
-        const file = e.dataTransfer.files[0];
-        setSelectedZipFile(file);
-        setSelectedFolderFiles([]);
-        const detectedName = file.name.replace(/\.zip$/i, "");
-        setFolderDisplayName(detectedName);
-        if (!repoName.trim()) setRepoName(detectedName);
-        return;
-      }
-
-      if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
-        try {
-          const files = await getFilesFromDataTransfer(e.dataTransfer.items);
-          if (files.length > 0) {
-            setSelectedFolderFiles(files);
-            setSelectedZipFile(null);
-            const firstPath = files[0].webkitRelativePath || files[0].name;
-            const detectedName = firstPath.includes("/")
-              ? firstPath.split("/")[0]
-              : "local-project";
-            setFolderDisplayName(detectedName);
-            if (!repoName.trim()) setRepoName(detectedName);
-            return;
-          }
-        } catch {
-          // fallback
-        }
-      }
-
-      const files = Array.from(e.dataTransfer.files);
-      setSelectedFolderFiles(files);
-      setSelectedZipFile(null);
-      setFolderDisplayName(files[0]?.name || "local-project");
-      if (!repoName.trim() && files[0]?.name) {
-        setRepoName(files[0].name.split(".")[0]);
-      }
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await processDroppedData(e.dataTransfer);
     }
   };
+
+  const handleIndividualFilesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const fileList = Array.from(e.target.files);
+    setSelectedFolderFiles(fileList);
+    setSelectedZipFile(null);
+    setError(null);
+
+    const detectedName =
+      fileList.length === 1
+        ? fileList[0].name.replace(/\.[^/.]+$/, "")
+        : "local-files";
+    setFolderDisplayName(detectedName);
+    if (!repoName.trim()) {
+      setRepoName(detectedName);
+    }
+  };
+
+  const processDroppedDataRef = useRef(processDroppedData);
+  processDroppedDataRef.current = processDroppedData;
+
+  // Window-level drag and drop listener so users can drop anywhere onto the website
+  useEffect(() => {
+    const handleDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounter.current += 1;
+      if (e.dataTransfer && e.dataTransfer.types.includes("Files")) {
+        setIsWindowDragging(true);
+      }
+    };
+
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounter.current -= 1;
+      if (dragCounter.current <= 0) {
+        setIsWindowDragging(false);
+        dragCounter.current = 0;
+      }
+    };
+
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = "copy";
+      }
+    };
+
+    const handleGlobalDrop = async (e: DragEvent) => {
+      e.preventDefault();
+      dragCounter.current = 0;
+      setIsWindowDragging(false);
+      setIsDragging(false);
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        await processDroppedDataRef.current(e.dataTransfer);
+        const el = document.getElementById("scan-trigger-box");
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+      }
+    };
+
+    window.addEventListener("dragenter", handleDragEnter);
+    window.addEventListener("dragleave", handleDragLeave);
+    window.addEventListener("dragover", handleDragOver);
+    window.addEventListener("drop", handleGlobalDrop);
+
+    return () => {
+      window.removeEventListener("dragenter", handleDragEnter);
+      window.removeEventListener("dragleave", handleDragLeave);
+      window.removeEventListener("dragover", handleDragOver);
+      window.removeEventListener("drop", handleGlobalDrop);
+    };
+  }, []);
 
   const handleStartFolderScan = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -621,73 +678,40 @@ export default function RepositoryIngestionDashboard() {
   });
 
   return (
-    <div className="space-y-8">
-      {/* Dynamic Animated Forensic Explainer Hero with Particle Mesh */}
+    <div className="space-y-8 relative">
+      {/* Global Drag and Drop Overlay */}
       <AnimatePresence>
-        {showExplainer && (
+        {isWindowDragging && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.35 }}
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-ink-950/90 backdrop-blur-md p-6 pointer-events-none"
           >
-            <EntropyExplainerHero
-              onStartScanClick={handleStartScanClick}
-              onLoadDemoSample={handleLoadDemoSample}
-              isBackendConnected={Boolean(health)}
-            />
+            <div className="w-full max-w-xl p-10 rounded-3xl border-2 border-dashed border-red-500 bg-red-950/40 flex flex-col items-center justify-center text-center space-y-5 shadow-glow-red">
+              <div className="h-20 w-20 rounded-3xl bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 animate-bounce">
+                <UploadCloud className="h-10 w-10 text-red-400" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-2xl font-bold text-white tracking-tight">
+                  Drop Local Files or Folder Here
+                </h3>
+                <p className="text-sm text-red-200/80 max-w-md mx-auto leading-relaxed">
+                  Release anywhere to package and scan your project hermetically in your browser.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2.5 text-xs font-mono text-red-300 bg-red-950/80 border border-red-500/40 px-4 py-2 rounded-full">
+                <span>📁 Folders</span>
+                <span className="text-red-600">•</span>
+                <span>📄 Source Files (.py, .ts, .js)</span>
+                <span className="text-red-600">•</span>
+                <span>📦 .ZIP Archives</span>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Explainer collapse/expand control bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-ink-900/60 border border-border px-4 py-2.5 rounded-xl backdrop-blur-md">
-        <button
-          onClick={() => setShowExplainer(!showExplainer)}
-          className="inline-flex items-center gap-2 text-xs font-mono text-ink-300 hover:text-white transition-colors cursor-pointer"
-        >
-          {showExplainer ? (
-            <>
-              <ChevronUp className="h-4 w-4 text-red-400" />
-              <span>Hide Architectural Explainer</span>
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4 text-rose-400" />
-              <span>Show Architectural Explainer &amp; Motion Graphics</span>
-            </>
-          )}
-        </button>
-
-        <div className="flex items-center gap-3">
-          {activeScan?.scan_id === "demo-forensic-scan-01" ? (
-            <div className="inline-flex items-center gap-2 text-xs font-mono text-rose-300 bg-rose-950/60 border border-rose-800/60 px-3 py-1 rounded-full">
-              <Sparkles className="h-3 w-3 text-rose-400 animate-spin" />
-              <span>Interactive Forensic Sample Active</span>
-              <button
-                onClick={() => {
-                  setActiveScan(null);
-                  setManifest(null);
-                  setFindings([]);
-                  setScore(null);
-                }}
-                className="text-[11px] underline hover:text-white ml-1 text-rose-200 cursor-pointer"
-              >
-                Reset
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={handleLoadDemoSample}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-red-300 hover:text-red-200 bg-red-950/50 hover:bg-red-950/80 border border-red-800/60 px-3.5 py-1.5 rounded-lg shadow-glow-red transition-all cursor-pointer"
-            >
-              <Sparkles className="h-3.5 w-3.5 text-red-400" />
-              <span>Load Sample Forensic Audit</span>
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Top Header & Server Status */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
         <div>
@@ -772,8 +796,8 @@ export default function RepositoryIngestionDashboard() {
           <div id="scan-trigger-box" className="glass-panel border border-border/90 rounded-2xl p-6 space-y-5 shadow-2xl relative overflow-hidden">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 pb-4">
               <div>
-                <h2 className="text-xs font-medium text-emerald-400 uppercase tracking-wider flex items-center gap-2">
-                  <Terminal className="h-3.5 w-3.5 text-emerald-400" />
+                <h2 className="text-xs font-medium text-red-400 uppercase tracking-wider flex items-center gap-2">
+                  <Terminal className="h-3.5 w-3.5 text-red-400" />
                   <span>Scan repository</span>
                 </h2>
                 <p className="text-xs text-ink-300 mt-1">
@@ -788,7 +812,7 @@ export default function RepositoryIngestionDashboard() {
                   onClick={() => setScanMode("folder")}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                     scanMode === "folder"
-                      ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-sm"
+                      ? "bg-red-500/15 text-red-400 border border-red-500/30 shadow-sm"
                       : "text-ink-400 hover:text-white"
                   }`}
                 >
@@ -800,7 +824,7 @@ export default function RepositoryIngestionDashboard() {
                   onClick={() => setScanMode("path")}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                     scanMode === "path"
-                      ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-sm"
+                      ? "bg-red-500/15 text-red-400 border border-red-500/30 shadow-sm"
                       : "text-ink-400 hover:text-white"
                   }`}
                 >
@@ -822,6 +846,13 @@ export default function RepositoryIngestionDashboard() {
                 />
                 <input
                   type="file"
+                  ref={fileInputRef}
+                  multiple
+                  onChange={handleIndividualFilesSelect}
+                  className="hidden"
+                />
+                <input
+                  type="file"
                   ref={zipInputRef}
                   accept=".zip"
                   onChange={handleZipSelect}
@@ -837,21 +868,21 @@ export default function RepositoryIngestionDashboard() {
                     onDragLeave={() => setIsDragging(false)}
                     onDrop={handleDrop}
                     className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all duration-200 ${
-                      isDragging
-                        ? "border-emerald-400 bg-emerald-500/10 shadow-glow-emerald"
-                        : "border-border/80 bg-ink-950/40 hover:border-emerald-500/40 hover:bg-ink-950/60"
+                      isDragging || isWindowDragging
+                        ? "border-red-400 bg-red-500/15 shadow-glow-red"
+                        : "border-border/80 bg-ink-950/40 hover:border-red-500/40 hover:bg-ink-950/60"
                     }`}
                   >
                     <div className="flex flex-col items-center justify-center space-y-4">
-                      <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-glow-emerald">
-                        <FolderUp className="h-6 w-6" />
+                      <div className="h-14 w-14 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 shadow-glow-red">
+                        <FolderUp className="h-7 w-7" />
                       </div>
                       <div>
                         <h3 className="text-sm font-semibold text-white">
-                          Select a Local Project Folder or Drag &amp; Drop Here
+                          Drag &amp; Drop Local Folder or Files Here
                         </h3>
-                        <p className="text-xs text-ink-400 mt-1 max-w-md mx-auto">
-                          Select any local directory from your machine or drop a .ZIP archive. Source files are packaged securely in your browser and analyzed static-only.
+                        <p className="text-xs text-ink-400 mt-1 max-w-md mx-auto leading-relaxed">
+                          Drop any local project directory, source code files (<code className="text-red-400">.py</code>, <code className="text-red-400">.ts</code>, <code className="text-red-400">.js</code>), or <code className="text-red-400">.zip</code> archive. Packaged hermetically in your browser.
                         </p>
                       </div>
 
@@ -859,10 +890,19 @@ export default function RepositoryIngestionDashboard() {
                         <button
                           type="button"
                           onClick={() => folderInputRef.current?.click()}
-                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-ink-950 font-bold text-xs shadow-glow-emerald transition-all cursor-pointer"
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-ink-950 font-bold text-xs shadow-glow-red transition-all cursor-pointer"
                         >
                           <FolderUp className="h-4 w-4" />
                           <span>Choose Local Folder</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-ink-850 hover:bg-ink-800 text-ink-200 border border-border text-xs font-medium transition-all cursor-pointer"
+                        >
+                          <FileCode className="h-4 w-4 text-red-400" />
+                          <span>Choose Files</span>
                         </button>
 
                         <button
@@ -876,19 +916,30 @@ export default function RepositoryIngestionDashboard() {
                       </div>
 
                       <div className="text-[11px] font-mono text-ink-500 pt-1">
-                        Auto-excludes node_modules, .git, and venvs • Zero code execution
+                        Drop anywhere on the screen or use buttons above • Zero code execution
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <form onSubmit={handleStartFolderScan} className="space-y-4">
-                    <div className="p-4 rounded-xl bg-ink-900/80 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <form
+                    onSubmit={handleStartFolderScan}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDragging(true);
+                    }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleDrop}
+                    className="space-y-4"
+                  >
+                    <div className="p-4 rounded-xl bg-ink-900/80 border border-red-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                       <div className="flex items-center gap-3.5">
-                        <div className="h-10 w-10 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+                        <div className="h-10 w-10 rounded-xl bg-red-500/15 border border-red-500/40 flex items-center justify-center text-red-400 shrink-0">
                           {selectedZipFile ? (
                             <FileArchive className="h-5 w-5" />
-                          ) : (
+                          ) : selectedFolderFiles.some((f) => f.webkitRelativePath?.includes("/")) ? (
                             <FolderGit2 className="h-5 w-5" />
+                          ) : (
+                            <FileCode className="h-5 w-5" />
                           )}
                         </div>
                         <div>
@@ -896,19 +947,23 @@ export default function RepositoryIngestionDashboard() {
                             <span className="text-sm font-semibold text-white">
                               {folderDisplayName}
                             </span>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                              {selectedZipFile ? "ZIP Archive" : "Local Folder"}
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-red-950/60 text-red-300 border border-red-500/30">
+                              {selectedZipFile
+                                ? "ZIP Archive"
+                                : selectedFolderFiles.some((f) => f.webkitRelativePath?.includes("/"))
+                                ? "Local Folder"
+                                : "Source Files"}
                             </span>
                           </div>
                           <p className="text-xs text-ink-400 mt-0.5 font-mono">
                             {selectedZipFile
                               ? formatBytes(selectedZipFile.size)
-                              : `${selectedFolderFiles.length} files detected (${formatBytes(totalFolderSize)})`}
+                              : `${selectedFolderFiles.length} file(s) selected (${formatBytes(totalFolderSize)})`}
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                      <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
                         <button
                           type="button"
                           onClick={() => {
@@ -928,7 +983,16 @@ export default function RepositoryIngestionDashboard() {
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-ink-300 hover:text-white bg-ink-850 hover:bg-ink-800 border border-border transition-colors cursor-pointer"
                         >
                           <FolderUp className="h-3.5 w-3.5" />
-                          <span>Change folder</span>
+                          <span>Folder</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-ink-300 hover:text-white bg-ink-850 hover:bg-ink-800 border border-border transition-colors cursor-pointer"
+                        >
+                          <FileCode className="h-3.5 w-3.5 text-red-400" />
+                          <span>Files</span>
                         </button>
                       </div>
                     </div>
@@ -943,14 +1007,14 @@ export default function RepositoryIngestionDashboard() {
                           placeholder="e.g. my-local-service"
                           value={repoName}
                           onChange={(e) => setRepoName(e.target.value)}
-                          className="w-full bg-ink-950/80 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-ink-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40 transition-all font-mono"
+                          className="w-full bg-ink-950/80 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-ink-500 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/40 transition-all font-mono"
                         />
                       </div>
                       <div className="flex items-end">
                         <button
                           type="submit"
                           disabled={isScanning}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-ink-950 font-bold text-xs shadow-glow-emerald transition-all disabled:opacity-50 cursor-pointer"
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-ink-950 font-bold text-xs shadow-glow-red transition-all disabled:opacity-50 cursor-pointer"
                         >
                           {isScanning ? (
                             <>
@@ -982,7 +1046,7 @@ export default function RepositoryIngestionDashboard() {
                       value={repoPath}
                       onChange={(e) => setRepoPath(e.target.value)}
                       required
-                      className="w-full bg-ink-950/80 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-ink-500 font-mono focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40 transition-all"
+                      className="w-full bg-ink-950/80 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-ink-500 font-mono focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/40 transition-all"
                     />
                   </div>
 
@@ -995,7 +1059,7 @@ export default function RepositoryIngestionDashboard() {
                       placeholder="e.g. backend-api"
                       value={repoName}
                       onChange={(e) => setRepoName(e.target.value)}
-                      className="w-full bg-ink-950/80 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-ink-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40 transition-all"
+                      className="w-full bg-ink-950/80 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-ink-500 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/40 transition-all"
                     />
                   </div>
                 </div>
@@ -1080,7 +1144,7 @@ export default function RepositoryIngestionDashboard() {
                 </div>
                 <div className="w-full bg-ink-800 h-1 rounded-full overflow-hidden">
                   <div
-                    className="bg-emerald-400 h-full transition-all duration-300"
+                    className="bg-red-500 h-full transition-all duration-300"
                     style={{ width: `${((scanStepIndex + 1) / SCAN_STEPS.length) * 100}%` }}
                   />
                 </div>
@@ -1115,7 +1179,7 @@ export default function RepositoryIngestionDashboard() {
                           setError(null);
                           setTimeout(() => folderInputRef.current?.click(), 150);
                         }}
-                        className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-ink-950 text-xs font-semibold shadow-glow-emerald transition-all cursor-pointer"
+                        className="px-3 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-ink-950 text-xs font-semibold shadow-glow-red transition-all cursor-pointer"
                       >
                         Choose Local Folder
                       </button>
@@ -1551,10 +1615,10 @@ export default function RepositoryIngestionDashboard() {
               )}
             </div>
           ) : (
-            /* Rich Interactive Showcase When No Scan is Active */
-            <div className="glass-panel border border-border/80 rounded-2xl p-8 space-y-8 shadow-2xl relative overflow-hidden">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-border/80">
-                <div className="space-y-1">
+            /* Empty Welcome State */
+            <div className="border border-border/80 rounded-2xl p-8 bg-ink-900/40 backdrop-blur-sm space-y-8">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1.5">
                   <div className="flex items-center gap-2 text-red-400 text-xs font-mono font-medium">
                     <span className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
@@ -1594,13 +1658,13 @@ export default function RepositoryIngestionDashboard() {
                     <FolderUp className="h-4 w-4" />
                   </div>
                   <h4 className="text-sm font-semibold text-white group-hover:text-emerald-300 transition-colors">
-                    1. Scan Local Files / Folder
+                    1. Drag &amp; Drop / Local Files
                   </h4>
                   <p className="text-xs text-ink-400 leading-relaxed">
-                    Select any local directory or ZIP archive from your computer. Packages &amp; scans safely in seconds.
+                    Drop any local folder, code files, or ZIP archive anywhere on screen. Fast in-browser packaging with zero untrusted code execution.
                   </p>
                   <div className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
-                    <span>Select local folder</span>
+                    <span>Drop or choose files</span>
                     <ArrowRight className="h-3 w-3" />
                   </div>
                 </div>

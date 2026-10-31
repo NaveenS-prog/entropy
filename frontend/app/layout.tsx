@@ -33,7 +33,7 @@ export default function RootLayout({
               </div>
               <span className="font-bold tracking-tight text-white text-base">Entropy</span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-950/60 border border-red-800/60 text-red-300 font-mono font-medium">
-                v0.1.0-forensic
+                v0.1.0
               </span>
             </Link>
           </div>

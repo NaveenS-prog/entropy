@@ -52,7 +52,7 @@ class Settings(BaseSettings):
         description="API key for securing API v1 endpoints",
     )
     ALLOW_LOCALHOST_NO_KEY: bool = Field(
-        default=False,
+        default=True,
         validation_alias=AliasChoices("ALLOW_LOCALHOST_NO_KEY", "ENTROPY_ALLOW_LOCALHOST_NO_KEY"),
         description="Allow localhost access without API key when no key is configured",
     )

@@ -52,7 +52,7 @@ class Settings(BaseSettings):
         description="API key for securing API v1 endpoints",
     )
     ALLOW_LOCALHOST_NO_KEY: bool = Field(
-        default=False,
+        default=True,
         validation_alias=AliasChoices("ALLOW_LOCALHOST_NO_KEY", "ENTROPY_ALLOW_LOCALHOST_NO_KEY"),
         description="Allow localhost access without API key when no key is configured",
     )
@@ -62,7 +62,11 @@ class Settings(BaseSettings):
         description="Allow public non-localhost access without API key when no key is configured",
     )
     SCAN_ALLOWED_ROOTS: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: [str(Path.cwd().resolve())],
+        default_factory=lambda: [
+            str(Path.cwd().resolve()),
+            str(Path.cwd().parent.resolve()),
+            str(Path.home().resolve()),
+        ],
         validation_alias=AliasChoices("SCAN_ALLOWED_ROOTS", "ENTROPY_SCAN_ALLOWED_ROOTS"),
         description="Allowed root directory paths for repository scanning",
     )

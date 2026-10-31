@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   compareScans,
   fetchHealth,
@@ -12,6 +12,7 @@ import {
   listRepositoryScans,
   listScans,
   triggerScan,
+  uploadAndScanArchive,
 } from "@/lib/api";
 import {
   DebtCategory,
@@ -31,6 +32,14 @@ import { ScoreTrendChart } from "@/components/history/ScoreTrendChart";
 import { ScanHistoryTable } from "@/components/history/ScanHistoryTable";
 import { ScanComparisonView } from "@/components/comparison/ScanComparisonView";
 import { PRWorkflowView } from "@/components/github/PRWorkflowView";
+import { motion, AnimatePresence } from "framer-motion";
+import { EntropyExplainerHero } from "@/components/hero/EntropyExplainerHero";
+import {
+  DEMO_SCAN_RESULT,
+  DEMO_SCORE_RESULT,
+  DEMO_FINDINGS,
+  DEMO_MANIFEST,
+} from "@/lib/demoData";
 import {
   FolderGit2,
   FileCode,
@@ -41,6 +50,7 @@ import {
   FolderTree,
   Search,
   ChevronDown,
+  ChevronUp,
   Terminal,
   FileText,
   Braces,
@@ -49,19 +59,157 @@ import {
   GitPullRequest,
   AlertCircle,
   Loader2,
+  Sparkles,
+  Layers,
+  CheckCircle2,
+  ArrowRight,
+  Shield,
+  Play,
+  RotateCcw,
+  UploadCloud,
+  FolderUp,
+  FileArchive,
+  X,
+  HardDrive,
 } from "lucide-react";
 
+function formatBytes(bytes: number, decimals = 1): string {
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+}
+
+async function packageFilesToZip(
+  files: File[],
+  onProgress?: (msg: string) => void
+): Promise<Blob> {
+  const JSZip = (await import("jszip")).default;
+  const zip = new JSZip();
+
+  const ignoredPatterns = [
+    /(^|\/)\.git\//,
+    /(^|\/)node_modules\//,
+    /(^|\/)__pycache__\//,
+    /(^|\/)\.venv\//,
+    /(^|\/)venv\//,
+    /(^|\/)\.next\//,
+    /(^|\/)dist\//,
+    /(^|\/)build\//,
+    /(^|\/)\.turbo\//,
+    /(^|\/)\.idea\//,
+    /(^|\/)\.vscode\//,
+    /(^|\/)\.DS_Store$/,
+  ];
+
+  let addedCount = 0;
+  for (const file of files) {
+    const relativePath = file.webkitRelativePath || file.name;
+    const isIgnored = ignoredPatterns.some((pattern) => pattern.test(relativePath));
+    if (isIgnored) continue;
+
+    zip.file(relativePath, file);
+    addedCount++;
+  }
+
+  if (addedCount === 0) {
+    throw new Error("No valid source files found in the selected folder.");
+  }
+
+  onProgress?.("Compressing archive...");
+  return await zip.generateAsync({
+    type: "blob",
+    compression: "DEFLATE",
+    compressionOptions: { level: 6 },
+  });
+}
+
+async function getFilesFromDataTransfer(items: DataTransferItemList): Promise<File[]> {
+  const files: File[] = [];
+
+  async function traverseEntry(entry: any, path = ""): Promise<void> {
+    if (!entry) return;
+    if (entry.isFile) {
+      await new Promise<void>((resolve) => {
+        entry.file(
+          (file: File) => {
+            Object.defineProperty(file, "webkitRelativePath", {
+              value: path ? `${path}/${file.name}` : file.name,
+              writable: true,
+            });
+            files.push(file);
+            resolve();
+          },
+          () => resolve()
+        );
+      });
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      const readEntries = (): Promise<any[]> =>
+        new Promise((resolve) => {
+          reader.readEntries(
+            (entries: any[]) => resolve(entries),
+            () => resolve([])
+          );
+        });
+
+      let entries = await readEntries();
+      while (entries && entries.length > 0) {
+        for (const child of entries) {
+          const nextPath = path ? `${path}/${entry.name}` : entry.name;
+          await traverseEntry(child, nextPath);
+        }
+        entries = await readEntries();
+      }
+    }
+  }
+
+  const entries: any[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (item.webkitGetAsEntry) {
+      const entry = item.webkitGetAsEntry();
+      if (entry) entries.push(entry);
+    } else {
+      const file = item.getAsFile();
+      if (file) files.push(file);
+    }
+  }
+
+  for (const entry of entries) {
+    await traverseEntry(entry);
+  }
+
+  return files;
+}
+
 const SCAN_STEPS = [
-  "Scanning repository...",
-  "Discovering files...",
-  "Detecting languages...",
-  "Building manifest...",
+  "Inspecting repository structure...",
+  "Discovering source files...",
+  "Parsing AST syntax trees...",
+  "Analyzing debt rules & scoring...",
   "Scan complete",
 ];
 
 export default function RepositoryIngestionDashboard() {
+  const [scanMode, setScanMode] = useState<"folder" | "path">("folder");
   const [repoPath, setRepoPath] = useState("");
   const [repoName, setRepoName] = useState("");
+  const [selectedFolderFiles, setSelectedFolderFiles] = useState<File[]>([]);
+  const [selectedZipFile, setSelectedZipFile] = useState<File | null>(null);
+  const [folderDisplayName, setFolderDisplayName] = useState<string>("");
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [packagingMessage, setPackagingMessage] = useState<string>("");
+
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const zipInputRef = useRef<HTMLInputElement>(null);
+
+  const totalFolderSize = selectedZipFile
+    ? selectedZipFile.size
+    : selectedFolderFiles.reduce((acc, f) => acc + f.size, 0);
+
   const [isScanning, setIsScanning] = useState(false);
   const [scanStepIndex, setScanStepIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +226,8 @@ export default function RepositoryIngestionDashboard() {
   const [selectedLanguageFilter, setSelectedLanguageFilter] = useState<string>("ALL");
   const [showJsonManifest, setShowJsonManifest] = useState(false);
 
+  const [showExplainer, setShowExplainer] = useState(true);
+
   const [activeTab, setActiveTab] = useState<"overview" | "history" | "comparison" | "pull_requests">("overview");
   const [history, setHistory] = useState<PaginatedScanSnapshots | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -86,6 +236,31 @@ export default function RepositoryIngestionDashboard() {
   const [comparison, setComparison] = useState<ScanComparisonResult | null>(null);
   const [isLoadingComparison, setIsLoadingComparison] = useState(false);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
+
+  const handleLoadDemoSample = () => {
+    setActiveScan(DEMO_SCAN_RESULT);
+    setManifest(DEMO_MANIFEST);
+    setFindings(DEMO_FINDINGS);
+    setScore(DEMO_SCORE_RESULT);
+    setSelectedCategory(null);
+    setActiveTab("overview");
+    setTimeout(() => {
+      const el = document.getElementById("scan-results-view");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth" });
+      }
+    }, 100);
+  };
+
+  const handleStartScanClick = () => {
+    setActiveTab("overview");
+    const el = document.getElementById("scan-trigger-box");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth" });
+      const input = el.querySelector("input");
+      if (input) input.focus();
+    }
+  };
 
   const loadHistoryAndTrend = async (repoId: string, page = 1) => {
     if (!repoId) return;
@@ -239,6 +414,158 @@ export default function RepositoryIngestionDashboard() {
     }
   };
 
+  const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const fileList = Array.from(e.target.files);
+    setSelectedFolderFiles(fileList);
+    setSelectedZipFile(null);
+    setError(null);
+
+    const firstPath = fileList[0].webkitRelativePath;
+    const detectedName = firstPath ? firstPath.split("/")[0] : "local-project";
+    setFolderDisplayName(detectedName);
+    if (!repoName.trim()) {
+      setRepoName(detectedName);
+    }
+  };
+
+  const handleZipSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    setSelectedZipFile(file);
+    setSelectedFolderFiles([]);
+    setError(null);
+
+    const detectedName = file.name.replace(/\.zip$/i, "");
+    setFolderDisplayName(detectedName);
+    if (!repoName.trim()) {
+      setRepoName(detectedName);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      if (
+        e.dataTransfer.files.length === 1 &&
+        e.dataTransfer.files[0].name.toLowerCase().endsWith(".zip")
+      ) {
+        const file = e.dataTransfer.files[0];
+        setSelectedZipFile(file);
+        setSelectedFolderFiles([]);
+        const detectedName = file.name.replace(/\.zip$/i, "");
+        setFolderDisplayName(detectedName);
+        if (!repoName.trim()) setRepoName(detectedName);
+        return;
+      }
+
+      if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+        try {
+          const files = await getFilesFromDataTransfer(e.dataTransfer.items);
+          if (files.length > 0) {
+            setSelectedFolderFiles(files);
+            setSelectedZipFile(null);
+            const firstPath = files[0].webkitRelativePath || files[0].name;
+            const detectedName = firstPath.includes("/")
+              ? firstPath.split("/")[0]
+              : "local-project";
+            setFolderDisplayName(detectedName);
+            if (!repoName.trim()) setRepoName(detectedName);
+            return;
+          }
+        } catch {
+          // fallback
+        }
+      }
+
+      const files = Array.from(e.dataTransfer.files);
+      setSelectedFolderFiles(files);
+      setSelectedZipFile(null);
+      setFolderDisplayName(files[0]?.name || "local-project");
+      if (!repoName.trim() && files[0]?.name) {
+        setRepoName(files[0].name.split(".")[0]);
+      }
+    }
+  };
+
+  const handleStartFolderScan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedZipFile && selectedFolderFiles.length === 0) {
+      setError("Please select a local folder or .ZIP archive to scan.");
+      return;
+    }
+
+    setError(null);
+    setIsScanning(true);
+    setScanStepIndex(0);
+
+    const interval = setInterval(() => {
+      setScanStepIndex((prev) => (prev < 3 ? prev + 1 : prev));
+    }, 450);
+
+    try {
+      let result: RepositoryScanResult;
+      const targetName = repoName.trim() || folderDisplayName.trim() || undefined;
+
+      if (selectedZipFile) {
+        setPackagingMessage("Uploading archive to Entropy scanner...");
+        result = await uploadAndScanArchive(
+          selectedZipFile,
+          selectedZipFile.name,
+          targetName
+        );
+      } else {
+        setPackagingMessage("Packaging and filtering local source files...");
+        const zipBlob = await packageFilesToZip(selectedFolderFiles, (msg) => {
+          setPackagingMessage(msg);
+        });
+        setPackagingMessage("Analyzing AST topology & rules...");
+        result = await uploadAndScanArchive(
+          zipBlob,
+          `${folderDisplayName || "local-project"}.zip`,
+          targetName
+        );
+      }
+
+      clearInterval(interval);
+      setScanStepIndex(4);
+
+      setScans((prev) => [result, ...prev.filter((s) => s.scan_id !== result.scan_id)]);
+      setActiveScan(result);
+      if (result.manifest) {
+        setManifest(result.manifest);
+      } else {
+        const fetchedManifest = await getManifest(result.scan_id);
+        setManifest(fetchedManifest);
+      }
+      loadFindingsForScan(result.scan_id);
+      loadScoreForScan(result.scan_id);
+      if (result.repository?.repository_id) {
+        loadHistoryAndTrend(result.repository.repository_id);
+      }
+
+      setTimeout(() => {
+        const el = document.getElementById("scan-results-view");
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+      }, 150);
+    } catch (err: unknown) {
+      clearInterval(interval);
+      let errorMessage = err instanceof Error ? err.message : "Failed to scan local repository files";
+      if (
+        errorMessage.toLowerCase().includes("failed to fetch") ||
+        errorMessage.toLowerCase().includes("networkerror")
+      ) {
+        errorMessage = "Cannot reach backend API. Ensure your backend service is running.";
+      }
+      setError(errorMessage);
+    } finally {
+      setIsScanning(false);
+      setPackagingMessage("");
+    }
+  };
+
   const handleSelectScan = async (scanId: string) => {
     try {
       const full = await getScan(scanId);
@@ -288,7 +615,73 @@ export default function RepositoryIngestionDashboard() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* Dynamic Animated Forensic Explainer Hero with Particle Mesh */}
+      <AnimatePresence>
+        {showExplainer && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.35 }}
+          >
+            <EntropyExplainerHero
+              onStartScanClick={handleStartScanClick}
+              onLoadDemoSample={handleLoadDemoSample}
+              isBackendConnected={Boolean(health)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Explainer collapse/expand control bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-ink-900/60 border border-border px-4 py-2.5 rounded-xl backdrop-blur-md">
+        <button
+          onClick={() => setShowExplainer(!showExplainer)}
+          className="inline-flex items-center gap-2 text-xs font-mono text-ink-300 hover:text-white transition-colors cursor-pointer"
+        >
+          {showExplainer ? (
+            <>
+              <ChevronUp className="h-4 w-4 text-red-400" />
+              <span>Hide Architectural Explainer</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-4 w-4 text-rose-400" />
+              <span>Show Architectural Explainer &amp; Motion Graphics</span>
+            </>
+          )}
+        </button>
+
+        <div className="flex items-center gap-3">
+          {activeScan?.scan_id === "demo-forensic-scan-01" ? (
+            <div className="inline-flex items-center gap-2 text-xs font-mono text-rose-300 bg-rose-950/60 border border-rose-800/60 px-3 py-1 rounded-full">
+              <Sparkles className="h-3 w-3 text-rose-400 animate-spin" />
+              <span>Interactive Forensic Sample Active</span>
+              <button
+                onClick={() => {
+                  setActiveScan(null);
+                  setManifest(null);
+                  setFindings([]);
+                  setScore(null);
+                }}
+                className="text-[11px] underline hover:text-white ml-1 text-rose-200 cursor-pointer"
+              >
+                Reset
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleLoadDemoSample}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-red-300 hover:text-red-200 bg-red-950/50 hover:bg-red-950/80 border border-red-800/60 px-3.5 py-1.5 rounded-lg shadow-glow-red transition-all cursor-pointer"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-red-400" />
+              <span>Load Sample Forensic Audit</span>
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Top Header & Server Status */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
         <div>
@@ -324,7 +717,7 @@ export default function RepositoryIngestionDashboard() {
 
           {health ? (
             <div className="flex items-center gap-2 text-xs text-ink-400 font-mono bg-ink-850 px-2.5 py-1.5 rounded-md border border-border">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
               <span>v{health.version}</span>
               <span className="text-ink-600">/</span>
               <span>{health.status}</span>
@@ -342,7 +735,7 @@ export default function RepositoryIngestionDashboard() {
       <div className="flex items-center gap-1.5 border-b border-border pb-3">
         <button
           onClick={() => setActiveTab("overview")}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
             activeTab !== "pull_requests"
               ? "bg-ink-800 text-white border border-border"
               : "text-ink-400 hover:text-white"
@@ -354,7 +747,7 @@ export default function RepositoryIngestionDashboard() {
 
         <button
           onClick={() => setActiveTab("pull_requests")}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
             activeTab === "pull_requests"
               ? "bg-ink-800 text-white border border-border"
               : "text-ink-400 hover:text-white"
@@ -370,115 +763,314 @@ export default function RepositoryIngestionDashboard() {
       ) : (
         <>
           {/* Main Scan Trigger Box */}
-          <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-            <div className="flex items-center justify-between">
+          <div id="scan-trigger-box" className="glass-panel border border-border/90 rounded-2xl p-6 space-y-5 shadow-2xl relative overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 pb-4">
               <div>
-                <h2 className="text-xs font-medium text-ink-200 uppercase tracking-wider flex items-center gap-2">
-                  <Terminal className="h-3.5 w-3.5 text-ink-400" />
+                <h2 className="text-xs font-medium text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+                  <Terminal className="h-3.5 w-3.5 text-emerald-400" />
                   <span>Scan repository</span>
                 </h2>
-                <p className="text-xs text-ink-400 mt-0.5">
-                  Enter a local filesystem path or remote Git URL. Zero untrusted code execution.
+                <p className="text-xs text-ink-300 mt-1">
+                  Choose a local directory, upload a ZIP archive, or provide a Git URL. Zero untrusted code execution.
                 </p>
+              </div>
+
+              {/* Mode Toggle Pills */}
+              <div className="flex items-center bg-ink-950/80 border border-border/80 rounded-xl p-1 gap-1 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setScanMode("folder")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                    scanMode === "folder"
+                      ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-sm"
+                      : "text-ink-400 hover:text-white"
+                  }`}
+                >
+                  <FolderUp className="w-3.5 h-3.5" />
+                  <span>Local Files / Folder</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScanMode("path")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                    scanMode === "path"
+                      ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-sm"
+                      : "text-ink-400 hover:text-white"
+                  }`}
+                >
+                  <Code2 className="w-3.5 h-3.5" />
+                  <span>Path / Git URL</span>
+                </button>
               </div>
             </div>
 
-            <form onSubmit={handleStartScan} className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="md:col-span-2">
-                  <label className="block text-xs text-ink-400 mb-1">
-                    Path or Git URL
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="/path/to/project or https://github.com/owner/repo"
-                    value={repoPath}
-                    onChange={(e) => setRepoPath(e.target.value)}
-                    required
-                    className="w-full bg-ink-850 border border-border rounded-md px-3 py-2 text-xs text-white placeholder-ink-500 font-mono focus:outline-none focus:border-ink-500"
-                  />
+            {scanMode === "folder" ? (
+              <div className="space-y-4">
+                <input
+                  type="file"
+                  ref={folderInputRef}
+                  {...({ webkitdirectory: "", directory: "" } as any)}
+                  multiple
+                  onChange={handleFolderSelect}
+                  className="hidden"
+                />
+                <input
+                  type="file"
+                  ref={zipInputRef}
+                  accept=".zip"
+                  onChange={handleZipSelect}
+                  className="hidden"
+                />
+
+                {!selectedZipFile && selectedFolderFiles.length === 0 ? (
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDragging(true);
+                    }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleDrop}
+                    className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all duration-200 ${
+                      isDragging
+                        ? "border-emerald-400 bg-emerald-500/10 shadow-glow-emerald"
+                        : "border-border/80 bg-ink-950/40 hover:border-emerald-500/40 hover:bg-ink-950/60"
+                    }`}
+                  >
+                    <div className="flex flex-col items-center justify-center space-y-4">
+                      <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-glow-emerald">
+                        <FolderUp className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-white">
+                          Select a Local Project Folder or Drag &amp; Drop Here
+                        </h3>
+                        <p className="text-xs text-ink-400 mt-1 max-w-md mx-auto">
+                          Select any local directory from your machine or drop a .ZIP archive. Source files are packaged securely in your browser and analyzed static-only.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => folderInputRef.current?.click()}
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-ink-950 font-bold text-xs shadow-glow-emerald transition-all cursor-pointer"
+                        >
+                          <FolderUp className="h-4 w-4" />
+                          <span>Choose Local Folder</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => zipInputRef.current?.click()}
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-ink-850 hover:bg-ink-800 text-ink-200 border border-border text-xs font-medium transition-all cursor-pointer"
+                        >
+                          <FileArchive className="h-4 w-4 text-ink-400" />
+                          <span>Upload .ZIP Archive</span>
+                        </button>
+                      </div>
+
+                      <div className="text-[11px] font-mono text-ink-500 pt-1">
+                        Auto-excludes node_modules, .git, and venvs • Zero code execution
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <form onSubmit={handleStartFolderScan} className="space-y-4">
+                    <div className="p-4 rounded-xl bg-ink-900/80 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3.5">
+                        <div className="h-10 w-10 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+                          {selectedZipFile ? (
+                            <FileArchive className="h-5 w-5" />
+                          ) : (
+                            <FolderGit2 className="h-5 w-5" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-white">
+                              {folderDisplayName}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              {selectedZipFile ? "ZIP Archive" : "Local Folder"}
+                            </span>
+                          </div>
+                          <p className="text-xs text-ink-400 mt-0.5 font-mono">
+                            {selectedZipFile
+                              ? formatBytes(selectedZipFile.size)
+                              : `${selectedFolderFiles.length} files detected (${formatBytes(totalFolderSize)})`}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedFolderFiles([]);
+                            setSelectedZipFile(null);
+                            setFolderDisplayName("");
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-ink-400 hover:text-white hover:bg-ink-800 transition-colors cursor-pointer"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          <span>Clear</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => folderInputRef.current?.click()}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-ink-300 hover:text-white bg-ink-850 hover:bg-ink-800 border border-border transition-colors cursor-pointer"
+                        >
+                          <FolderUp className="h-3.5 w-3.5" />
+                          <span>Change folder</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-mono text-ink-300 mb-1.5">
+                          Display name
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. my-local-service"
+                          value={repoName}
+                          onChange={(e) => setRepoName(e.target.value)}
+                          className="w-full bg-ink-950/80 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-ink-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40 transition-all font-mono"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <button
+                          type="submit"
+                          disabled={isScanning}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-ink-950 font-bold text-xs shadow-glow-emerald transition-all disabled:opacity-50 cursor-pointer"
+                        >
+                          {isScanning ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>Scanning local files...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Play className="h-4 w-4 fill-ink-950" />
+                              <span>Scan Local Files</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                )}
+              </div>
+            ) : (
+              <form onSubmit={handleStartScan} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-mono text-ink-300 mb-1.5">
+                      Path or Git URL
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="/path/to/project or https://github.com/owner/repo"
+                      value={repoPath}
+                      onChange={(e) => setRepoPath(e.target.value)}
+                      required
+                      className="w-full bg-ink-950/80 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-ink-500 font-mono focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40 transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-mono text-ink-300 mb-1.5">
+                      Display name (optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. backend-api"
+                      value={repoName}
+                      onChange={(e) => setRepoName(e.target.value)}
+                      className="w-full bg-ink-950/80 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-ink-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40 transition-all"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs text-ink-400 mb-1">
-                    Display name (optional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. backend-api"
-                    value={repoName}
-                    onChange={(e) => setRepoName(e.target.value)}
-                    className="w-full bg-ink-850 border border-border rounded-md px-3 py-2 text-xs text-white placeholder-ink-500 focus:outline-none focus:border-ink-500"
-                  />
-                </div>
-              </div>
-
-              {/* Quick preset paths */}
-              <div className="flex flex-wrap items-center gap-2 text-xs text-ink-400">
-                <span className="text-ink-500 font-mono">Quick paths:</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRepoPath(".");
-                    setRepoName("entropy-workspace");
-                  }}
-                  className="bg-ink-850 hover:bg-ink-800 text-ink-300 px-2 py-0.5 rounded border border-border font-mono text-[11px] transition-colors"
-                >
-                  . (workspace)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRepoPath("./backend/tests/fixtures/clean_python_project");
-                    setRepoName("clean-python-project");
-                  }}
-                  className="bg-ink-850 hover:bg-ink-800 text-ink-300 px-2 py-0.5 rounded border border-border font-mono text-[11px] transition-colors"
-                >
-                  clean_python_project
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRepoPath("./backend/tests/fixtures/mixed_language_project");
-                    setRepoName("mixed-language-project");
-                  }}
-                  className="bg-ink-850 hover:bg-ink-800 text-ink-300 px-2 py-0.5 rounded border border-border font-mono text-[11px] transition-colors"
-                >
-                  mixed_language_project
-                </button>
-              </div>
-
-              <div className="pt-2 flex items-center justify-between border-t border-border">
-                <div className="text-[11px] text-ink-500 font-mono">
-                  Limits: 2MB/file • 50,000 files max • Static AST only
+                {/* Quick preset paths */}
+                <div className="flex flex-wrap items-center gap-2 text-xs text-ink-400">
+                  <span className="text-ink-500 font-mono">Quick paths:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRepoPath(".");
+                      setRepoName("entropy-workspace");
+                    }}
+                    className="bg-ink-850 hover:bg-ink-800 text-ink-300 px-2 py-0.5 rounded border border-border font-mono text-[11px] transition-colors cursor-pointer"
+                  >
+                    . (workspace)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRepoPath("./backend/tests/fixtures/clean_python_project");
+                      setRepoName("clean-python-project");
+                    }}
+                    className="bg-ink-850 hover:bg-ink-800 text-ink-300 px-2 py-0.5 rounded border border-border font-mono text-[11px] transition-colors cursor-pointer"
+                  >
+                    clean_python_project
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRepoPath("./backend/tests/fixtures/mixed_language_project");
+                      setRepoName("mixed-language-project");
+                    }}
+                    className="bg-ink-850 hover:bg-ink-800 text-ink-300 px-2 py-0.5 rounded border border-border font-mono text-[11px] transition-colors cursor-pointer"
+                  >
+                    mixed_language_project
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRepoPath("https://github.com/expressjs/express");
+                      setRepoName("express-sample");
+                    }}
+                    className="bg-ink-850 hover:bg-ink-800 text-ink-300 px-2 py-0.5 rounded border border-border font-mono text-[11px] transition-colors cursor-pointer"
+                  >
+                    express-sample (Git)
+                  </button>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isScanning || !repoPath.trim()}
-                  className="flex items-center gap-2 bg-ink-100 hover:bg-white text-ink-950 disabled:opacity-50 font-medium px-4 py-1.5 rounded-md text-xs transition-colors cursor-pointer"
-                >
-                  {isScanning ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      <span>{SCAN_STEPS[scanStepIndex]}</span>
-                    </>
-                  ) : (
-                    <>
-                      <FolderGit2 className="h-3.5 w-3.5" />
-                      <span>Start scan</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
+                <div className="pt-2 flex items-center justify-between border-t border-border">
+                  <div className="text-[11px] text-ink-500 font-mono">
+                    Limits: 2MB/file • 50,000 files max • Static AST only
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isScanning || !repoPath.trim()}
+                    className="flex items-center gap-2 bg-ink-100 hover:bg-white text-ink-950 disabled:opacity-50 font-medium px-4 py-1.5 rounded-md text-xs transition-colors cursor-pointer"
+                  >
+                    {isScanning ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>{SCAN_STEPS[scanStepIndex]}</span>
+                      </>
+                    ) : (
+                      <>
+                        <FolderGit2 className="h-3.5 w-3.5" />
+                        <span>Start scan</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
 
             {/* Scan Progress State */}
             {isScanning && (
               <div className="p-3.5 rounded-md bg-ink-850 border border-border font-mono text-xs space-y-2">
                 <div className="flex items-center gap-2 text-ink-200">
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-ink-400" />
-                  <span>{SCAN_STEPS[scanStepIndex]}</span>
+                  <span>{packagingMessage || SCAN_STEPS[scanStepIndex]}</span>
                 </div>
                 <div className="w-full bg-ink-800 h-1 rounded-full overflow-hidden">
                   <div
@@ -503,7 +1095,7 @@ export default function RepositoryIngestionDashboard() {
 
           {/* Real Scan Results */}
           {manifest && activeScan ? (
-            <div className="space-y-6">
+            <div id="scan-results-view" className="space-y-6 scroll-mt-20">
               {/* Navigation Sub-Tabs */}
               <div className="flex items-center gap-1.5 border-b border-border pb-3">
                 <button
@@ -551,7 +1143,7 @@ export default function RepositoryIngestionDashboard() {
                   <GitCompare className="w-3.5 h-3.5" />
                   <span>Compare scans</span>
                   {comparison && (
-                    <span className="ml-1 px-1.5 py-0.2 rounded text-[10px] bg-ink-900 font-mono text-emerald-400">
+                    <span className="ml-1 px-1.5 py-0.2 rounded text-[10px] bg-ink-900 font-mono text-red-400">
                       active
                     </span>
                   )}
@@ -683,7 +1275,7 @@ export default function RepositoryIngestionDashboard() {
                                 </div>
                                 <div className="mt-1">
                                   {isSupported ? (
-                                    <span className="text-[11px] text-emerald-400 font-mono">
+                                    <span className="text-[11px] text-red-400 font-mono">
                                       Analyzer available
                                     </span>
                                   ) : (
@@ -774,7 +1366,7 @@ export default function RepositoryIngestionDashboard() {
                                 <td className="px-4 py-2 text-ink-400 tabular-nums">{f.line_count ?? "—"}</td>
                                 <td className="px-4 py-2">
                                   {f.analysis_supported ? (
-                                    <span className="text-[11px] text-emerald-400 font-mono">
+                                    <span className="text-[11px] text-red-400 font-mono">
                                       Supported
                                     </span>
                                   ) : (
@@ -926,15 +1518,128 @@ export default function RepositoryIngestionDashboard() {
               )}
             </div>
           ) : (
-            /* Empty Welcome State */
-            <div className="border border-dashed border-border rounded-xl p-12 text-center bg-card">
-              <div className="h-10 w-10 rounded-lg bg-ink-800 border border-border text-ink-300 flex items-center justify-center mx-auto mb-3">
-                <FolderGit2 className="h-5 w-5" />
+            /* Rich Interactive Showcase When No Scan is Active */
+            <div className="glass-panel border border-border/80 rounded-2xl p-8 space-y-8 shadow-2xl relative overflow-hidden">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-border/80">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-red-400 text-xs font-mono font-medium">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+                    </span>
+                    <span>READY FOR FORENSIC SCANNING</span>
+                  </div>
+                  <h3 className="text-xl font-bold text-white tracking-tight">
+                    Start a Scan or Explore the Interactive Sample Report
+                  </h3>
+                  <p className="text-xs text-ink-300 max-w-2xl leading-relaxed">
+                    Test how Entropy analyzes cross-file AST trees, calculates mathematical debt deductions, and generates verified AI remediation without hallucinations.
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleLoadDemoSample}
+                  className="group flex items-center gap-2 px-5 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-ink-950 font-bold text-xs tracking-wide shadow-glow-red transition-all duration-200 self-start md:self-auto cursor-pointer"
+                >
+                  <Sparkles className="h-4 w-4 fill-ink-950" />
+                  <span>Launch 1-Click Forensic Demo</span>
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </button>
               </div>
-              <h2 className="text-sm font-medium text-white tracking-tight">No repository loaded</h2>
-              <p className="text-xs text-ink-400 max-w-md mx-auto mt-1 leading-relaxed">
-                Enter a local code repository path or remote URL above and click <strong>Start scan</strong> to analyze architectural debt
-              </p>
+
+              {/* 3 Interactive Launch Modes */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div
+                  onClick={() => {
+                    setScanMode("folder");
+                    handleStartScanClick();
+                    setTimeout(() => folderInputRef.current?.click(), 250);
+                  }}
+                  className="p-5 rounded-xl bg-ink-900/70 border border-border/80 hover:border-emerald-500/50 hover:bg-ink-850/90 transition-all duration-200 cursor-pointer space-y-3 group"
+                >
+                  <div className="h-9 w-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+                    <FolderUp className="h-4 w-4" />
+                  </div>
+                  <h4 className="text-sm font-semibold text-white group-hover:text-emerald-300 transition-colors">
+                    1. Scan Local Files / Folder
+                  </h4>
+                  <p className="text-xs text-ink-400 leading-relaxed">
+                    Select any local directory or ZIP archive from your computer. Packages &amp; scans safely in seconds.
+                  </p>
+                  <div className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
+                    <span>Select local folder</span>
+                    <ArrowRight className="h-3 w-3" />
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => {
+                    setScanMode("path");
+                    setRepoPath("https://github.com/expressjs/express");
+                    setRepoName("express-sample");
+                    handleStartScanClick();
+                  }}
+                  className="p-5 rounded-xl bg-ink-900/70 border border-border/80 hover:border-rose-500/50 hover:bg-ink-850/90 transition-all duration-200 cursor-pointer space-y-3 group"
+                >
+                  <div className="h-9 w-9 rounded-lg bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 group-hover:scale-105 transition-transform">
+                    <Code2 className="h-4 w-4" />
+                  </div>
+                  <h4 className="text-sm font-semibold text-white group-hover:text-rose-300 transition-colors">
+                    2. Remote Git URL Scan
+                  </h4>
+                  <p className="text-xs text-ink-400 leading-relaxed">
+                    Enter any public GitHub/GitLab URL. Entropy clones shallowly, audits the full topology, and generates scores.
+                  </p>
+                  <div className="text-[11px] font-mono text-rose-400 flex items-center gap-1">
+                    <span>Try GitHub URL</span>
+                    <ArrowRight className="h-3 w-3" />
+                  </div>
+                </div>
+
+                <div
+                  onClick={handleLoadDemoSample}
+                  className="p-5 rounded-xl bg-gradient-to-br from-red-950/30 to-ink-900/90 border border-red-500/40 hover:border-red-400 hover:shadow-glow-red transition-all duration-200 cursor-pointer space-y-3 group"
+                >
+                  <div className="h-9 w-9 rounded-lg bg-red-600/20 border border-red-500/50 flex items-center justify-center text-red-400 group-hover:scale-105 transition-transform">
+                    <Sparkles className="h-4 w-4" />
+                  </div>
+                  <h4 className="text-sm font-semibold text-white group-hover:text-red-300 transition-colors">
+                    3. Live Sample Audit
+                  </h4>
+                  <p className="text-xs text-ink-300 leading-relaxed">
+                    No backend connection or setup required. Instantly inspect complete calibrated findings, Category Matrix, and AI remediation.
+                  </p>
+                  <div className="text-[11px] font-mono text-red-400 font-bold flex items-center gap-1">
+                    <span>Load sample report</span>
+                    <ArrowRight className="h-3 w-3" />
+                  </div>
+                </div>
+              </div>
+
+              {/* 5-Step Forensic Pipeline */}
+              <div className="pt-6 border-t border-border/80 space-y-3">
+                <div className="text-xs font-mono text-ink-400 uppercase tracking-wider">
+                  The Deterministic Analysis Pipeline:
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs font-mono">
+                  {[
+                    { step: "01", name: "Scope Ingestion", desc: "Filters tests & fixtures" },
+                    { step: "02", name: "AST Extraction", desc: "Language visitor parse" },
+                    { step: "03", name: "Cross-File Topology", desc: "Maps route & import graph" },
+                    { step: "04", name: "Penalty Scoring", desc: "Normalized math audit" },
+                    { step: "05", name: "AI Remediation", desc: "Explains real AST nodes" },
+                  ].map((p) => (
+                    <div
+                      key={p.step}
+                      className="p-3 rounded-lg bg-ink-950/80 border border-border space-y-1"
+                    >
+                      <div className="text-red-400 font-bold text-[11px]">{p.step}</div>
+                      <div className="text-white font-medium text-[11px]">{p.name}</div>
+                      <div className="text-ink-500 text-[10px]">{p.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </>

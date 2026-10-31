@@ -61,6 +61,46 @@ const config: Config = {
           "monospace",
         ],
       },
+      keyframes: {
+        float: {
+          "0%, 100%": { transform: "translateY(0px)" },
+          "50%": { transform: "translateY(-8px)" },
+        },
+        "pulse-subtle": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.5" },
+        },
+        shimmer: {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
+        radar: {
+          "0%": { transform: "rotate(0deg)" },
+          "100%": { transform: "rotate(360deg)" },
+        },
+        scanline: {
+          "0%": { transform: "translateY(-100%)" },
+          "100%": { transform: "translateY(1000%)" },
+        },
+      },
+      animation: {
+        float: "float 6s ease-in-out infinite",
+        "pulse-subtle": "pulse-subtle 3s ease-in-out infinite",
+        shimmer: "shimmer 8s linear infinite",
+        radar: "radar 10s linear infinite",
+        scanline: "scanline 8s linear infinite",
+      },
+      backgroundImage: {
+        "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
+      },
+      boxShadow: {
+        "glow-red": "0 0 25px -5px rgba(239, 68, 68, 0.45)",
+        "glow-crimson": "0 0 30px -5px rgba(225, 29, 72, 0.4)",
+        "glow-emerald": "0 0 25px -5px rgba(52, 211, 153, 0.35)",
+        "glow-rose": "0 0 25px -5px rgba(244, 63, 94, 0.35)",
+        "glow-cyan": "0 0 25px -5px rgba(56, 189, 248, 0.35)",
+        "glow-amber": "0 0 25px -5px rgba(251, 191, 36, 0.3)",
+      },
     },
   },
   plugins: [],

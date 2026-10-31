@@ -3,10 +3,10 @@
 @tailwind utilities;
 
 :root {
-  --background: #0d0f12;
-  --foreground: #edf0f4;
-  --card: #13161b;
-  --border: #20242e;
+  --background: #0b0c0e;
+  --foreground: #f3f4f6;
+  --card: #121418;
+  --border: #222630;
 }
 
 body {
@@ -24,18 +24,92 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0d0f12;
+  background: #0b0c0e;
 }
 ::-webkit-scrollbar-thumb {
-  background: #20242e;
+  background: #25181b;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2f3645;
+  background: #3e1f26;
 }
 
 /* Subtle focus styling */
 :focus-visible {
-  outline: 2px solid rgba(52, 211, 153, 0.4);
+  outline: 2px solid rgba(239, 68, 68, 0.45);
   outline-offset: 2px;
+}
+
+/* Background grid with cybernetic radial mask */
+.bg-cyber-grid {
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+.mask-radial-faded {
+  mask-image: radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.2) 75%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.2) 75%, transparent 100%);
+}
+
+/* Glassmorphic cards */
+.glass-panel {
+  background: rgba(18, 20, 24, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(40, 28, 32, 0.85);
+}
+
+.glass-panel-elevated {
+  background: rgba(24, 26, 32, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(55, 34, 40, 0.9);
+}
+
+/* Glow effects */
+.glow-border-red {
+  box-shadow: 0 0 24px -3px rgba(239, 68, 68, 0.35);
+  border-color: rgba(239, 68, 68, 0.55);
+}
+
+.glow-border-crimson {
+  box-shadow: 0 0 24px -3px rgba(225, 29, 72, 0.35);
+  border-color: rgba(225, 29, 72, 0.55);
+}
+
+.glow-border-emerald {
+  box-shadow: 0 0 20px -3px rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.glow-border-cyan {
+  box-shadow: 0 0 20px -3px rgba(244, 63, 94, 0.25);
+  border-color: rgba(244, 63, 94, 0.45);
+}
+
+/* Gradients */
+.text-gradient-entropy {
+  background: linear-gradient(135deg, #ffffff 0%, #fca5a5 45%, #ef4444 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-red {
+  background: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-cyan {
+  background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-amber {
+  background: linear-gradient(135deg, #fbbf24 0%, #f97316 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }

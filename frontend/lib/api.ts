@@ -76,6 +76,34 @@ export async function triggerScan(repoPath: string, repoName?: string): Promise<
   return res.json();
 }
 
+export async function uploadAndScanArchive(
+  archiveBlob: Blob,
+  fileName: string,
+  repoName?: string,
+  includeTests: boolean = false
+): Promise<RepositoryScanResult> {
+  const formData = new FormData();
+  formData.append("file", archiveBlob, fileName);
+  if (repoName) {
+    formData.append("repo_name", repoName);
+  }
+  formData.append("include_tests", String(includeTests));
+
+  const headers = getHeaders();
+  delete headers["Content-Type"];
+
+  const res = await fetch(`${API_BASE}/repositories/upload`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Upload scan failed: ${res.statusText}`);
+  }
+  return res.json();
+}
+
 export async function explainFinding(
   scanId: string,
   findingId: string

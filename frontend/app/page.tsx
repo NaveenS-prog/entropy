@@ -31,6 +31,8 @@ import { ScoreTrendChart } from "@/components/history/ScoreTrendChart";
 import { ScanHistoryTable } from "@/components/history/ScanHistoryTable";
 import { ScanComparisonView } from "@/components/comparison/ScanComparisonView";
 import { PRWorkflowView } from "@/components/github/PRWorkflowView";
+import { EntropyPairShowcase } from "@/components/hero/EntropyPairShowcase";
+import { EntropyWorkflowSteps } from "@/components/hero/EntropyWorkflowSteps";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FolderGit2,
@@ -817,6 +819,25 @@ export default function RepositoryIngestionDashboard() {
         <PRWorkflowView />
       ) : (
         <>
+          {/* letsbrag.app Inspired Hero Headline & Subhead */}
+          {!activeScan && (
+            <div className="text-center max-w-3xl mx-auto space-y-4 pt-2 pb-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/25 text-orange-400 text-xs font-mono shadow-sm">
+                <Sparkles className="w-3.5 h-3.5 text-orange-400 animate-pulse" />
+                <span>phase 7 ai explanation &bull; 100% grounded in observable AST evidence</span>
+              </div>
+
+              <h1 className="text-4xl sm:text-6xl font-extrabold text-white tracking-tight leading-[1.08]">
+                you built it.<br />
+                let&apos;s <span className="font-serif italic font-normal text-orange-400">audit.</span>
+              </h1>
+
+              <p className="text-xs sm:text-sm md:text-base text-ink-300 max-w-xl mx-auto leading-relaxed">
+                Drop your project folder or paste a repo link. Get instant <strong>mathematical debt scores</strong> and <strong>advisory AI remediation</strong>.
+              </p>
+            </div>
+          )}
+
           {/* Main Scan Trigger Box */}
           <div id="scan-trigger-box" className="border border-border/90 rounded-2xl p-6 bg-card/60 space-y-5 relative">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 pb-4">
@@ -1186,6 +1207,22 @@ export default function RepositoryIngestionDashboard() {
                 </div>
               </div>
             )}
+
+            {/* Quick trust metrics inspired by letsbrag.app */}
+            <ul className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-mono text-ink-400 pt-3 border-t border-border/60">
+              <li className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-orange-400" />
+                <span>ready in ~3s</span>
+              </li>
+              <li className="flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5 text-emerald-400" />
+                <span>zero code retention</span>
+              </li>
+              <li className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />
+                <span>100% deterministic (Article II)</span>
+              </li>
+            </ul>
           </div>
 
           {/* Real Scan Results */}
@@ -1613,80 +1650,69 @@ export default function RepositoryIngestionDashboard() {
               )}
             </div>
           ) : (
-            /* Recent Scans or Clean Empty State */
-            scans.length > 0 ? (
-              <div className="border border-border rounded-xl bg-ink-900/40 overflow-hidden">
-                <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <History className="h-4 w-4 text-ink-400" />
-                    <span className="text-xs font-semibold text-white tracking-wide uppercase">
-                      Session Scans
+            <div className="space-y-10 pt-2 pb-6">
+              {/* Session Scans if user already scanned in this session */}
+              {scans.length > 0 && (
+                <div className="border border-border rounded-xl bg-ink-900/40 overflow-hidden shadow-sm">
+                  <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <History className="h-4 w-4 text-ink-400" />
+                      <span className="text-xs font-semibold text-white tracking-wide uppercase">
+                        Session Scans
+                      </span>
+                    </div>
+                    <span className="text-[11px] font-mono text-ink-400">
+                      {scans.length} in this session
                     </span>
                   </div>
-                  <span className="text-[11px] font-mono text-ink-400">
-                    {scans.length} in this session
-                  </span>
-                </div>
-                <div className="divide-y divide-border/60">
-                  {scans.slice(0, 5).map((s) => {
-                    const repoName = s.repository?.name || s.repo_name || "Repository";
-                    return (
-                      <div
-                        key={s.scan_id}
-                        onClick={() => handleSelectScan(s.scan_id)}
-                        className="px-5 py-3.5 flex items-center justify-between hover:bg-ink-850/60 transition-colors cursor-pointer group"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-lg bg-ink-800 border border-border flex items-center justify-center text-ink-400 group-hover:text-white transition-colors">
-                            <FolderGit2 className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <div className="text-xs font-medium text-white group-hover:text-red-300 transition-colors">
-                              {repoName}
+                  <div className="divide-y divide-border/60">
+                    {scans.slice(0, 5).map((s) => {
+                      const repoName = s.repository?.name || s.repo_name || "Repository";
+                      return (
+                        <div
+                          key={s.scan_id}
+                          onClick={() => handleSelectScan(s.scan_id)}
+                          className="px-5 py-3.5 flex items-center justify-between hover:bg-ink-850/60 transition-colors cursor-pointer group"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-lg bg-ink-800 border border-border flex items-center justify-center text-ink-400 group-hover:text-white transition-colors">
+                              <FolderGit2 className="h-4 w-4" />
                             </div>
-                            <div className="text-[11px] text-ink-500 font-mono mt-0.5">
-                              ID: {s.scan_id.slice(0, 8)}... • Status: {s.status}
+                            <div>
+                              <div className="text-xs font-medium text-white group-hover:text-orange-300 transition-colors">
+                                {repoName}
+                              </div>
+                              <div className="text-[11px] text-ink-500 font-mono mt-0.5">
+                                ID: {s.scan_id.slice(0, 8)}... • Status: {s.status}
+                              </div>
                             </div>
                           </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-ink-400 group-hover:text-white transition-colors flex items-center gap-1 font-mono">
+                              View report
+                              <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-ink-400 group-hover:text-white transition-colors flex items-center gap-1 font-mono">
-                            View report
-                            <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="border border-border/70 rounded-xl p-8 bg-ink-900/30 text-center space-y-3">
-                <div className="h-10 w-10 rounded-xl bg-ink-850 border border-border mx-auto flex items-center justify-center text-ink-400">
-                  <FolderGit2 className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-white">No scan loaded yet</h3>
-                  <p className="text-xs text-ink-400 mt-1 max-w-md mx-auto">
-                    Select a local project folder above or drop files to run an architectural security debt scan.
-                  </p>
-                </div>
-                <div className="pt-2 flex items-center justify-center gap-2">
-                  <button
-                    onClick={() => {
-                      setScanMode("path");
-                      setRepoPath("./backend/tests/fixtures/clean_python_project");
-                      setRepoName("clean-python-project");
-                      handleStartScanClick();
-                    }}
-                    className="text-xs font-mono text-ink-300 hover:text-white transition-colors inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ink-850 border border-border cursor-pointer"
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                    <span>Run test fixture sample</span>
-                  </button>
-                </div>
-              </div>
-            )
+              )}
+
+              {/* letsbrag.app Inspired Interactive Forensic Pair Showcase */}
+              <EntropyPairShowcase />
+
+              {/* letsbrag.app Inspired 3-step Workflow Section */}
+              <EntropyWorkflowSteps
+                onQuickStartSample={() => {
+                  setScanMode("path");
+                  setRepoPath("./backend/tests/fixtures/clean_python_project");
+                  setRepoName("clean-python-project");
+                  handleStartScanClick();
+                }}
+              />
+            </div>
           )}
         </>
       )}

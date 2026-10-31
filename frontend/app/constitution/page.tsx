@@ -11,6 +11,7 @@ import {
   Terminal,
   Cpu,
 } from "lucide-react";
+import { EntropyLogo } from "@/components/brand/EntropyLogo";
 
 export default function ConstitutionPage() {
   const containerVariants = {
@@ -50,15 +51,22 @@ export default function ConstitutionPage() {
     >
       {/* Header */}
       <motion.div variants={itemVariants} className="border-b border-border/80 pb-6">
-        <div className="flex items-center gap-2 text-red-400 mb-2 font-mono text-xs font-semibold tracking-wider">
-          <ScrollText className="h-4 w-4" />
-          <span>ENGINEERING CONSTITUTION</span>
-          <span className="text-ink-600">•</span>
-          <span className="text-ink-400">FOUNDATIONAL COVENANT</span>
+        <div className="flex items-center gap-3.5 mb-3">
+          <div className="p-1 rounded-xl border border-border/80 bg-ink-900 shadow-sm shrink-0">
+            <EntropyLogo size={40} roundedClassName="rounded-lg" priority />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 text-orange-400 font-mono text-xs font-semibold tracking-wider">
+              <ScrollText className="h-3.5 w-3.5" />
+              <span>ENGINEERING CONSTITUTION</span>
+              <span className="text-ink-600">•</span>
+              <span className="text-ink-400">FOUNDATIONAL COVENANT</span>
+            </div>
+            <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight mt-0.5">
+              The Entropy Engineering Constitution
+            </h1>
+          </div>
         </div>
-        <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-          The Entropy Engineering Constitution
-        </h1>
         <p className="text-xs md:text-sm text-ink-300 mt-2 leading-relaxed">
           Binding principles, architectural covenants, and non-negotiable boundaries governing the
           development, execution, and scoring of the Entropy platform.

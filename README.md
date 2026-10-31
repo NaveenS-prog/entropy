@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="frontend/public/icon.png" width="120" height="120" alt="Entropy Logo" />
+</p>
+
 # Entropy
 
 ### Architectural Security Debt Analyzer for AI-Assisted Codebases

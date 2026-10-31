@@ -105,9 +105,9 @@ async def _get_ai_explanation(
     gemini_api_key: str | None = None,
 ) -> AIExplanation:
     try:
-        # Determine provider: for website requests, prioritize Gemini unless test mode specifies fake
-        if settings.AI_PROVIDER == "fake" and not gemini_api_key:
-            provider = get_ai_provider("fake")
+        # Determine provider: for website requests, prioritize Gemini (or demo mode if specified)
+        if (settings.AI_PROVIDER == "fake" and not gemini_api_key) or (gemini_api_key and gemini_api_key.lower() in ("demo", "fake", "mock")):
+            provider = get_ai_provider("fake", model_name="gemini-1.5-flash (Demo Mode)")
         else:
             api_key = gemini_api_key or settings.AI_API_KEY
             provider = GeminiProvider(api_key=api_key)

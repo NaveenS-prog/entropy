@@ -263,6 +263,17 @@ export function FindingsViewer({
                 <button
                   type="button"
                   onClick={() => {
+                    setStoredGeminiApiKey("demo");
+                    setApiKeyInput("demo");
+                    setShowKeyModal(false);
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-violet-500/30 text-xs text-violet-300 hover:bg-violet-950/40 font-medium"
+                >
+                  Use Demo Mode (No Key)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
                     setStoredGeminiApiKey(apiKeyInput);
                     setShowKeyModal(false);
                   }}
@@ -530,6 +541,16 @@ export function FindingsViewer({
                               }
                               className="flex-1 bg-ink-950 border border-border rounded px-2.5 py-1 text-xs text-white placeholder-ink-600 focus:outline-none focus:border-violet-500 font-mono"
                             />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleRequestAIExplanation(finding.id, "demo");
+                              }}
+                              className="px-2.5 py-1 rounded border border-violet-500/30 text-violet-300 hover:bg-violet-950/40 text-xs font-medium transition-colors flex-shrink-0"
+                              title="Test explanation without API key"
+                            >
+                              Demo (No Key)
+                            </button>
                             <button
                               type="button"
                               onClick={() => {

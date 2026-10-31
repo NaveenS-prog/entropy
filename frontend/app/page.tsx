@@ -31,6 +31,14 @@ import { ScoreTrendChart } from "@/components/history/ScoreTrendChart";
 import { ScanHistoryTable } from "@/components/history/ScanHistoryTable";
 import { ScanComparisonView } from "@/components/comparison/ScanComparisonView";
 import { PRWorkflowView } from "@/components/github/PRWorkflowView";
+import { motion, AnimatePresence } from "framer-motion";
+import { EntropyExplainerHero } from "@/components/hero/EntropyExplainerHero";
+import {
+  DEMO_SCAN_RESULT,
+  DEMO_SCORE_RESULT,
+  DEMO_FINDINGS,
+  DEMO_MANIFEST,
+} from "@/lib/demoData";
 import {
   FolderGit2,
   FileCode,
@@ -41,6 +49,7 @@ import {
   FolderTree,
   Search,
   ChevronDown,
+  ChevronUp,
   Terminal,
   FileText,
   Braces,
@@ -49,6 +58,13 @@ import {
   GitPullRequest,
   AlertCircle,
   Loader2,
+  Sparkles,
+  Layers,
+  CheckCircle2,
+  ArrowRight,
+  Shield,
+  Play,
+  RotateCcw,
 } from "lucide-react";
 
 const SCAN_STEPS = [
@@ -78,6 +94,8 @@ export default function RepositoryIngestionDashboard() {
   const [selectedLanguageFilter, setSelectedLanguageFilter] = useState<string>("ALL");
   const [showJsonManifest, setShowJsonManifest] = useState(false);
 
+  const [showExplainer, setShowExplainer] = useState(true);
+
   const [activeTab, setActiveTab] = useState<"overview" | "history" | "comparison" | "pull_requests">("overview");
   const [history, setHistory] = useState<PaginatedScanSnapshots | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -86,6 +104,31 @@ export default function RepositoryIngestionDashboard() {
   const [comparison, setComparison] = useState<ScanComparisonResult | null>(null);
   const [isLoadingComparison, setIsLoadingComparison] = useState(false);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
+
+  const handleLoadDemoSample = () => {
+    setActiveScan(DEMO_SCAN_RESULT);
+    setManifest(DEMO_MANIFEST);
+    setFindings(DEMO_FINDINGS);
+    setScore(DEMO_SCORE_RESULT);
+    setSelectedCategory(null);
+    setActiveTab("overview");
+    setTimeout(() => {
+      const el = document.getElementById("scan-results-view");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth" });
+      }
+    }, 100);
+  };
+
+  const handleStartScanClick = () => {
+    setActiveTab("overview");
+    const el = document.getElementById("scan-trigger-box");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth" });
+      const input = el.querySelector("input");
+      if (input) input.focus();
+    }
+  };
 
   const loadHistoryAndTrend = async (repoId: string, page = 1) => {
     if (!repoId) return;
@@ -288,7 +331,73 @@ export default function RepositoryIngestionDashboard() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* Dynamic Animated Forensic Explainer Hero with Particle Mesh */}
+      <AnimatePresence>
+        {showExplainer && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.35 }}
+          >
+            <EntropyExplainerHero
+              onStartScanClick={handleStartScanClick}
+              onLoadDemoSample={handleLoadDemoSample}
+              isBackendConnected={Boolean(health)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Explainer collapse/expand control bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-ink-900/60 border border-border px-4 py-2.5 rounded-xl backdrop-blur-md">
+        <button
+          onClick={() => setShowExplainer(!showExplainer)}
+          className="inline-flex items-center gap-2 text-xs font-mono text-ink-300 hover:text-white transition-colors cursor-pointer"
+        >
+          {showExplainer ? (
+            <>
+              <ChevronUp className="h-4 w-4 text-emerald-400" />
+              <span>Hide Architectural Explainer</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-4 w-4 text-cyan-400" />
+              <span>Show Architectural Explainer &amp; Motion Graphics</span>
+            </>
+          )}
+        </button>
+
+        <div className="flex items-center gap-3">
+          {activeScan?.scan_id === "demo-forensic-scan-01" ? (
+            <div className="inline-flex items-center gap-2 text-xs font-mono text-cyan-300 bg-cyan-950/60 border border-cyan-800/60 px-3 py-1 rounded-full">
+              <Sparkles className="h-3 w-3 text-cyan-400 animate-spin" />
+              <span>Interactive Forensic Sample Active</span>
+              <button
+                onClick={() => {
+                  setActiveScan(null);
+                  setManifest(null);
+                  setFindings([]);
+                  setScore(null);
+                }}
+                className="text-[11px] underline hover:text-white ml-1 text-cyan-200 cursor-pointer"
+              >
+                Reset
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleLoadDemoSample}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-300 hover:text-emerald-200 bg-emerald-950/50 hover:bg-emerald-950/80 border border-emerald-800/60 px-3.5 py-1.5 rounded-lg shadow-glow-emerald transition-all cursor-pointer"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+              <span>Load Sample Forensic Audit</span>
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Top Header & Server Status */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
         <div>
@@ -342,7 +451,7 @@ export default function RepositoryIngestionDashboard() {
       <div className="flex items-center gap-1.5 border-b border-border pb-3">
         <button
           onClick={() => setActiveTab("overview")}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
             activeTab !== "pull_requests"
               ? "bg-ink-800 text-white border border-border"
               : "text-ink-400 hover:text-white"
@@ -354,7 +463,7 @@ export default function RepositoryIngestionDashboard() {
 
         <button
           onClick={() => setActiveTab("pull_requests")}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
             activeTab === "pull_requests"
               ? "bg-ink-800 text-white border border-border"
               : "text-ink-400 hover:text-white"
@@ -370,23 +479,23 @@ export default function RepositoryIngestionDashboard() {
       ) : (
         <>
           {/* Main Scan Trigger Box */}
-          <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+          <div id="scan-trigger-box" className="glass-panel border border-border/90 rounded-2xl p-6 space-y-5 shadow-2xl relative overflow-hidden">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xs font-medium text-ink-200 uppercase tracking-wider flex items-center gap-2">
-                  <Terminal className="h-3.5 w-3.5 text-ink-400" />
+                <h2 className="text-xs font-medium text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+                  <Terminal className="h-3.5 w-3.5 text-emerald-400" />
                   <span>Scan repository</span>
                 </h2>
-                <p className="text-xs text-ink-400 mt-0.5">
+                <p className="text-xs text-ink-300 mt-1">
                   Enter a local filesystem path or remote Git URL. Zero untrusted code execution.
                 </p>
               </div>
             </div>
 
-            <form onSubmit={handleStartScan} className="space-y-3">
+            <form onSubmit={handleStartScan} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="md:col-span-2">
-                  <label className="block text-xs text-ink-400 mb-1">
+                  <label className="block text-xs font-mono text-ink-300 mb-1.5">
                     Path or Git URL
                   </label>
                   <input
@@ -395,12 +504,12 @@ export default function RepositoryIngestionDashboard() {
                     value={repoPath}
                     onChange={(e) => setRepoPath(e.target.value)}
                     required
-                    className="w-full bg-ink-850 border border-border rounded-md px-3 py-2 text-xs text-white placeholder-ink-500 font-mono focus:outline-none focus:border-ink-500"
+                    className="w-full bg-ink-950/80 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-ink-500 font-mono focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40 transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs text-ink-400 mb-1">
+                  <label className="block text-xs font-mono text-ink-300 mb-1.5">
                     Display name (optional)
                   </label>
                   <input
@@ -408,7 +517,7 @@ export default function RepositoryIngestionDashboard() {
                     placeholder="e.g. backend-api"
                     value={repoName}
                     onChange={(e) => setRepoName(e.target.value)}
-                    className="w-full bg-ink-850 border border-border rounded-md px-3 py-2 text-xs text-white placeholder-ink-500 focus:outline-none focus:border-ink-500"
+                    className="w-full bg-ink-950/80 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-ink-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40 transition-all"
                   />
                 </div>
               </div>
@@ -503,7 +612,7 @@ export default function RepositoryIngestionDashboard() {
 
           {/* Real Scan Results */}
           {manifest && activeScan ? (
-            <div className="space-y-6">
+            <div id="scan-results-view" className="space-y-6 scroll-mt-20">
               {/* Navigation Sub-Tabs */}
               <div className="flex items-center gap-1.5 border-b border-border pb-3">
                 <button
@@ -926,15 +1035,127 @@ export default function RepositoryIngestionDashboard() {
               )}
             </div>
           ) : (
-            /* Empty Welcome State */
-            <div className="border border-dashed border-border rounded-xl p-12 text-center bg-card">
-              <div className="h-10 w-10 rounded-lg bg-ink-800 border border-border text-ink-300 flex items-center justify-center mx-auto mb-3">
-                <FolderGit2 className="h-5 w-5" />
+            /* Rich Interactive Showcase When No Scan is Active */
+            <div className="glass-panel border border-border/80 rounded-2xl p-8 space-y-8 shadow-2xl relative overflow-hidden">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-border/80">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-emerald-400 text-xs font-mono font-medium">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <span>READY FOR FORENSIC SCANNING</span>
+                  </div>
+                  <h3 className="text-xl font-bold text-white tracking-tight">
+                    Start a Scan or Explore the Interactive Sample Report
+                  </h3>
+                  <p className="text-xs text-ink-300 max-w-2xl leading-relaxed">
+                    Test how Entropy analyzes cross-file AST trees, calculates mathematical debt deductions, and generates verified AI remediation without hallucinations.
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleLoadDemoSample}
+                  className="group flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-ink-950 font-bold text-xs tracking-wide shadow-glow-emerald transition-all duration-200 self-start md:self-auto cursor-pointer"
+                >
+                  <Sparkles className="h-4 w-4 fill-ink-950" />
+                  <span>Launch 1-Click Forensic Demo</span>
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </button>
               </div>
-              <h2 className="text-sm font-medium text-white tracking-tight">No repository loaded</h2>
-              <p className="text-xs text-ink-400 max-w-md mx-auto mt-1 leading-relaxed">
-                Enter a local code repository path or remote URL above and click <strong>Start scan</strong> to analyze architectural debt
-              </p>
+
+              {/* 3 Interactive Launch Modes */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div
+                  onClick={() => {
+                    setRepoPath(".");
+                    setRepoName("entropy-workspace");
+                    handleStartScanClick();
+                  }}
+                  className="p-5 rounded-xl bg-ink-900/70 border border-border/80 hover:border-emerald-500/50 hover:bg-ink-850/90 transition-all duration-200 cursor-pointer space-y-3 group"
+                >
+                  <div className="h-9 w-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+                    <FolderGit2 className="h-4 w-4" />
+                  </div>
+                  <h4 className="text-sm font-semibold text-white group-hover:text-emerald-300 transition-colors">
+                    1. Scan Local Workspace
+                  </h4>
+                  <p className="text-xs text-ink-400 leading-relaxed">
+                    Point directly to the current directory (<code className="text-emerald-400">.</code>). Analyzes codebases hermetically without executing untrusted scripts.
+                  </p>
+                  <div className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
+                    <span>Select workspace</span>
+                    <ArrowRight className="h-3 w-3" />
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => {
+                    setRepoPath("https://github.com/expressjs/express");
+                    setRepoName("express-sample");
+                    handleStartScanClick();
+                  }}
+                  className="p-5 rounded-xl bg-ink-900/70 border border-border/80 hover:border-cyan-500/50 hover:bg-ink-850/90 transition-all duration-200 cursor-pointer space-y-3 group"
+                >
+                  <div className="h-9 w-9 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 group-hover:scale-105 transition-transform">
+                    <Code2 className="h-4 w-4" />
+                  </div>
+                  <h4 className="text-sm font-semibold text-white group-hover:text-cyan-300 transition-colors">
+                    2. Remote Git URL Scan
+                  </h4>
+                  <p className="text-xs text-ink-400 leading-relaxed">
+                    Enter any public GitHub/GitLab URL. Entropy clones shallowly, audits the full topology, and generates scores.
+                  </p>
+                  <div className="text-[11px] font-mono text-cyan-400 flex items-center gap-1">
+                    <span>Try GitHub URL</span>
+                    <ArrowRight className="h-3 w-3" />
+                  </div>
+                </div>
+
+                <div
+                  onClick={handleLoadDemoSample}
+                  className="p-5 rounded-xl bg-gradient-to-br from-emerald-950/30 to-ink-900/90 border border-emerald-500/40 hover:border-emerald-400 hover:shadow-glow-emerald transition-all duration-200 cursor-pointer space-y-3 group"
+                >
+                  <div className="h-9 w-9 rounded-lg bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+                    <Sparkles className="h-4 w-4" />
+                  </div>
+                  <h4 className="text-sm font-semibold text-white group-hover:text-emerald-300 transition-colors">
+                    3. Live Sample Audit
+                  </h4>
+                  <p className="text-xs text-ink-300 leading-relaxed">
+                    No backend connection or setup required. Instantly inspect complete calibrated findings, Category Matrix, and AI remediation.
+                  </p>
+                  <div className="text-[11px] font-mono text-emerald-400 font-bold flex items-center gap-1">
+                    <span>Load sample report</span>
+                    <ArrowRight className="h-3 w-3" />
+                  </div>
+                </div>
+              </div>
+
+              {/* 5-Step Forensic Pipeline */}
+              <div className="pt-6 border-t border-border/80 space-y-3">
+                <div className="text-xs font-mono text-ink-400 uppercase tracking-wider">
+                  The Deterministic Analysis Pipeline:
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs font-mono">
+                  {[
+                    { step: "01", name: "Scope Ingestion", desc: "Filters tests & fixtures" },
+                    { step: "02", name: "AST Extraction", desc: "Language visitor parse" },
+                    { step: "03", name: "Cross-File Topology", desc: "Maps route & import graph" },
+                    { step: "04", name: "Penalty Scoring", desc: "Normalized math audit" },
+                    { step: "05", name: "AI Remediation", desc: "Explains real AST nodes" },
+                  ].map((p) => (
+                    <div
+                      key={p.step}
+                      className="p-3 rounded-lg bg-ink-950/80 border border-border space-y-1"
+                    >
+                      <div className="text-emerald-400 font-bold text-[11px]">{p.step}</div>
+                      <div className="text-white font-medium text-[11px]">{p.name}</div>
+                      <div className="text-ink-500 text-[10px]">{p.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </>

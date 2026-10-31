@@ -428,7 +428,8 @@ def get_ai_provider(provider_name: str | None = None, **kwargs: Any) -> AIProvid
     """Return an instance of the configured AI provider."""
     name = (provider_name or settings.AI_PROVIDER).lower().strip()
     if name == "fake":
-        return FakeAIProvider(model_name="fake-provider", **kwargs)
+        kwargs.setdefault("model_name", "fake-provider")
+        return FakeAIProvider(**kwargs)
     elif name == "gemini":
         return GeminiProvider(**kwargs)
     elif name in ("local", "localllm", "ollama", "k2", "k2-horizon", "k2 horizon"):

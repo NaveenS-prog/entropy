@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ShieldAlert, BookOpen, ScrollText } from "lucide-react";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -69,6 +70,7 @@ export default function RootLayout({
           <p>Entropy — Architectural Security Debt Analyzer for AI-Assisted Codebases</p>
           <p className="mt-1 text-slate-600">Deterministic Static Analysis • AST Verification • Production Engine</p>
         </footer>
+        <Analytics />
       </body>
     </html>
   );

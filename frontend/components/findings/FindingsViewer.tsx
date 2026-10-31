@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { AIExplanation, DebtCategory, Finding, Severity } from "@/types";
 import { getSeverityBadge } from "@/lib/utils";
-import { requestAIExplanation } from "@/lib/api";
+import { getStoredGeminiApiKey, requestAIExplanation, setStoredGeminiApiKey } from "@/lib/api";
 import {
   Code,
   AlertCircle,
@@ -18,6 +18,8 @@ import {
   Loader2,
   RefreshCw,
   Info,
+  KeyRound,
+  X,
 } from "lucide-react";
 
 interface FindingsViewerProps {
@@ -42,6 +44,11 @@ export function FindingsViewer({
   const [aiExplanations, setAiExplanations] = useState<Record<string, AIExplanation>>({});
   const [loadingAI, setLoadingAI] = useState<Record<string, boolean>>({});
   const [aiErrors, setAiErrors] = useState<Record<string, string>>({});
+  const [inlineKeyInputs, setInlineKeyInputs] = useState<Record<string, string>>({});
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState(() =>
+    typeof window !== "undefined" ? getStoredGeminiApiKey() || "" : ""
+  );
 
   const toggleExpand = (id: string) => {
     setExpandedFindings((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -59,7 +66,7 @@ export function FindingsViewer({
     setExpandedFindings({});
   };
 
-  const handleRequestAIExplanation = async (findingId: string) => {
+  const handleRequestAIExplanation = async (findingId: string, customKey?: string) => {
     setLoadingAI((prev) => ({ ...prev, [findingId]: true }));
     setAiErrors((prev) => {
       const copy = { ...prev };
@@ -67,14 +74,19 @@ export function FindingsViewer({
       return copy;
     });
 
+    if (customKey) {
+      setStoredGeminiApiKey(customKey);
+      setApiKeyInput(customKey);
+    }
+
     try {
-      const result = await requestAIExplanation(findingId, scanId);
+      const result = await requestAIExplanation(findingId, scanId, customKey);
       setAiExplanations((prev) => ({ ...prev, [findingId]: result }));
     } catch (err: unknown) {
       const message =
         err instanceof Error
           ? err.message
-          : "AI explanation is currently unavailable. Deterministic finding remains available.";
+          : "Gemini AI explanation is currently unavailable. Deterministic finding remains available.";
       setAiErrors((prev) => ({ ...prev, [findingId]: message }));
     } finally {
       setLoadingAI((prev) => ({ ...prev, [findingId]: false }));
@@ -161,26 +173,118 @@ export function FindingsViewer({
             <option value="info">Info</option>
           </select>
 
-          {/* Expand/Collapse All */}
-          {filtered.length > 0 && (
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={expandAll}
-                className="text-[11px] text-ink-400 hover:text-white px-2 py-1 rounded bg-ink-800 border border-border transition-colors"
-              >
-                Expand all
-              </button>
-              <button
-                type="button"
-                onClick={collapseAll}
-                className="text-[11px] text-ink-400 hover:text-white px-2 py-1 rounded bg-ink-800 border border-border transition-colors"
-              >
-                Collapse all
-              </button>
-            </div>
-          )}
+          {/* Expand/Collapse All & Gemini Config */}
+          <div className="flex items-center gap-1.5 ml-auto">
+            <button
+              type="button"
+              onClick={() => setShowKeyModal(true)}
+              className="flex items-center gap-1.5 text-[11px] text-violet-300 hover:text-white px-2.5 py-1 rounded bg-violet-950/40 border border-violet-700/50 hover:bg-violet-900/50 transition-colors shadow-sm"
+              title="Configure Google Gemini API Key for AI Explanation"
+            >
+              <KeyRound className="h-3 w-3 text-violet-400" />
+              <span>Gemini Key</span>
+            </button>
+
+            {filtered.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={expandAll}
+                  className="text-[11px] text-ink-400 hover:text-white px-2 py-1 rounded bg-ink-800 border border-border transition-colors"
+                >
+                  Expand all
+                </button>
+                <button
+                  type="button"
+                  onClick={collapseAll}
+                  className="text-[11px] text-ink-400 hover:text-white px-2 py-1 rounded bg-ink-800 border border-border transition-colors"
+                >
+                  Collapse all
+                </button>
+              </>
+            )}
+          </div>
         </div>
+
+        {/* Gemini API Key Configuration Modal */}
+        {showKeyModal && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-ink-900 border border-violet-500/30 rounded-xl p-5 max-w-md w-full shadow-2xl space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-400">
+                    <Sparkles className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Google Gemini API Key</h3>
+                    <p className="text-[11px] text-ink-400">Used for browser AI explanations</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowKeyModal(false)}
+                  className="text-ink-400 hover:text-white p-1 rounded"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="space-y-2 text-xs text-ink-300">
+                <label className="block text-ink-200 font-medium">Gemini API Key</label>
+                <input
+                  type="password"
+                  placeholder="AIzaSy..."
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  className="w-full bg-ink-950 border border-border rounded-lg px-3 py-2 text-xs text-white placeholder-ink-600 focus:outline-none focus:border-violet-500 font-mono"
+                />
+                <p className="text-[11px] text-ink-400">
+                  Key is saved locally in your browser. Get a key from{" "}
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-violet-400 underline hover:text-violet-300"
+                  >
+                    Google AI Studio
+                  </a>
+                  .
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setShowKeyModal(false)}
+                  className="px-3 py-1.5 rounded-lg border border-border text-xs text-ink-300 hover:bg-ink-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStoredGeminiApiKey("demo");
+                    setApiKeyInput("demo");
+                    setShowKeyModal(false);
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-violet-500/30 text-xs text-violet-300 hover:bg-violet-950/40 font-medium"
+                >
+                  Use Demo Mode (No Key)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStoredGeminiApiKey(apiKeyInput);
+                    setShowKeyModal(false);
+                  }}
+                  className="px-4 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium shadow-md transition-colors"
+                >
+                  Save Key
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Findings List */}
@@ -264,6 +368,22 @@ export function FindingsViewer({
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!isExpanded) {
+                          setExpandedFindings((prev) => ({ ...prev, [finding.id]: true }));
+                        }
+                        handleRequestAIExplanation(finding.id);
+                      }}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 hover:text-white font-medium text-[11px] border border-violet-500/30 transition-all shadow-sm"
+                      title="Request Gemini AI explanation"
+                    >
+                      <Sparkles className="h-3 w-3 text-violet-400" />
+                      <span>AI Explanation</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={(e) => {
@@ -356,65 +476,108 @@ export function FindingsViewer({
                       {!explanation && !isExplaining && !aiError && (
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 text-ink-400 text-xs">
-                            <Sparkles className="h-3.5 w-3.5 text-ink-400" />
-                            <span>Request contextual architectural explanation</span>
+                            <Sparkles className="h-3.5 w-3.5 text-violet-400" />
+                            <span>Request contextual Google Gemini architectural explanation</span>
                           </div>
                           <button
                             type="button"
                             onClick={() => handleRequestAIExplanation(finding.id)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-ink-800 hover:bg-ink-700 text-white font-medium text-xs border border-border transition-colors"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-violet-600/20 hover:bg-violet-600/30 text-violet-200 hover:text-white font-medium text-xs border border-violet-500/40 transition-colors shadow-sm"
                           >
-                            <Sparkles className="h-3.5 w-3.5 text-ink-300" />
-                            <span>Explain finding</span>
+                            <Sparkles className="h-3.5 w-3.5 text-violet-400" />
+                            <span>AI Explanation</span>
                           </button>
                         </div>
                       )}
 
                       {/* Loading State */}
                       {isExplaining && (
-                        <div className="p-4 rounded-md bg-ink-800 border border-border flex items-center justify-center gap-2 text-ink-300">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-ink-400" />
+                        <div className="p-4 rounded-md bg-ink-850 border border-violet-500/20 flex items-center justify-center gap-2.5 text-violet-300">
+                          <Loader2 className="h-4 w-4 animate-spin text-violet-400" />
                           <span className="font-mono text-xs">
-                            Generating explanation...
+                            Generating Google Gemini AI explanation...
                           </span>
                         </div>
                       )}
 
-                      {/* Error State */}
+                      {/* Error & Inline API Key Configuration */}
                       {aiError && (
-                        <div className="p-3.5 rounded-md bg-ink-800 border border-border flex items-center justify-between gap-3 text-ink-300">
-                          <div className="flex items-center gap-2">
-                            <AlertCircle className="h-3.5 w-3.5 text-ink-400 flex-shrink-0" />
-                            <div className="text-xs">
-                              <p className="font-medium text-white">
-                                AI explanation unavailable
-                              </p>
-                              <p className="text-ink-400 text-[11px] mt-0.5">
-                                {aiError.includes("disabled")
-                                  ? "AI explanations are not configured for this environment. Deterministic findings remain available."
-                                  : aiError}
-                              </p>
+                        <div className="p-3.5 rounded-md bg-ink-850 border border-border space-y-2.5 text-ink-300">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-2">
+                              <AlertCircle className="h-4 w-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                              <div className="text-xs">
+                                <p className="font-medium text-white">
+                                  Gemini AI Explanation Unavailable
+                                </p>
+                                <p className="text-ink-400 text-[11px] mt-0.5">
+                                  {aiError.includes("disabled")
+                                    ? "AI explanations are disabled in the environment. Set AI_ENABLED=true or provide a Gemini API key below."
+                                    : aiError}
+                                </p>
+                              </div>
                             </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRequestAIExplanation(finding.id)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded bg-ink-700 hover:bg-ink-600 text-white text-[11px] border border-border flex-shrink-0"
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                              <span>Retry</span>
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRequestAIExplanation(finding.id)}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded bg-ink-700 hover:bg-ink-600 text-white text-[11px] border border-border"
-                          >
-                            <RefreshCw className="h-3 w-3" />
-                            <span>Retry</span>
-                          </button>
+
+                          {/* Quick inline Gemini API Key entry */}
+                          <div className="pt-2 border-t border-border/60 flex items-center gap-2">
+                            <input
+                              type="password"
+                              placeholder="Enter Gemini API key (AIzaSy...)"
+                              value={inlineKeyInputs[finding.id] || ""}
+                              onChange={(e) =>
+                                setInlineKeyInputs((prev) => ({
+                                  ...prev,
+                                  [finding.id]: e.target.value,
+                                }))
+                              }
+                              className="flex-1 bg-ink-950 border border-border rounded px-2.5 py-1 text-xs text-white placeholder-ink-600 focus:outline-none focus:border-violet-500 font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleRequestAIExplanation(finding.id, "demo");
+                              }}
+                              className="px-2.5 py-1 rounded border border-violet-500/30 text-violet-300 hover:bg-violet-950/40 text-xs font-medium transition-colors flex-shrink-0"
+                              title="Test explanation without API key"
+                            >
+                              Demo (No Key)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const key = inlineKeyInputs[finding.id];
+                                if (key) {
+                                  handleRequestAIExplanation(finding.id, key);
+                                }
+                              }}
+                              className="px-3 py-1 rounded bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors flex-shrink-0"
+                            >
+                              Save &amp; Explain
+                            </button>
+                          </div>
                         </div>
                       )}
 
-                      {/* Structured Explanation Display */}
+                      {/* Structured Gemini Explanation Display */}
                       {explanation && (
-                        <div className="p-4 rounded-lg border border-border bg-ink-800 space-y-3">
+                        <div className="p-4 rounded-lg border border-violet-500/30 bg-ink-850 space-y-3">
                           <div className="flex items-center justify-between pb-2 border-b border-border">
                             <div className="flex items-center gap-2">
-                              <Sparkles className="h-3.5 w-3.5 text-ink-400" />
-                              <span className="text-xs font-medium text-white">
-                                Explanation (Advisory)
+                              <Sparkles className="h-4 w-4 text-violet-400" />
+                              <span className="text-xs font-semibold text-white">
+                                AI Explanation (Google Gemini)
+                              </span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-950/80 text-violet-300 border border-violet-500/30 font-mono">
+                                {explanation.model || "gemini-1.5-flash"}
                               </span>
                             </div>
                             <span className="text-[11px] px-1.5 py-0.5 rounded bg-ink-900 text-ink-400 border border-border font-mono">
@@ -422,28 +585,28 @@ export function FindingsViewer({
                             </span>
                           </div>
 
-                          <p className="text-xs text-ink-300 leading-relaxed">
+                          <p className="text-xs text-ink-200 leading-relaxed font-medium">
                             {explanation.summary}
                           </p>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                            <div className="p-3 rounded-md bg-ink-850 border border-border">
+                            <div className="p-3 rounded-md bg-ink-900 border border-border">
                               <div className="font-medium text-white mb-1">Context</div>
                               <p className="text-ink-400 leading-relaxed">{explanation.why_it_matters}</p>
                             </div>
 
-                            <div className="p-3 rounded-md bg-ink-850 border border-border">
+                            <div className="p-3 rounded-md bg-ink-900 border border-border">
                               <div className="font-medium text-white mb-1">Observable evidence</div>
                               <p className="text-ink-400 leading-relaxed">{explanation.evidence_explanation}</p>
                             </div>
                           </div>
 
-                          <div className="p-3 rounded-md bg-ink-850 border border-border text-xs">
+                          <div className="p-3 rounded-md bg-ink-900 border border-border text-xs">
                             <div className="font-medium text-white mb-1">Architectural impact</div>
                             <p className="text-ink-400 leading-relaxed">{explanation.architectural_impact}</p>
                           </div>
 
-                          <div className="p-3 rounded-md bg-ink-850 border border-border text-xs">
+                          <div className="p-3 rounded-md bg-ink-900 border border-border text-xs">
                             <div className="font-medium text-white mb-1">Remediation steps</div>
                             <p className="text-ink-300 leading-relaxed">{explanation.remediation}</p>
                           </div>

@@ -83,6 +83,7 @@ class AIService:
         finding_id: str,
         scan_id: str | None = None,
         force_refresh: bool = False,
+        provider: AIProvider | None = None,
     ) -> AIExplanation:
         """Generate or retrieve a cached AI explanation for a deterministic finding.
 
@@ -97,8 +98,10 @@ class AIService:
                 "AI explanations are disabled. Set AI_ENABLED=true in configuration to enable."
             )
 
+        active_provider = provider or self.provider
+
         # 3. Compute deterministic cache key
-        model_name = getattr(self.provider, "model", getattr(self.provider, "model_name", settings.AI_MODEL))
+        model_name = getattr(active_provider, "model", getattr(active_provider, "model_name", settings.AI_MODEL))
         cache_key = compute_cache_key(
             finding_id=finding.id,
             finding_hash=finding.fingerprint,
@@ -117,13 +120,14 @@ class AIService:
         context = build_explanation_context(finding=finding, root_path=repo_path)
 
         # 6. Request explanation from AI provider
+        provider_type = active_provider.__class__.__name__
         logger.info(
             "Invoking AI provider '%s' (model: '%s') for finding '%s'",
-            settings.AI_PROVIDER,
+            provider_type,
             model_name,
             finding_id,
         )
-        explanation = await self.provider.generate_explanation(
+        explanation = await active_provider.generate_explanation(
             finding_id=finding.id,
             context=context,
         )

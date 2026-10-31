@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Header, HTTPException, Query, status
 
 from app.ai.explainer import (
     DeterministicBaselineExplainer,
@@ -13,8 +13,11 @@ from app.ai.provider import (
     AIProviderMalformedResponseError,
     AIProviderTimeoutError,
     AIProviderUnavailableError,
+    GeminiProvider,
+    get_ai_provider,
 )
 from app.ai.service import AIDisabledError, FindingNotFoundError, ai_service
+from app.core.config import settings
 from app.models.domain.ai_explanation import AIExplanation
 from app.models.domain.enums import Confidence, DebtCategory, Severity
 from app.models.domain.finding import Finding
@@ -96,9 +99,24 @@ def suggest_refactor(scan_id: str, finding_id: str) -> RefactoringSuggestion:
     return explainer.suggest_refactor(finding)
 
 
-async def _get_ai_explanation(finding_id: str, scan_id: str | None = None) -> AIExplanation:
+async def _get_ai_explanation(
+    finding_id: str,
+    scan_id: str | None = None,
+    gemini_api_key: str | None = None,
+) -> AIExplanation:
     try:
-        return await ai_service.explain_finding(finding_id=finding_id, scan_id=scan_id)
+        # Determine provider: for website requests, prioritize Gemini (or demo mode if specified)
+        if (settings.AI_PROVIDER == "fake" and not gemini_api_key) or (gemini_api_key and gemini_api_key.lower() in ("demo", "fake", "mock")):
+            provider = get_ai_provider("fake", model_name="gemini-1.5-flash (Demo Mode)")
+        else:
+            api_key = gemini_api_key or settings.AI_API_KEY
+            provider = GeminiProvider(api_key=api_key)
+
+        return await ai_service.explain_finding(
+            finding_id=finding_id,
+            scan_id=scan_id,
+            provider=provider,
+        )
     except FindingNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -112,17 +130,17 @@ async def _get_ai_explanation(finding_id: str, scan_id: str | None = None) -> AI
     except AIProviderConfigError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"AI provider configuration error: {exc}",
+            detail=f"Gemini API key is not configured. Please enter your Gemini API key in the website or set GEMINI_API_KEY in the environment: {exc}",
         ) from exc
     except AIProviderTimeoutError as exc:
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="AI explanation request timed out",
+            detail="Gemini AI explanation request timed out",
         ) from exc
     except (AIProviderUnavailableError, AIProviderMalformedResponseError, AIProviderError) as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"AI explanation temporarily unavailable: {exc}",
+            detail=f"Gemini AI explanation temporarily unavailable: {exc}",
         ) from exc
     except Exception as exc:
         logger.exception("Unexpected error during AI explanation generation: %s", exc)
@@ -133,12 +151,26 @@ async def _get_ai_explanation(finding_id: str, scan_id: str | None = None) -> AI
 
 
 @router.post("/{scan_id}/findings/{finding_id}/explanation", response_model=AIExplanation)
-async def generate_scan_finding_explanation(scan_id: str, finding_id: str) -> AIExplanation:
-    """Generate or retrieve a cached AI-assisted architectural explanation for a finding in a scan."""
-    return await _get_ai_explanation(finding_id=finding_id, scan_id=scan_id)
+async def generate_scan_finding_explanation(
+    scan_id: str,
+    finding_id: str,
+    x_gemini_api_key: str | None = Header(default=None, alias="X-Gemini-API-Key"),
+) -> AIExplanation:
+    """Generate or retrieve a cached AI-assisted architectural explanation (Gemini) for a finding in a scan."""
+    return await _get_ai_explanation(
+        finding_id=finding_id,
+        scan_id=scan_id,
+        gemini_api_key=x_gemini_api_key,
+    )
 
 
 @direct_router.post("/{finding_id}/explanation", response_model=AIExplanation)
-async def generate_finding_explanation(finding_id: str) -> AIExplanation:
-    """Generate or retrieve a cached AI-assisted architectural explanation for a finding."""
-    return await _get_ai_explanation(finding_id=finding_id)
+async def generate_finding_explanation(
+    finding_id: str,
+    x_gemini_api_key: str | None = Header(default=None, alias="X-Gemini-API-Key"),
+) -> AIExplanation:
+    """Generate or retrieve a cached AI-assisted architectural explanation (Gemini) for a finding."""
+    return await _get_ai_explanation(
+        finding_id=finding_id,
+        gemini_api_key=x_gemini_api_key,
+    )

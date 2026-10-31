@@ -834,53 +834,155 @@ def cmd_compare(args: argparse.Namespace) -> int:
     return EXIT_PASS
 
 
-def cmd_explain(args: argparse.Namespace) -> int:
-    """Explain a specific finding using advisory AI service."""
-    finding_id = args.finding_id
+def _format_ai_explanation_text(explanation: Any, provider_label: str = "") -> str:
+    """Format an AI explanation into structured terminal advisory text."""
+    divider = "-" * 32
+    lines: list[str] = [
+        f"Entropy AI Advisory Explanation{f' ({provider_label})' if provider_label else ''}",
+        divider,
+        f"Finding: {explanation.finding_id}",
+        f"Summary: {explanation.summary}",
+        "",
+        "Why It Matters:",
+        explanation.why_it_matters,
+        "",
+        "Architectural Impact:",
+        explanation.architectural_impact,
+        "",
+        "Recommended Remediation:",
+        explanation.remediation,
+        "",
+        "Suggested Pattern:",
+        explanation.suggested_pattern,
+        "",
+        divider,
+        f"Model: {explanation.model} | Prompt v{explanation.prompt_version}",
+        "Notice: AI-generated content is strictly advisory and does not affect",
+        "Entropy findings, score, policy evaluation, or CI exit codes.",
+    ]
+    return "\n".join(lines)
 
+
+def cmd_explain(args: argparse.Namespace) -> int:
+    """Explain findings using advisory AI service (local LLM by default in terminal)."""
     # 1. Check AI_ENABLED configuration first for graceful messaging
     if not settings.AI_ENABLED:
         print("Notice: AI explanation layer is currently disabled.", file=sys.stderr)
         print("To enable AI advisory explanations, set AI_ENABLED=true and configure an AI provider.", file=sys.stderr)
         return EXIT_PASS
 
+    target = getattr(args, "finding_id", None) or getattr(args, "target", None)
+    scan_id = getattr(args, "scan_id", None)
+    provider_name = (getattr(args, "provider", None) or "local").lower().strip()
+    model_name = getattr(args, "model", None)
+    base_url = getattr(args, "url", None)
+    output_format = getattr(args, "format", "text")
+
     try:
+        from app.ai.provider import FakeAIProvider, GeminiProvider, LocalLLMProvider
         from app.ai.service import AIDisabledError, FindingNotFoundError, ai_service
 
-        explanation = asyncio.run(
-            ai_service.explain_finding(
-                finding_id=finding_id,
-                scan_id=getattr(args, "scan_id", None),
+        # Select provider based on CLI flag / default (local LLM with k2 horizon 7b in 4Q for terminal)
+        if provider_name in ("local", "localllm", "ollama", "k2"):
+            active_provider = LocalLLMProvider(
+                base_url=base_url,
+                model=model_name or settings.LOCAL_LLM_MODEL,
             )
-        )
+            provider_label = f"Local LLM: {active_provider.model}"
+        elif provider_name == "gemini":
+            active_provider = GeminiProvider(
+                model=model_name or settings.AI_MODEL,
+            )
+            provider_label = f"Gemini: {active_provider.model}"
+        elif provider_name == "fake":
+            active_provider = FakeAIProvider(
+                model_name=model_name or "fake-entropy-explainer",
+            )
+            provider_label = "Fake Provider (Offline)"
+        else:
+            active_provider = None
+            provider_label = provider_name
 
-        lines: list[str] = [
-            "Entropy AI Advisory Explanation",
-            "────────────────────────────",
-            f"Finding: {explanation.finding_id}",
-            f"Summary: {explanation.summary}",
-            "",
-            "Why It Matters:",
-            explanation.why_it_matters,
-            "",
-            "Architectural Impact:",
-            explanation.architectural_impact,
-            "",
-            "Recommended Remediation:",
-            explanation.remediation,
-            "",
-            "Suggested Pattern:",
-            explanation.suggested_pattern,
-            "",
-            "────────────────────────────",
-            "Notice: AI-generated content is strictly advisory and does not affect",
-            "Entropy findings, score, policy evaluation, or CI exit codes.",
-        ]
-        print("\n".join(lines))
-        return EXIT_PASS
+        # Determine mode: specific finding ID vs repository scan & explain
+        is_path = False
+        if target:
+            p = Path(target)
+            if p.exists() or target in (".", "/", "\\") or "/" in target or "\\" in target:
+                is_path = True
+        else:
+            # Default to scanning current directory if no finding ID supplied
+            is_path = True
+            target = "."
+
+        if is_path:
+            target_path = Path(target).resolve()
+            if not target_path.exists():
+                print(f"Error: Target path '{target}' does not exist.", file=sys.stderr)
+                return EXIT_SYSTEM_ERROR
+
+            if not getattr(args, "quiet", False):
+                print(f"Entropy: Scanning '{target_path.name}' for findings to explain using {provider_label}...")
+
+            scan_result, findings = _run_single_scan_pipeline(target_path)
+            if not findings:
+                print(f"No architectural or security debt findings detected in {target_path.name}.")
+                return EXIT_PASS
+
+            # Prioritize findings by severity
+            def _severity_rank(f: Finding) -> int:
+                ranks = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+                val = f.severity.value if hasattr(f.severity, "value") else str(f.severity).lower()
+                return ranks.get(val, 5)
+
+            sorted_findings = sorted(findings, key=_severity_rank)
+            limit = getattr(args, "limit", 3)
+            selected = sorted_findings[:limit]
+
+            explanations = []
+            for finding in selected:
+                try:
+                    exp = asyncio.run(
+                        ai_service.explain_finding(
+                            finding_id=finding.id,
+                            scan_id=scan_result.scan_id,
+                            provider=active_provider,
+                        )
+                    )
+                    explanations.append(exp)
+                except Exception as exc:
+                    print(f"Notice: Failed to explain finding '{finding.id}': {exc}", file=sys.stderr)
+
+            if not explanations:
+                print("Could not generate explanations with the configured AI provider.", file=sys.stderr)
+                return EXIT_PASS
+
+            if output_format == "json":
+                print(json.dumps([e.model_dump(mode="json") for e in explanations], indent=2))
+            else:
+                for idx, exp in enumerate(explanations, 1):
+                    if idx > 1:
+                        print("\n" + "=" * 60 + "\n")
+                    print(_format_ai_explanation_text(exp, provider_label))
+            return EXIT_PASS
+
+        else:
+            # Single finding ID explanation
+            explanation = asyncio.run(
+                ai_service.explain_finding(
+                    finding_id=target,
+                    scan_id=scan_id,
+                    provider=active_provider,
+                )
+            )
+
+            if output_format == "json":
+                print(explanation.model_dump_json(indent=2))
+            else:
+                print(_format_ai_explanation_text(explanation, provider_label))
+            return EXIT_PASS
 
     except FindingNotFoundError:
-        print(f"Error: Finding with ID '{finding_id}' not found.", file=sys.stderr)
+        print(f"Error: Finding with ID '{target}' not found.", file=sys.stderr)
         return EXIT_SYSTEM_ERROR
     except AIDisabledError as exc:
         print(f"Notice: {exc}", file=sys.stderr)
@@ -1284,10 +1386,55 @@ def build_parser() -> argparse.ArgumentParser:
     compare_parser.add_argument("head", help="Head repository directory path or head scan ID")
     compare_parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format (default: text)")
 
-    # 5. explain <finding-id>
-    explain_parser = subparsers.add_parser("explain", help="Get advisory AI explanation and remediation for a finding")
-    explain_parser.add_argument("finding_id", help="Deterministic finding ID to explain")
-    explain_parser.add_argument("--scan-id", help="Optional scan ID where finding was observed")
+    # 5. explain / explanation (local LLM by default: k2 horizon 7b in 4Q)
+    for cmd_name in ["explain", "explanation"]:
+        ep = subparsers.add_parser(
+            cmd_name,
+            help="Get advisory AI explanation and remediation using local LLM (k2 horizon 7b in 4Q)",
+        )
+        ep.add_argument(
+            "target",
+            nargs="?",
+            default=None,
+            help="Finding ID to explain, or repository directory path (default: current directory)",
+        )
+        ep.add_argument(
+            "--finding-id",
+            "--finding",
+            "-f",
+            dest="finding_id",
+            help="Specific deterministic finding ID to explain",
+        )
+        ep.add_argument("--scan-id", help="Optional scan ID where finding was observed")
+        ep.add_argument(
+            "--provider",
+            choices=["local", "gemini", "fake"],
+            default="local",
+            help="AI reasoning provider (default: local)",
+        )
+        ep.add_argument(
+            "--model",
+            "-m",
+            default=None,
+            help="AI model name (default: k2-horizon:7b-q4 for local, gemini-1.5-flash for gemini)",
+        )
+        ep.add_argument(
+            "--url",
+            default=None,
+            help="Local LLM endpoint URL (default: http://localhost:11434)",
+        )
+        ep.add_argument(
+            "--limit",
+            type=int,
+            default=3,
+            help="Maximum number of findings to explain when scanning a directory (default: 3)",
+        )
+        ep.add_argument(
+            "--format",
+            choices=["text", "json"],
+            default="text",
+            help="Output format (default: text)",
+        )
 
     # 6. version
     subparsers.add_parser("version", help="Display Entropy engine version")
@@ -1357,7 +1504,7 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_findings(args)
     elif args.subcommand == "compare":
         return cmd_compare(args)
-    elif args.subcommand == "explain":
+    elif args.subcommand in ("explain", "explanation"):
         return cmd_explain(args)
     elif args.subcommand == "version":
         return cmd_version(args)

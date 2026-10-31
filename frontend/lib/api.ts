@@ -122,16 +122,40 @@ export async function listRules(): Promise<RuleDefinition[]> {
   return res.json();
 }
 
+export function getStoredGeminiApiKey(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("entropy_gemini_api_key") || null;
+}
+
+export function setStoredGeminiApiKey(key: string): void {
+  if (typeof window === "undefined") return;
+  if (!key.trim()) {
+    localStorage.removeItem("entropy_gemini_api_key");
+  } else {
+    localStorage.setItem("entropy_gemini_api_key", key.trim());
+  }
+}
+
 export async function requestAIExplanation(
   findingId: string,
-  scanId?: string
+  scanId?: string,
+  geminiApiKey?: string
 ): Promise<AIExplanation> {
   const url = scanId
     ? `${API_BASE}/scans/${scanId}/findings/${findingId}/explanation`
     : `${API_BASE}/findings/${findingId}/explanation`;
+  const headers = getHeaders({ "Content-Type": "application/json" });
+  const key =
+    geminiApiKey ||
+    (typeof window !== "undefined" ? localStorage.getItem("entropy_gemini_api_key") : null) ||
+    process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  if (key) {
+    headers["X-Gemini-API-Key"] = key;
+  }
+
   const res = await fetch(url, {
     method: "POST",
-    headers: getHeaders({ "Content-Type": "application/json" }),
+    headers,
   });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));

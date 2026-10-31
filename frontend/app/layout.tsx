@@ -22,25 +22,28 @@ export default function RootLayout({
       : "http://localhost:8000/docs");
 
   return (
-    <html lang="en" className="dark">
-      <body className="bg-background text-foreground antialiased flex flex-col min-h-screen">
-        <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md px-6 h-14 flex items-center justify-between">
+    <html lang="en">
+      <body className="app-shell bg-background text-foreground antialiased flex flex-col min-h-screen">
+        <a className="skip-link" href="#main-content">
+          Skip to workspace
+        </a>
+        <header className="app-header sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md px-6 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Link
               href="/"
-              className="flex items-center gap-2.5 font-semibold text-sm tracking-tight text-ink-100 hover:text-white transition-colors"
+              className="app-brand flex items-center gap-2.5 font-semibold text-sm tracking-tight text-ink-100 hover:text-white transition-colors"
             >
-              <div className="h-7 w-7 rounded-md bg-ink-800 border border-border flex items-center justify-center text-emerald-400">
+              <div className="app-brand-mark h-8 w-8 rounded-md bg-ink-800 border border-border flex items-center justify-center text-emerald-400">
                 <ShieldAlert className="h-4 w-4" />
               </div>
-              <span className="font-medium tracking-tight text-white">Entropy</span>
-              <span className="text-[11px] px-1.5 py-0.5 rounded bg-ink-800 border border-border/80 text-ink-400 font-mono">
+              <span className="font-semibold tracking-tight text-white">Entropy</span>
+              <span className="app-version text-[11px] px-1.5 py-0.5 rounded bg-ink-800 border border-border/80 text-ink-400 font-mono">
                 v0.1.0
               </span>
             </Link>
           </div>
 
-          <nav className="flex items-center gap-5 text-xs font-medium">
+          <nav aria-label="Primary" className="flex items-center gap-5 text-xs font-medium">
             <Link
               href="/"
               className="text-ink-200 hover:text-white transition-colors"
@@ -66,11 +69,11 @@ export default function RootLayout({
           </nav>
         </header>
 
-        <main className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8">
+        <main id="main-content" className="workbench flex-1 max-w-[1600px] w-full mx-auto p-4 sm:p-6 lg:p-8">
           {children}
         </main>
 
-        <footer className="border-t border-border py-6 px-6 text-center text-xs text-ink-500">
+        <footer className="app-footer border-t border-border py-6 px-6 text-center text-xs text-ink-500">
           <div className="flex flex-col sm:flex-row items-center justify-between max-w-7xl mx-auto gap-2">
             <p>Entropy — Architectural security-debt engine</p>
             <p className="font-mono text-[11px] text-ink-500">

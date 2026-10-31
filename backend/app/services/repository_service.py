@@ -17,12 +17,14 @@ from app.core.logging import logger
 from app.models.domain.enums import ScanStatus, SupportedLanguage
 from app.models.domain.manifest import RepositoryManifest
 from app.models.domain.scan import RepositoryMetadata, RepositoryScanResult
+from app.parser.base import ParsedFile
 from app.parser.jsts.models import ParsedJSTSUnit
 from app.parser.jsts.parser import JSTSParser
 from app.parser.python.models import ParsedPythonUnit
 from app.parser.python.parser import PythonParser
 from app.persistence.database import scan_db
 from app.repository.config import ScannerConfig
+from app.repository.language import ALL_SUPPORTED_LANGUAGES
 from app.repository.scanner import RepositoryScanner
 from app.repository.sources import LocalRepositorySource, RepositorySource
 
@@ -43,6 +45,7 @@ class RepositoryService:
             max_repo_size_bytes=settings.MAX_REPO_SIZE_BYTES,
             respect_gitignore=settings.RESPECT_GITIGNORE,
             follow_symlinks=settings.FOLLOW_SYMLINKS,
+            analyzable_languages=set(ALL_SUPPORTED_LANGUAGES),
         )
         self.scanner = RepositoryScanner(self.config)
         self._scans = store if store is not None else _scans_store
@@ -54,6 +57,7 @@ class RepositoryService:
         check_allowed_roots: bool = True,
         include_tests: bool = False,
         source: RepositorySource | None = None,
+        languages: set[SupportedLanguage] | list[str] | None = None,
     ) -> RepositoryScanResult:
         """Execute a safe repository scan, record state transitions, and return the result."""
         if source is None:
@@ -119,6 +123,21 @@ class RepositoryService:
         )
         custom_excludes = config_obj.analysis.exclude if config_obj else []
 
+        selected_langs: set[SupportedLanguage] | None = None
+        if languages:
+            selected_langs = {
+                SupportedLanguage(l.lower()) if isinstance(l, str) else l
+                for l in languages
+            }
+        elif config_obj and config_obj.analysis.languages:
+            selected_langs = {
+                SupportedLanguage(l.lower())
+                for l in config_obj.analysis.languages
+                if l.lower() in [s.value for s in SupportedLanguage]
+            }
+        else:
+            selected_langs = set(ALL_SUPPORTED_LANGUAGES)
+
         cfg = ScannerConfig(
             max_file_size_bytes=self.config.max_file_size_bytes,
             max_file_count=self.config.max_file_count,
@@ -128,6 +147,7 @@ class RepositoryService:
             include_tests=effective_include_tests,
             excluded_paths=list(self.config.excluded_paths),
             custom_exclude_patterns=custom_excludes,
+            analyzable_languages=selected_langs,
         )
         scanner_to_use = RepositoryScanner(cfg)
 
@@ -190,7 +210,9 @@ class RepositoryService:
         root_path = Path(scan.repository.path)
 
         for file_meta in scan.manifest.files:
-            # Strictly filter: only parse Python files
+            # Strictly filter: only parse Python files that are marked for analysis
+            if not getattr(file_meta, "analysis_supported", True):
+                continue
             if file_meta.language.lower() != "python":
                 continue
 
@@ -215,6 +237,8 @@ class RepositoryService:
         root_path = Path(scan.repository.path)
 
         for file_meta in scan.manifest.files:
+            if not getattr(file_meta, "analysis_supported", True):
+                continue
             lang_str = file_meta.language.lower()
             if lang_str not in ("javascript", "typescript"):
                 continue
@@ -233,6 +257,79 @@ class RepositoryService:
             units.append(unit)
 
         return units
+
+    def parse_other_language_files(
+        self, scan_id: str, languages: set[SupportedLanguage] | None = None
+    ) -> list[ParsedFile]:
+        """Safely parse/load all non-Python, non-JS/TS source files discovered in a scan's manifest into ParsedFiles."""
+        scan = self.get_scan(scan_id)
+        if not scan or not scan.manifest:
+            return []
+
+        parsed_files: list[ParsedFile] = []
+        root_path = Path(scan.repository.path)
+
+        for file_meta in scan.manifest.files:
+            if not getattr(file_meta, "analysis_supported", True):
+                continue
+            lang_str = file_meta.language.lower()
+            if lang_str in ("python", "javascript", "typescript", "unknown"):
+                continue
+
+            try:
+                lang = SupportedLanguage(lang_str)
+            except ValueError:
+                continue
+
+            if languages is not None and lang not in languages:
+                continue
+
+            file_abs_path = root_path / file_meta.path
+            try:
+                source_bytes = file_abs_path.read_bytes()
+            except OSError as err:
+                parsed_files.append(
+                    ParsedFile(
+                        absolute_path=file_abs_path,
+                        relative_path=file_meta.path,
+                        language=lang,
+                        source_code="",
+                        lines=[],
+                        parse_errors=[f"Read error: {err}"],
+                    )
+                )
+                continue
+
+            try:
+                source_code = source_bytes.decode("utf-8")
+            except UnicodeDecodeError:
+                try:
+                    source_code = source_bytes.decode("latin-1")
+                except Exception as err:
+                    parsed_files.append(
+                        ParsedFile(
+                            absolute_path=file_abs_path,
+                            relative_path=file_meta.path,
+                            language=lang,
+                            source_code="",
+                            lines=[],
+                            parse_errors=[f"Encoding error: {err}"],
+                        )
+                    )
+                    continue
+
+            lines = source_code.splitlines(keepends=True)
+            parsed_files.append(
+                ParsedFile(
+                    absolute_path=file_abs_path,
+                    relative_path=file_meta.path,
+                    language=lang,
+                    source_code=source_code,
+                    lines=lines,
+                )
+            )
+
+        return parsed_files
 
     def parse_python_file(
         self, scan_id: str, relative_path: str

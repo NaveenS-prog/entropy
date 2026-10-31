@@ -41,7 +41,17 @@ class AnalysisConfig(BaseModel):
     @field_validator("languages")
     @classmethod
     def validate_languages(cls, v: list[str]) -> list[str]:
-        valid = {"python", "javascript", "typescript"}
+        valid = {
+            "python",
+            "javascript",
+            "typescript",
+            "c",
+            "cpp",
+            "rust",
+            "java",
+            "go",
+            "php",
+        }
         for lang in v:
             if lang.lower() not in valid:
                 raise ValueError(

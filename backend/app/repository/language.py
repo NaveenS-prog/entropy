@@ -29,9 +29,30 @@ EXTENSION_LANGUAGE_MAP: dict[str, SupportedLanguage] = {
     ".cxx": SupportedLanguage.CPP,
     ".go": SupportedLanguage.GO,
     ".rs": SupportedLanguage.RUST,
+    # PHP
+    ".php": SupportedLanguage.PHP,
+    ".phtml": SupportedLanguage.PHP,
+    ".php3": SupportedLanguage.PHP,
+    ".php4": SupportedLanguage.PHP,
+    ".php5": SupportedLanguage.PHP,
+    ".php7": SupportedLanguage.PHP,
+    ".phps": SupportedLanguage.PHP,
 }
 
-# Active AST parsers and analyzers are supported for Python, JavaScript, and TypeScript
+# All 8 supported languages with active analyzers or adapters
+ALL_SUPPORTED_LANGUAGES: set[SupportedLanguage] = {
+    SupportedLanguage.PYTHON,
+    SupportedLanguage.JAVASCRIPT,
+    SupportedLanguage.TYPESCRIPT,
+    SupportedLanguage.C,
+    SupportedLanguage.CPP,
+    SupportedLanguage.RUST,
+    SupportedLanguage.JAVA,
+    SupportedLanguage.GO,
+    SupportedLanguage.PHP,
+}
+
+# Legacy default analyzable languages for baseline discovery tests
 ANALYZABLE_LANGUAGES: set[SupportedLanguage] = {
     SupportedLanguage.PYTHON,
     SupportedLanguage.JAVASCRIPT,

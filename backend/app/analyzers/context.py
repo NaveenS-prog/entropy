@@ -294,15 +294,24 @@ class AnalysisContext:
         units: list[ParsedPythonUnit],
         manifest: RepositoryManifest | None = None,
         jsts_units: list[ParsedJSTSUnit] | None = None,
+        other_files: list[ParsedFile] | None = None,
     ) -> AnalysisContext:
-        """Construct AnalysisContext from ParsedPythonUnits and optional ParsedJSTSUnits."""
+        """Construct AnalysisContext from ParsedPythonUnits, ParsedJSTSUnits, and other language files."""
         parsed_files = [ParsedFile.from_unit(u) for u in units]
         if jsts_units:
             parsed_files.extend([ParsedFile.from_unit(u) for u in jsts_units])
-        total_loc = sum(u.line_count for u in units) + (
-            sum(u.line_count for u in jsts_units) if jsts_units else 0
+        if other_files:
+            parsed_files.extend(other_files)
+        total_loc = (
+            sum(u.line_count for u in units)
+            + (sum(u.line_count for u in jsts_units) if jsts_units else 0)
+            + (sum(f.get_line_count() for f in other_files) if other_files else 0)
         )
-        total_scanned = len(units) + (len(jsts_units) if jsts_units else 0)
+        total_scanned = (
+            len(units)
+            + (len(jsts_units) if jsts_units else 0)
+            + (len(other_files) if other_files else 0)
+        )
         return cls(
             repo_path=repo_path,
             parsed_files=parsed_files,

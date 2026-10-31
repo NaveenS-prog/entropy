@@ -51,11 +51,20 @@ class ArchitecturalConsistencyAnalyzer(BaseAnalyzer):
             SupportedLanguage.PYTHON,
             SupportedLanguage.JAVASCRIPT,
             SupportedLanguage.TYPESCRIPT,
+            SupportedLanguage.C,
+            SupportedLanguage.CPP,
+            SupportedLanguage.RUST,
+            SupportedLanguage.GO,
         }
 
     @property
     def rules(self) -> list[RuleDefinition]:
-        return ALL_ARCHITECTURE_RULES
+        from app.analyzers.adapters.registry import default_adapter_registry
+
+        adapter_rules = default_adapter_registry.get_rules_for_category(self.category)
+        existing_ids = {r.rule_id for r in ALL_ARCHITECTURE_RULES}
+        extra = [r for r in adapter_rules if r.rule_id not in existing_ids]
+        return ALL_ARCHITECTURE_RULES + extra
 
     def analyze(self, context: AnalysisContext) -> list[Finding]:
         """Execute deterministic architecture analysis across the repository context."""
@@ -96,10 +105,38 @@ class ArchitecturalConsistencyAnalyzer(BaseAnalyzer):
         # 9. ENT-ARCH-008: Inconsistent Architectural Patterns
         findings.extend(self._detect_inconsistent_patterns(context, model))
 
-        # Sort findings deterministically
-        findings.sort(key=lambda f: (f.file, f.line_start, f.rule_id, f.id))
-        logger.info("Architectural analyzer completed with %d finding(s)", len(findings))
-        return findings
+        # 10. Multi-language adapter execution for architectural consistency rules
+        from app.analyzers.adapters.registry import default_adapter_registry
+
+        for pf in context.parsed_files:
+            if pf.language != SupportedLanguage.PYTHON:
+                adapter = default_adapter_registry.get_adapter(pf.language)
+                if adapter and self.category in adapter.supported_categories:
+                    try:
+                        adapter_findings = [
+                            f for f in adapter.analyze_file(pf) if f.category == self.category
+                        ]
+                        findings.extend(adapter_findings)
+                    except Exception as e:
+                        logger.error(
+                            "Adapter '%s' failed on file '%s': %s",
+                            adapter.name,
+                            pf.relative_path,
+                            e,
+                            exc_info=True,
+                        )
+
+        # Deduplicate and sort findings deterministically
+        seen_fingerprints: set[str] = set()
+        deduped: list[Finding] = []
+        for f in findings:
+            if f.fingerprint not in seen_fingerprints:
+                seen_fingerprints.add(f.fingerprint)
+                deduped.append(f)
+
+        deduped.sort(key=lambda f: (f.file, f.line_start, f.rule_id, f.id))
+        logger.info("Architectural analyzer completed with %d finding(s)", len(deduped))
+        return deduped
 
     # -------------------------------------------------------------------------
     # Rule 1: ENT-ARCH-001 Circular Module Dependencies

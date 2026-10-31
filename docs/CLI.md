@@ -105,14 +105,38 @@ entropy baseline clear [path] --yes
 
 ## 7. `entropy scan`
 
-Scans a repository path (default: `.`), discovers scannable files, runs registered AST analyzers across supported languages (Python, JavaScript, TypeScript), and computes the aggregate Entropy Debt score.
+Scans a repository path (default: `.`), discovers scannable files, runs registered AST analyzers and language adapters across supported languages (Python, JavaScript, TypeScript, C, C++, Rust, Java, Go, PHP), and computes the aggregate Entropy Debt score.
 
 ### Usage
 ```bash
+# Scan current repository across all detected languages
 entropy scan .
+
+# Scan specific directory and output JSON
 entropy scan /path/to/project --format json
+
+# Export scan in standard SARIF format
 entropy scan . --format sarif
+
+# Limit scanning to specific languages (e.g. Rust and Go only)
+entropy scan . --languages rust,go
+
+# Short flag alias
+entropy scan . -l c,cpp
 ```
+
+### Interpreting Partial Coverage Output
+
+When scanning a repository written in a language that does not implement web routes (such as a pure C systems library or CLI Go tool), categories such as **Authentication** and **Authorization** report `(not_analyzed)`:
+
+```
+Entropy Score: 24 / 100 [EXPERIMENTAL] (Band: Low) (partial coverage)
+Coverage: 62.4% LOC analyzed
+```
+
+- **`(partial coverage)`**: Indicates that some debt categories were not analyzed because the codebase does not contain source files for those categories' analyzers.
+- **Coverage %**: Quantifies the exact percentage of codebase lines of code that were subjected to active static analysis rules.
+- Partial coverage status does **not** fail the scan; it honestly reflects the proportion of the architecture under active inspection.
 
 ### Example Human Output
 ```

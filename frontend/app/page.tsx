@@ -742,7 +742,7 @@ export default function RepositoryIngestionDashboard() {
 
       {/* letsbrag.app Inspired Hero Headline & Subhead with Entropy Brand Mark */}
       {!activeScan && (
-        <div className="text-center max-w-3xl mx-auto space-y-4 pt-3 pb-6">
+        <div className="text-center max-w-3xl mx-auto space-y-5 pt-3 pb-6">
           <div className="flex justify-center">
             <div className="p-1 rounded-2xl bg-ink-900/90 border border-border/80 shadow-2xl hover:border-orange-500/50 hover:scale-105 transition-all duration-300">
               <EntropyLogo size={64} roundedClassName="rounded-xl" priority />
@@ -757,84 +757,142 @@ export default function RepositoryIngestionDashboard() {
           <p className="text-xs sm:text-sm md:text-base text-ink-300 max-w-xl mx-auto leading-relaxed">
             Drop your project folder or paste a repo link. Get instant <strong>mathematical debt scores</strong> and <strong>advisory AI remediation</strong>.
           </p>
+
+          {/* Feature Tab: Repository Scanner vs Pull Requests DIRECTLY BELOW THE TEXT */}
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <div className="inline-flex items-center gap-1 bg-ink-950 p-1.5 rounded-xl border border-border/90 shadow-xl">
+              <button
+                type="button"
+                onClick={() => setActiveTab("overview")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  activeTab !== "pull_requests"
+                    ? "bg-ink-800 text-white border border-border/80 shadow-sm"
+                    : "text-ink-400 hover:text-white"
+                }`}
+              >
+                <FolderGit2 className="w-3.5 h-3.5 text-orange-400" />
+                <span>Repository scanner</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("pull_requests")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  activeTab === "pull_requests"
+                    ? "bg-ink-800 text-white border border-border/80 shadow-sm"
+                    : "text-ink-400 hover:text-white"
+                }`}
+              >
+                <GitPullRequest className="w-3.5 h-3.5 text-orange-400" />
+                <span>Pull requests</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {health ? (
+                <div className="flex items-center gap-1.5 text-[11px] text-ink-400 font-mono bg-ink-950 px-3 py-1.5 rounded-lg border border-border/80">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  <span>v{health.version}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-[11px] text-amber-300 font-mono bg-ink-950 px-3 py-1.5 rounded-lg border border-border/80">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                  <span>Offline</span>
+                </div>
+              )}
+
+              {scans.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearSession}
+                  className="text-[11px] text-ink-400 hover:text-white px-2.5 py-1.5 rounded-lg bg-ink-950 border border-border/80 transition-colors font-mono cursor-pointer"
+                  title="Clear current session scans"
+                >
+                  Reset session
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Mode Switcher: Repository vs Pull Requests & Server Status */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
-        <div className="flex items-center gap-1.5 bg-ink-900 p-1 rounded-lg border border-border">
-          <button
-            onClick={() => setActiveTab("overview")}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-              activeTab !== "pull_requests"
-                ? "bg-ink-800 text-white border border-border/80 shadow-sm"
-                : "text-ink-400 hover:text-white"
-            }`}
-          >
-            <FolderGit2 className="w-3.5 h-3.5" />
-            <span>Repository scanner</span>
-          </button>
+      {/* Mode Switcher & Server Status when a scan is active */}
+      {activeScan && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
+          <div className="flex items-center gap-1.5 bg-ink-900 p-1 rounded-lg border border-border">
+            <button
+              onClick={() => setActiveTab("overview")}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                activeTab !== "pull_requests"
+                  ? "bg-ink-800 text-white border border-border/80 shadow-sm"
+                  : "text-ink-400 hover:text-white"
+              }`}
+            >
+              <FolderGit2 className="w-3.5 h-3.5" />
+              <span>Repository scanner</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab("pull_requests")}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-              activeTab === "pull_requests"
-                ? "bg-ink-800 text-white border border-border/80 shadow-sm"
-                : "text-ink-400 hover:text-white"
-            }`}
-          >
-            <GitPullRequest className="w-3.5 h-3.5" />
-            <span>Pull requests</span>
-          </button>
-        </div>
+            <button
+              onClick={() => setActiveTab("pull_requests")}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                activeTab === "pull_requests"
+                  ? "bg-ink-800 text-white border border-border/80 shadow-sm"
+                  : "text-ink-400 hover:text-white"
+              }`}
+            >
+              <GitPullRequest className="w-3.5 h-3.5" />
+              <span>Pull requests</span>
+            </button>
+          </div>
 
-        <div className="flex items-center gap-2.5">
-          {scans.length > 0 && (
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <select
-                  value={activeScan?.scan_id || ""}
-                  onChange={(e) => handleSelectScan(e.target.value)}
-                  className="appearance-none bg-ink-900 border border-border text-xs text-ink-200 rounded-lg pl-3 pr-8 py-1.5 focus:outline-none focus:border-orange-500/60 cursor-pointer font-mono"
+          <div className="flex items-center gap-2.5">
+            {scans.length > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <select
+                    value={activeScan?.scan_id || ""}
+                    onChange={(e) => handleSelectScan(e.target.value)}
+                    className="appearance-none bg-ink-900 border border-border text-xs text-ink-200 rounded-lg pl-3 pr-8 py-1.5 focus:outline-none focus:border-orange-500/60 cursor-pointer font-mono"
+                  >
+                    <option value="" disabled>
+                      Session scans...
+                    </option>
+                    {scans.map((s) => {
+                      const repoName = s.repository?.name || s.repo_name || "Repository";
+                      return (
+                        <option key={s.scan_id} value={s.scan_id}>
+                          {repoName} ({s.status})
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <ChevronDown className="h-3 w-3 text-ink-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearSession}
+                  className="text-xs text-ink-400 hover:text-white px-2 py-1 rounded bg-ink-900 border border-border transition-colors font-mono cursor-pointer"
+                  title="Clear current session scans"
                 >
-                  <option value="" disabled>
-                    Session scans...
-                  </option>
-                  {scans.map((s) => {
-                    const repoName = s.repository?.name || s.repo_name || "Repository";
-                    return (
-                      <option key={s.scan_id} value={s.scan_id}>
-                        {repoName} ({s.status})
-                      </option>
-                    );
-                  })}
-                </select>
-                <ChevronDown className="h-3 w-3 text-ink-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                  Reset
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleClearSession}
-                className="text-xs text-ink-400 hover:text-white px-2 py-1 rounded bg-ink-900 border border-border transition-colors font-mono cursor-pointer"
-                title="Clear current session scans"
-              >
-                Reset
-              </button>
-            </div>
-          )}
+            )}
 
-          {health ? (
-            <div className="flex items-center gap-2 text-xs text-ink-400 font-mono bg-ink-900 px-2.5 py-1.5 rounded-lg border border-border">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              <span>v{health.version}</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 text-xs text-amber-300 font-mono bg-ink-900 border border-border px-2.5 py-1.5 rounded-lg">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-              <span>Offline</span>
-            </div>
-          )}
+            {health ? (
+              <div className="flex items-center gap-2 text-xs text-ink-400 font-mono bg-ink-900 px-2.5 py-1.5 rounded-lg border border-border">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <span>v{health.version}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-xs text-amber-300 font-mono bg-ink-900 border border-border px-2.5 py-1.5 rounded-lg">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                <span>Offline</span>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {activeTab === "pull_requests" ? (
         <PRWorkflowView />

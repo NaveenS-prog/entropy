@@ -406,7 +406,13 @@ export default function RepositoryIngestionDashboard() {
         errorMessage.toLowerCase().includes("networkerror")
       ) {
         errorMessage =
-          "Cannot reach backend API. Ensure your backend service is running.";
+          "Cannot reach backend API. Ensure your backend service is running (e.g. uvicorn app.main:app on port 8000).";
+      } else if (
+        errorMessage.toLowerCase().includes("path is outside the allowed") ||
+        errorMessage.toLowerCase().includes("directory does not exist") ||
+        errorMessage.toLowerCase().includes("repository not found")
+      ) {
+        errorMessage = `${errorMessage}. Tip: To scan code from your local machine via the browser, use the "Local Files / Folder" tab above to choose your folder or upload a ZIP directly.`;
       }
       setError(errorMessage);
     } finally {
@@ -1083,11 +1089,38 @@ export default function RepositoryIngestionDashboard() {
 
             {/* Error notification */}
             {error && (
-              <div className="p-3 rounded-md bg-ink-850 border border-border text-xs flex items-start gap-2.5">
+              <div className="p-4 rounded-xl bg-red-950/30 border border-red-500/30 text-xs flex items-start gap-3">
                 <AlertCircle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-medium text-red-300">Scan failed</p>
-                  <p className="mt-0.5 font-mono text-[11px] text-ink-400">{error}</p>
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-red-300">Scan failed</p>
+                    <button
+                      type="button"
+                      onClick={() => setError(null)}
+                      className="text-[11px] text-ink-400 hover:text-white transition-colors"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                  <p className="font-mono text-xs text-ink-300 leading-relaxed whitespace-pre-wrap">{error}</p>
+                  {scanMode === "path" && (
+                    <div className="pt-2 border-t border-red-500/20 flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[11px] text-ink-300">
+                        Scanning code from your local machine?
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setScanMode("folder");
+                          setError(null);
+                          setTimeout(() => folderInputRef.current?.click(), 150);
+                        }}
+                        className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-ink-950 text-xs font-semibold shadow-glow-emerald transition-all cursor-pointer"
+                      >
+                        Choose Local Folder
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -29,6 +29,12 @@ import { WorkspaceArchitecture } from "@/components/workspaces/WorkspaceArchitec
 import { WorkspaceRoutes } from "@/components/workspaces/WorkspaceRoutes";
 import { WorkspacePRDelta } from "@/components/workspaces/WorkspacePRDelta";
 import { WorkspacePolicies } from "@/components/workspaces/WorkspacePolicies";
+import {
+  DEMO_SCAN_RESULT,
+  DEMO_SCORE_RESULT,
+  DEMO_FINDINGS,
+  DEMO_MANIFEST,
+} from "@/lib/demoData";
 import { AlertTriangle, Loader2 } from "lucide-react";
 
 export default function EntropyPrecisionDashboard() {
@@ -84,7 +90,11 @@ export default function EntropyPrecisionDashboard() {
       setFindings(f);
     } catch (err) {
       console.warn("Could not load findings from API:", err);
-      setFindings([]);
+      if (scanId === DEMO_SCAN_RESULT.scan_id) {
+        setFindings(DEMO_FINDINGS);
+      } else {
+        setFindings([]);
+      }
     }
   };
 
@@ -94,12 +104,24 @@ export default function EntropyPrecisionDashboard() {
       setScore(s);
     } catch (err) {
       console.warn("Could not load score from API:", err);
-      setScore(null);
+      if (scanId === DEMO_SCAN_RESULT.scan_id) {
+        setScore(DEMO_SCORE_RESULT);
+      } else {
+        setScore(null);
+      }
     }
   };
 
   const handleSelectScan = async (scanId: string) => {
     setError(null);
+    if (scanId === DEMO_SCAN_RESULT.scan_id) {
+      setActiveScan(DEMO_SCAN_RESULT);
+      setManifest(DEMO_MANIFEST);
+      setFindings(DEMO_FINDINGS);
+      setScore(DEMO_SCORE_RESULT);
+      return;
+    }
+
     try {
       const full = await getScan(scanId);
       setActiveScan(full);
@@ -163,9 +185,9 @@ export default function EntropyPrecisionDashboard() {
         ]);
 
         setHealth(healthData);
-        setScans(scanList);
 
         if (scanList.length > 0) {
+          setScans(scanList);
           const params =
             typeof window !== "undefined"
               ? new URLSearchParams(window.location.search)
@@ -190,9 +212,21 @@ export default function EntropyPrecisionDashboard() {
             if (first.score) setScore(first.score);
             if (first.findings) setFindings(first.findings);
           }
+        } else {
+          // Fallback to rich preloaded demo dataset so workspaces are immediately interactive
+          setScans([DEMO_SCAN_RESULT]);
+          setActiveScan(DEMO_SCAN_RESULT);
+          setManifest(DEMO_MANIFEST);
+          setFindings(DEMO_FINDINGS);
+          setScore(DEMO_SCORE_RESULT);
         }
       } catch (err) {
         console.error("Initialization error:", err);
+        setScans([DEMO_SCAN_RESULT]);
+        setActiveScan(DEMO_SCAN_RESULT);
+        setManifest(DEMO_MANIFEST);
+        setFindings(DEMO_FINDINGS);
+        setScore(DEMO_SCORE_RESULT);
       }
     }
     init();

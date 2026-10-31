@@ -7,6 +7,7 @@ from uuid import uuid4
 from app.core.config import settings
 from app.core.errors import (
     RepositoryError,
+    RepositoryLimitExceededError,
     RepositoryNotADirectoryError,
     RepositoryNotFoundError,
     RepositoryPermissionError,
@@ -23,7 +24,7 @@ from app.parser.python.parser import PythonParser
 from app.persistence.database import scan_db
 from app.repository.config import ScannerConfig
 from app.repository.scanner import RepositoryScanner
-from app.repository.sources import LocalRepositorySource
+from app.repository.sources import LocalRepositorySource, RepositorySource
 
 _scans_store: dict[str, RepositoryScanResult] = {}
 
@@ -48,21 +49,25 @@ class RepositoryService:
 
     def execute_scan(
         self,
-        repo_path: str,
+        repo_path: str | Path | None = None,
         repo_name: str | None = None,
         check_allowed_roots: bool = True,
         include_tests: bool = False,
+        source: RepositorySource | None = None,
     ) -> RepositoryScanResult:
         """Execute a safe repository scan, record state transitions, and return the result."""
-        clean_path = str(repo_path).strip()
-        is_git_url = clean_path.lower().startswith(("http://", "https://"))
+        if source is None:
+            if not repo_path:
+                raise RepositoryNotFoundError("Repository path or source must be provided.")
+            clean_path = str(repo_path).strip()
+            is_git_url = clean_path.lower().startswith(("http://", "https://"))
 
-        if is_git_url:
-            from app.repository.sources import GitUrlRepositorySource
+            if is_git_url:
+                from app.repository.sources import GitUrlRepositorySource
 
-            source = GitUrlRepositorySource(clean_path, repo_name)
-        else:
-            source = LocalRepositorySource(clean_path, repo_name, check_allowed_roots=check_allowed_roots)
+                source = GitUrlRepositorySource(clean_path, repo_name)
+            else:
+                source = LocalRepositorySource(clean_path, repo_name, check_allowed_roots=check_allowed_roots)
 
         # Pre-validate source to fail fast on invalid paths or permissions
         try:
@@ -72,8 +77,9 @@ class RepositoryService:
             RepositoryNotADirectoryError,
             RepositoryPermissionError,
             RepositorySecurityError,
+            RepositoryLimitExceededError,
         ) as err:
-            logger.error("Repository validation failed for '%s': %s", repo_path, err)
+            logger.error("Repository validation failed for '%s': %s", repo_name or repo_path, err)
             raise
 
         scan_id = str(uuid4())

@@ -1,12 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 
 from app.api.v1.security import is_authenticated_caller
 from app.comparison.models import RepositoryTrendResponse
 from app.comparison.service import comparison_service
+from app.core.config import settings
 from app.models.domain.manifest import RepositoryManifest
 from app.persistence.database import scan_db
 from app.persistence.models import PaginatedScanSnapshots
+from app.repository.sources import ArchiveUploadSource
 from app.schemas.scan_schemas import ScanCreateRequest, ScanDetailResponse
+from app.scoring.service import scoring_service
+from app.services.analysis_service import analysis_service
 from app.services.repository_service import repository_service
 
 router = APIRouter()
@@ -37,6 +43,71 @@ def scan_repository(request: ScanCreateRequest) -> ScanDetailResponse:
         analyzers_executed=scan_result.analyzers_executed,
         errors=scan_result.errors,
     )
+
+
+@router.post("/upload", response_model=ScanDetailResponse, status_code=status.HTTP_201_CREATED)
+async def upload_repository_archive(
+    file: UploadFile = File(..., description="ZIP archive of local repository files"),
+    repo_name: str | None = Form(default=None, description="Optional repository display name"),
+    include_tests: bool = Form(default=False, description="Opt back in to analyzing test and example files"),
+) -> ScanDetailResponse:
+    """Upload and scan a local repository archive (ZIP).
+
+    Extracts archive into an isolated sandbox, validates structure, performs AST analysis,
+    and returns full scan details with findings and score.
+    """
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file must have a filename",
+        )
+
+    upload_dir = settings.SCAN_STORAGE_DIR / "uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    temp_zip = upload_dir / f"upload_{uuid4().hex}_{file.filename}"
+
+    try:
+        content = await file.read()
+        if len(content) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Uploaded archive is empty",
+            )
+        temp_zip.write_bytes(content)
+
+        source = ArchiveUploadSource(
+            archive_path=temp_zip,
+            name=repo_name,
+            original_filename=file.filename,
+        )
+        scan_result = repository_service.execute_scan(
+            source=source,
+            repo_name=repo_name,
+            include_tests=include_tests,
+        )
+        analysis_service.analyze_scan(scan_result.scan_id)
+        scoring_service.calculate_scan_score(scan_result.scan_id)
+        scan_result = repository_service.get_scan(scan_result.scan_id) or scan_result
+
+        return ScanDetailResponse(
+            scan_id=scan_result.scan_id,
+            repository=scan_result.repository,
+            status=scan_result.status,
+            manifest=scan_result.manifest,
+            findings=scan_result.findings,
+            score=scan_result.score,
+            started_at=scan_result.started_at,
+            completed_at=scan_result.completed_at,
+            duration_ms=scan_result.duration_ms,
+            analyzers_executed=scan_result.analyzers_executed,
+            errors=scan_result.errors,
+        )
+    finally:
+        if temp_zip.exists():
+            try:
+                temp_zip.unlink()
+            except Exception:
+                pass
 
 
 @router.get("/{scan_id}/manifest", response_model=RepositoryManifest)

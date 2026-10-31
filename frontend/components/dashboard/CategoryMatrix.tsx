@@ -85,7 +85,7 @@ export function CategoryMatrix({
               ))}
 
               <span className="text-[11px] font-mono text-ink-400 ml-auto flex items-center gap-1">
-                <Radio className="h-2.5 w-2.5 text-emerald-400" />
+                <Radio className="h-2.5 w-2.5 text-red-400" />
                 Routes: {routesCount}
               </span>
             </div>
@@ -123,7 +123,7 @@ export function CategoryMatrix({
                   : "opacity-60 cursor-default"
               } ${
                 isSelected
-                  ? "border-emerald-500/80 bg-ink-850"
+                  ? "border-red-500/80 bg-ink-850"
                   : "border-border"
               }`}
             >

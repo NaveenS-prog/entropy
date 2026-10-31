@@ -192,7 +192,7 @@ export function ScoreBanner({ score, repository, durationMs }: ScoreBannerProps)
               {score.top_contributing_rules.slice(0, 3).map((rule, idx) => (
                 <div key={idx} className="flex items-center justify-between text-ink-300">
                   <span className="truncate max-w-[240px]">
-                    <strong className="text-emerald-400 font-medium">{rule.rule_id}</strong>{" "}
+                    <strong className="text-red-400 font-medium">{rule.rule_id}</strong>{" "}
                     <span className="text-ink-300">{rule.rule_title}</span>
                   </span>
                   <span className="text-ink-400 shrink-0 tabular-nums">

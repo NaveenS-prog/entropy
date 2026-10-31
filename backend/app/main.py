@@ -2,7 +2,7 @@
 
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Query, Request, status
+from fastapi import Depends, FastAPI, File, Form, Query, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -161,6 +161,24 @@ app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 def root_scan_repository(request: ScanCreateRequest) -> ScanDetailResponse:
     """Ingest a repository via top-level endpoint."""
     return repos_ep.scan_repository(request)
+
+
+@app.post(
+    "/repositories/upload",
+    response_model=ScanDetailResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Repositories"],
+    dependencies=[Depends(verify_api_key)],
+)
+async def root_upload_repository(
+    file: UploadFile = File(...),
+    repo_name: str | None = Form(default=None),
+    include_tests: bool = Form(default=False),
+) -> ScanDetailResponse:
+    """Upload a repository archive via top-level endpoint."""
+    return await repos_ep.upload_repository_archive(
+        file=file, repo_name=repo_name, include_tests=include_tests
+    )
 
 
 @app.get("/scans/{scan_id}", response_model=ScanDetailResponse, tags=["Scans"], dependencies=[Depends(verify_api_key)])

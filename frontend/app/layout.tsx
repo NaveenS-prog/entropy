@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ShieldAlert, BookOpen, ScrollText } from "lucide-react";
+import { ShieldAlert, ScrollText } from "lucide-react";
 import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 
@@ -15,40 +15,31 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const docsUrl =
-    process.env.NEXT_PUBLIC_API_DOCS_URL ||
-    (process.env.NEXT_PUBLIC_API_URL
-      ? `${process.env.NEXT_PUBLIC_API_URL.replace(/\/api\/v1\/?$/, "")}/docs`
-      : "http://localhost:8000/docs");
-
   return (
-    <html lang="en">
-      <body className="app-shell bg-background text-foreground antialiased flex flex-col min-h-screen">
-        <a className="skip-link" href="#main-content">
-          Skip to workspace
-        </a>
-        <header className="app-header sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+    <html lang="en" className="dark">
+      <body className="bg-background text-foreground antialiased flex flex-col min-h-screen">
+        <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link
               href="/"
-              className="app-brand flex items-center gap-2.5 font-semibold text-sm tracking-tight text-ink-100 hover:text-white transition-colors"
+              className="flex items-center gap-2.5 font-semibold text-sm tracking-tight text-ink-100 hover:text-white transition-colors"
             >
-              <div className="app-brand-mark h-8 w-8 rounded-md bg-ink-800 border border-border flex items-center justify-center text-emerald-400">
+              <div className="h-7 w-7 rounded-md bg-ink-800 border border-border flex items-center justify-center text-emerald-400">
                 <ShieldAlert className="h-4 w-4" />
               </div>
-              <span className="font-semibold tracking-tight text-white">Entropy</span>
-              <span className="app-version text-[11px] px-1.5 py-0.5 rounded bg-ink-800 border border-border/80 text-ink-400 font-mono">
+              <span className="font-medium tracking-tight text-white">Entropy</span>
+              <span className="text-[11px] px-1.5 py-0.5 rounded bg-ink-800 border border-border/80 text-ink-400 font-mono">
                 v0.1.0
               </span>
             </Link>
           </div>
 
-          <nav aria-label="Primary" className="flex items-center gap-5 text-xs font-medium">
+          <nav className="flex items-center gap-5 text-xs font-medium">
             <Link
               href="/"
               className="text-ink-200 hover:text-white transition-colors"
             >
-              Dashboard
+              Scanner Dashboard
             </Link>
             <Link
               href="/constitution"
@@ -57,23 +48,14 @@ export default function RootLayout({
               <ScrollText className="h-3.5 w-3.5" />
               <span>Constitution</span>
             </Link>
-            <a
-              href={docsUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 text-ink-400 hover:text-white transition-colors"
-            >
-              <BookOpen className="h-3.5 w-3.5" />
-              <span>API Reference</span>
-            </a>
           </nav>
         </header>
 
-        <main id="main-content" className="workbench flex-1 max-w-[1600px] w-full mx-auto p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 max-w-[1600px] w-full mx-auto p-4 sm:p-6 lg:p-8">
           {children}
         </main>
 
-        <footer className="app-footer border-t border-border py-6 px-6 text-center text-xs text-ink-500">
+        <footer className="border-t border-border py-6 px-6 text-center text-xs text-ink-500">
           <div className="flex flex-col sm:flex-row items-center justify-between max-w-7xl mx-auto gap-2">
             <p>Entropy — Architectural security-debt engine</p>
             <p className="font-mono text-[11px] text-ink-500">

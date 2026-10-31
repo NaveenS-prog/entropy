@@ -1,4 +1,5 @@
 import {
+  AIExplanation,
   DebtScoreResult,
   Finding,
   RepositoryManifest,
@@ -380,3 +381,91 @@ export const DEMO_MANIFEST: RepositoryManifest = {
   ],
   skipped_files: [],
 };
+
+export const DEMO_AI_EXPLANATIONS: Record<string, AIExplanation> = {
+  "finding-demo-01": {
+    finding_id: "finding-demo-01",
+    summary:
+      "Route handler /invoices/export in invoices_export.ts bypasses the organization-wide authentication middleware chain, allowing unauthenticated tenants to trigger invoice dumps.",
+    why_it_matters:
+      "The billing export endpoint operates as a public route because neither requireAuth nor verifyTenantScope middleware is registered in its pipeline. Because orgId is trusted directly from query parameters without cryptographic identity validation, any anonymous caller can enumerate tenant invoice records.",
+    evidence_explanation:
+      "Lines 14-26 register router.get('/invoices/export', handler) directly. In contrast, 11 sibling routes in src/api/routes mount the centralized authentication pipeline router.use(requireAuth).",
+    architectural_impact:
+      "Perimeter drift creates critical security debt. Over time, ad-hoc unauthenticated endpoints increase cross-tenant data leak blast radiuses and violate SOC2/ISO zero-trust boundary invariants.",
+    remediation:
+      "1. Attach requireAuth and verifyTenantScope middlewares to the endpoint.\n2. Bind orgId strictly from verified session claims (req.user.tenantId) rather than raw user-supplied query parameters.\n3. Add an integration contract test asserting 401 Unauthorized for anonymous callers.",
+    suggested_pattern:
+      "// Refactored with perimeter guard and tenant scoping\nrouter.get(\n  '/invoices/export',\n  requireAuth,\n  verifyTenantScope,\n  async (req: AuthenticatedRequest, res: Response) => {\n    const tenantId = req.user.tenantId;\n    const data = await invoiceService.dumpForTenant(tenantId);\n    return res.json(data);\n  }\n);",
+    confidence: "high",
+    generated_at: "2026-10-31T10:05:00.000Z",
+    model: "gemini-1.5-flash",
+    prompt_version: "1",
+    disclaimer:
+      "AI-generated explanation — advisory only. Does not alter deterministic findings or scores.",
+  },
+  "finding-demo-02": {
+    finding_id: "finding-demo-02",
+    summary:
+      "Subscription transition pipeline in subscription_lifecycle.ts duplicates 89% of PaymentProcessor's AST structure instead of composing a unified dispatcher.",
+    why_it_matters:
+      "Duplicated payment dispatch code causes maintenance bifurcation. Bug fixes and idempotency upgrades applied to payment_orchestrator.ts will not propagate to subscription transitions, leading to silent payment state inconsistencies.",
+    evidence_explanation:
+      "Lines 45-78 mirror the AST subtree of payment_orchestrator.ts (lines 102-135) with identical state validation, error throwing, event building, and gateway dispatch sequences.",
+    architectural_impact:
+      "Boilerplate clones increase cognitive overhead during audits and elevate defect density by creating multiple diverging sources of truth for payment gateway interactions.",
+    remediation:
+      "1. Extract shared payment execution semantics into an AbstractGatewayDispatcher.\n2. Pass specific lifecycle event builders into the unified dispatcher.\n3. Replace the duplicated block with dispatcher.process(event).",
+    suggested_pattern:
+      "// Unified payment gateway dispatch pattern\nexport async function handleSubscriptionTransition(\n  subId: string,\n  ctx: UserContext\n) {\n  const record = await db.subs.findById(subId);\n  if (!record || record.tenantId !== ctx.tenantId) throw new ForbiddenError();\n  \n  return await paymentDispatcher.dispatch({\n    type: 'SUBSCRIPTION_TRANSITION',\n    tenantId: ctx.tenantId,\n    payload: record,\n  });\n}",
+    confidence: "high",
+    generated_at: "2026-10-31T10:05:00.000Z",
+    model: "gemini-1.5-flash",
+    prompt_version: "1",
+    disclaimer:
+      "AI-generated explanation — advisory only. Does not alter deterministic findings or scores.",
+  },
+  "finding-demo-03": {
+    finding_id: "finding-demo-03",
+    summary:
+      "Broad Exception catch block in verify_external_jwks swallows token verification errors, masking authentication failure telemetry.",
+    why_it_matters:
+      "Catching base Exception without logging or differentiating error types suppresses expired key notices, network partition failures, and malformed signature alerts, masquerading attacks as simple missing tokens.",
+    evidence_explanation:
+      "Lines 32-42 in backend/auth/token_verifier.py wrap jwt.decode in try/except Exception and immediately return None without recording error context or telemetry.",
+    architectural_impact:
+      "Silenced error boundaries erode audit observability. Security monitoring systems cannot differentiate between a legitimate expired user session and an ongoing cryptographic spoofing attack.",
+    remediation:
+      "1. Catch PyJWTError specifically rather than generic Exception.\n2. Emit structured warning logs with correlation IDs.\n3. Return a typed result (e.g., Result[TokenClaims, AuthFailureReason]).",
+    suggested_pattern:
+      "# Explicit error handling with structured logging\nimport jwt\nfrom jwt.exceptions import PyJWTError\nimport logging\n\nlogger = logging.getLogger(__name__)\n\ndef verify_external_jwks(token_str: str) -> dict | None:\n    try:\n        return jwt.decode(token_str, key=JWKS_CACHE, algorithms=['RS256'])\n    except PyJWTError as exc:\n        logger.warning('JWT verification rejected: %s', exc)\n        return None",
+    confidence: "high",
+    generated_at: "2026-10-31T10:05:00.000Z",
+    model: "gemini-1.5-flash",
+    prompt_version: "1",
+    disclaimer:
+      "AI-generated explanation — advisory only. Does not alter deterministic findings or scores.",
+  },
+  "finding-demo-04": {
+    finding_id: "finding-demo-04",
+    summary:
+      "Circular dependency cycle detected between AccountService and UserService across domain boundaries.",
+    why_it_matters:
+      "Direct mutual imports prevent tree-shaking, cause undefined runtime evaluation order during startup, and couple account operations with user operations in violation of clean domain boundaries.",
+    evidence_explanation:
+      "Lines 8-22 in account_service.ts import UserService, while user_service.ts imports AccountService, forming a closed topological loop.",
+    architectural_impact:
+      "Cyclic coupling makes unit testing difficult by requiring complex mock fixtures and impedes decomposing domains into independent packages or microservices.",
+    remediation:
+      "1. Introduce a domain event or shared interface in a shared/contracts directory.\n2. Use dependency inversion so both services depend on abstract ports.\n3. Defer circular resolution using event emitters or command handlers.",
+    suggested_pattern:
+      "// Invert dependency via shared ports\nimport type { UserLookupPort } from '@/shared/ports';\n\nexport class AccountService {\n  constructor(private userLookup: UserLookupPort) {}\n  \n  async resolveAccountUser(accountId: string) {\n    return this.userLookup.getUserForAccount(accountId);\n  }\n}",
+    confidence: "high",
+    generated_at: "2026-10-31T10:05:00.000Z",
+    model: "gemini-1.5-flash",
+    prompt_version: "1",
+    disclaimer:
+      "AI-generated explanation — advisory only. Does not alter deterministic findings or scores.",
+  },
+};
+

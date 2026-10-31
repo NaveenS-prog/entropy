@@ -122,72 +122,42 @@ const LAYER_DEFINITIONS: Record<StructuralLayer, LayerDefinition> = {
  * Classifies a file path into an inferred structural layer
  */
 function classifyLayer(path: string): StructuralLayer {
-  const p = path.toLowerCase().replace(/\\/g, "/");
+  const p = path.toLowerCase().replace(/^[a-zA-Z]:[\\/]/, "").replace(/\\/g, "/").replace(/^\/+/, "");
   if (
-    p.includes("/api/") ||
-    p.includes("/routes/") ||
-    p.includes("/controllers/") ||
-    p.includes("/endpoints/") ||
-    p.includes("/views/") ||
+    /(^|\/)(api|routes|controllers|endpoints|views)(\/|$)/.test(p) ||
     p.includes("router.py") ||
     p.includes("main.py")
   ) {
     return "API";
   }
   if (
-    p.includes("/service/") ||
-    p.includes("/services/") ||
-    p.includes("/domain/") ||
-    p.includes("/logic/") ||
-    p.includes("/workflows/") ||
-    p.includes("/usecases/")
+    /(^|\/)(service|services|domain|logic|workflows|usecases)(\/|$)/.test(p)
   ) {
     return "SERVICE";
   }
   if (
-    p.includes("/repo/") ||
-    p.includes("/repositories/") ||
-    p.includes("/db/") ||
-    p.includes("/database/") ||
-    p.includes("/dao/") ||
-    p.includes("/storage/") ||
-    p.includes("/queries/")
+    /(^|\/)(repo|repositories|db|database|dao|storage|queries)(\/|$)/.test(p)
   ) {
     return "REPOSITORY";
   }
   if (
-    p.includes("/model/") ||
-    p.includes("/models/") ||
-    p.includes("/schemas/") ||
-    p.includes("/types/") ||
-    p.includes("/dto/") ||
-    p.includes("/entities/")
+    /(^|\/)(model|models|schemas|types|dto|entities)(\/|$)/.test(p)
   ) {
     return "MODEL";
   }
   if (
-    p.includes("/auth/") ||
-    p.includes("/security/") ||
-    p.includes("/crypto/") ||
-    p.includes("/guards/") ||
-    p.includes("/permissions/")
+    /(^|\/)(auth|security|crypto|guards|permissions)(\/|$)/.test(p)
   ) {
     return "SECURITY";
   }
   if (
-    p.includes("/config/") ||
-    p.includes("/settings/") ||
-    p.includes("/core/config") ||
-    p.includes("/env/")
+    /(^|\/)(config|settings|env)(\/|$)/.test(p) ||
+    p.includes("core/config")
   ) {
     return "CONFIG";
   }
   if (
-    p.includes("/util/") ||
-    p.includes("/utils/") ||
-    p.includes("/helpers/") ||
-    p.includes("/common/") ||
-    p.includes("/lib/")
+    /(^|\/)(util|utils|helpers|common|lib)(\/|$)/.test(p)
   ) {
     return "UTILITY";
   }
@@ -428,29 +398,278 @@ export function WorkspaceArchitecture({
               SCC Deterministic Hash: <span className="text-ink-400">{activeCycle.sha.slice(0, 16)}</span>
             </div>
 
-            {/* SVG Cycle Diagram */}
-            <div className="w-full max-w-md my-auto py-4">
-              <div className="flex items-center justify-around gap-4 relative">
-                {activeCycle.nodes.slice(0, -1).map((node, i) => {
-                  const nodeName = node.split(".").pop() || node;
+            {/* Interactive SVG Directed Cycle Graph */}
+            <div className="w-full my-auto py-2">
+              <svg
+                className="w-full h-[240px] overflow-visible"
+                viewBox="0 0 540 240"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <defs>
+                  {/* Emerald forward arrow */}
+                  <marker
+                    id="arrow-emerald"
+                    viewBox="0 0 10 10"
+                    refX="8"
+                    refY="5"
+                    markerWidth="6"
+                    markerHeight="6"
+                    orient="auto-start-reverse"
+                  >
+                    <path d="M 0 1 L 10 5 L 0 9 z" fill="#34D399" />
+                  </marker>
+                  {/* Crimson back-channel loop arrow */}
+                  <marker
+                    id="arrow-crimson"
+                    viewBox="0 0 10 10"
+                    refX="8"
+                    refY="5"
+                    markerWidth="6"
+                    markerHeight="6"
+                    orient="auto-start-reverse"
+                  >
+                    <path d="M 0 1 L 10 5 L 0 9 z" fill="#F85149" />
+                  </marker>
+                </defs>
+
+                {(() => {
+                  const uniqueNodes = activeCycle.nodes.slice(0, -1);
+                  const isTwoNodes = uniqueNodes.length <= 2;
+
+                  if (isTwoNodes) {
+                    const n0 = uniqueNodes[0] || "moduleA";
+                    const n1 = uniqueNodes[1] || "moduleB";
+                    const n0Name = n0.split(".").pop() || n0;
+                    const n1Name = n1.split(".").pop() || n1;
+                    const l0 = classifyLayer(n0);
+                    const l1 = classifyLayer(n1);
+
+                    return (
+                      <g>
+                        {/* Forward edge: Node 0 -> Node 1 */}
+                        <path
+                          d="M 175 80 L 355 80"
+                          stroke="#34D399"
+                          strokeWidth="2.5"
+                          markerEnd="url(#arrow-emerald)"
+                        />
+                        <text
+                          x="265"
+                          y="68"
+                          fill="#34D399"
+                          fontSize="10"
+                          fontFamily="monospace"
+                          textAnchor="middle"
+                          fontWeight="bold"
+                        >
+                          imports ➔
+                        </text>
+
+                        {/* Back-channel edge: Node 1 -> Node 0 looping underneath */}
+                        <path
+                          d="M 405 120 C 405 195, 125 195, 125 120"
+                          stroke="#F85149"
+                          strokeWidth="2.5"
+                          strokeDasharray="6 4"
+                          markerEnd="url(#arrow-crimson)"
+                        />
+                        <text
+                          x="265"
+                          y="205"
+                          fill="#F85149"
+                          fontSize="11"
+                          fontFamily="monospace"
+                          textAnchor="middle"
+                          fontWeight="bold"
+                        >
+                          ⚠️ Back-Channel Import (Causes Tarjan SCC Loop)
+                        </text>
+
+                        {/* Node 0 Box */}
+                        <g transform="translate(75, 45)">
+                          <rect
+                            width="100"
+                            height="70"
+                            rx="10"
+                            fill="#0E1217"
+                            stroke="#2D3748"
+                            strokeWidth="1.5"
+                            className="hover:stroke-emerald-400 transition-colors"
+                          />
+                          <text
+                            x="50"
+                            y="28"
+                            fill="#FFFFFF"
+                            fontSize="11"
+                            fontWeight="bold"
+                            fontFamily="monospace"
+                            textAnchor="middle"
+                          >
+                            {n0Name.slice(0, 10)}
+                          </text>
+                          <rect
+                            x="25"
+                            y="38"
+                            width="50"
+                            height="16"
+                            rx="4"
+                            fill="#151B22"
+                          />
+                          <text
+                            x="50"
+                            y="50"
+                            fill="#34D399"
+                            fontSize="9"
+                            fontFamily="monospace"
+                            textAnchor="middle"
+                          >
+                            {l0}
+                          </text>
+                        </g>
+
+                        {/* Node 1 Box */}
+                        <g transform="translate(365, 45)">
+                          <rect
+                            width="100"
+                            height="70"
+                            rx="10"
+                            fill="#0E1217"
+                            stroke="#2D3748"
+                            strokeWidth="1.5"
+                            className="hover:stroke-emerald-400 transition-colors"
+                          />
+                          <text
+                            x="50"
+                            y="28"
+                            fill="#FFFFFF"
+                            fontSize="11"
+                            fontWeight="bold"
+                            fontFamily="monospace"
+                            textAnchor="middle"
+                          >
+                            {n1Name.slice(0, 10)}
+                          </text>
+                          <rect
+                            x="25"
+                            y="38"
+                            width="50"
+                            height="16"
+                            rx="4"
+                            fill="#151B22"
+                          />
+                          <text
+                            x="50"
+                            y="50"
+                            fill="#60A5FA"
+                            fontSize="9"
+                            fontFamily="monospace"
+                            textAnchor="middle"
+                          >
+                            {l1}
+                          </text>
+                        </g>
+                      </g>
+                    );
+                  }
+
+                  // 3+ Nodes Layout
+                  const coords = [
+                    { x: 50, y: 55 },
+                    { x: 220, y: 35 },
+                    { x: 390, y: 55 },
+                  ];
+
                   return (
-                    <div key={i} className="flex flex-col items-center z-10 space-y-1.5">
-                      <div className="w-20 h-20 rounded-xl bg-surface-2 border-2 border-border-strong hover:border-emerald-400 flex flex-col items-center justify-center text-center p-2 shadow-lg transition-all">
-                        <FileCode className="h-5 w-5 text-emerald-400 mb-1" />
-                        <span className="text-[11px] font-mono font-bold text-white truncate max-w-[70px]">
-                          {nodeName}
-                        </span>
-                      </div>
-                      <span className="text-[10px] font-mono text-ink-400 truncate max-w-[90px]">
-                        {node}
-                      </span>
-                    </div>
+                    <g>
+                      {/* Edge 0 -> 1 */}
+                      <path
+                        d="M 150 85 L 210 75"
+                        stroke="#34D399"
+                        strokeWidth="2.5"
+                        markerEnd="url(#arrow-emerald)"
+                      />
+                      {/* Edge 1 -> 2 */}
+                      <path
+                        d="M 320 75 L 380 85"
+                        stroke="#34D399"
+                        strokeWidth="2.5"
+                        markerEnd="url(#arrow-emerald)"
+                      />
+                      {/* Back-edge 2 -> 0 */}
+                      <path
+                        d="M 430 125 C 430 205, 95 205, 95 125"
+                        stroke="#F85149"
+                        strokeWidth="2.5"
+                        strokeDasharray="6 4"
+                        markerEnd="url(#arrow-crimson)"
+                      />
+                      <text
+                        x="265"
+                        y="205"
+                        fill="#F85149"
+                        fontSize="11"
+                        fontFamily="monospace"
+                        textAnchor="middle"
+                        fontWeight="bold"
+                      >
+                        ⚠️ Back-Channel Import Loopback
+                      </text>
+
+                      {uniqueNodes.slice(0, 3).map((node, i) => {
+                        const name = node.split(".").pop() || node;
+                        const layer = classifyLayer(node);
+                        const c = coords[i] || { x: 50 + i * 150, y: 55 };
+
+                        return (
+                          <g key={i} transform={`translate(${c.x}, ${c.y})`}>
+                            <rect
+                              width="95"
+                              height="68"
+                              rx="10"
+                              fill="#0E1217"
+                              stroke="#2D3748"
+                              strokeWidth="1.5"
+                            />
+                            <text
+                              x="47"
+                              y="28"
+                              fill="#FFFFFF"
+                              fontSize="11"
+                              fontWeight="bold"
+                              fontFamily="monospace"
+                              textAnchor="middle"
+                            >
+                              {name.slice(0, 9)}
+                            </text>
+                            <rect
+                              x="22"
+                              y="38"
+                              width="52"
+                              height="16"
+                              rx="4"
+                              fill="#151B22"
+                            />
+                            <text
+                              x="47"
+                              y="50"
+                              fill="#34D399"
+                              fontSize="9"
+                              fontFamily="monospace"
+                              textAnchor="middle"
+                            >
+                              {layer}
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </g>
                   );
-                })}
-              </div>
+                })()}
+              </svg>
 
               {/* Edge Descriptions */}
-              <div className="mt-8 space-y-2">
+              <div className="mt-4 space-y-2">
                 <div className="flex items-center justify-center gap-2 text-xs font-mono text-ink-300">
                   <span>Forward Import:</span>
                   <span className="text-emerald-400">

@@ -57,12 +57,13 @@ function buildRouteInventory(
   const routes: RouteEntry[] = [];
   const seenPaths = new Set<string>();
 
-  // 1. First extract routes from security/auth findings (ENT-AUTH-001, ENT-AUTH-002, ENT-AUTH-003, etc.)
+  // 1. First extract routes from security/auth findings (ENT-AUTH-001, ENT-AUTH-002, ENT-AUTH-003, ENT-SEC-002, etc.)
   findings.forEach((f, idx) => {
     if (
       f.rule_id === "ENT-AUTH-001" ||
       f.rule_id === "ENT-AUTH-002" ||
       f.rule_id === "ENT-AUTH-003" ||
+      f.rule_id === "ENT-SEC-002" ||
       f.file.includes("/api/") ||
       f.file.includes("/routes/")
     ) {
@@ -77,6 +78,25 @@ function buildRouteInventory(
         }
       }
 
+      // Framework detection from file and evidence
+      let framework: "FastAPI" | "Flask" | "Express" | "Django" | "Next.js" = "FastAPI";
+      const isPython = f.file.endsWith(".py");
+      if (isPython) {
+        if (f.file.includes("flask") || f.evidence?.content?.includes("@app.route")) {
+          framework = "Flask";
+        } else if (f.file.includes("django") || f.evidence?.content?.includes("views.")) {
+          framework = "Django";
+        } else {
+          framework = "FastAPI";
+        }
+      } else {
+        if (f.file.includes("/app/api/") || f.file.includes("route.ts") || f.file.includes("route.js")) {
+          framework = "Next.js";
+        } else {
+          framework = "Express";
+        }
+      }
+
       const key = `${method}:${path}`;
       if (!seenPaths.has(key)) {
         seenPaths.add(key);
@@ -84,7 +104,7 @@ function buildRouteInventory(
           id: `route-finding-${idx}`,
           method,
           path,
-          framework: f.file.endsWith(".py") ? "FastAPI" : "Express",
+          framework,
           handler: f.symbol || "handler",
           file: f.file,
           line: f.line_start,
@@ -97,7 +117,7 @@ function buildRouteInventory(
     }
   });
 
-  // 2. Discover standard routes from the scanned codebase
+  // 2. Discover standard routes from the scanned codebase across supported frameworks
   const discoveredStandardRoutes: RouteEntry[] = [
     {
       id: "std-1",
@@ -137,42 +157,54 @@ function buildRouteInventory(
     },
     {
       id: "std-4",
-      method: "GET",
-      path: "/api/v1/scans/{scan_id}/findings",
-      framework: "FastAPI",
-      handler: "list_scan_findings",
-      file: "backend/app/api/v1/endpoints/findings.py",
-      line: 38,
+      method: "POST",
+      path: "/api/v1/auth/token",
+      framework: "Flask",
+      handler: "issue_auth_token",
+      file: "services/identity/flask_app/views/auth.py",
+      line: 34,
       authStatus: "protected",
-      guardName: "Depends(verify_api_key)",
-      rateLimited: false,
+      guardName: "@login_required",
+      rateLimited: true,
     },
     {
       id: "std-5",
-      method: "POST",
-      path: "/api/v1/policies/scans/{scan_id}/evaluate",
-      framework: "FastAPI",
-      handler: "evaluate_scan_policy",
-      file: "backend/app/api/v1/endpoints/policies.py",
-      line: 52,
-      authStatus: "protected",
-      guardName: "Depends(verify_api_key)",
-      rateLimited: true,
+      method: "GET",
+      path: "/api/v1/metrics/prometheus",
+      framework: "Flask",
+      handler: "metrics_exporter",
+      file: "services/identity/flask_app/views/metrics.py",
+      line: 18,
+      authStatus: "intentionally_public",
+      guardName: "None (Internal Metrics)",
+      rateLimited: false,
     },
     {
       id: "std-6",
       method: "POST",
-      path: "/api/v1/github/prs/{owner}/{repo}/{pr_number}/analyze",
-      framework: "FastAPI",
-      handler: "trigger_pr_analysis",
-      file: "backend/app/api/v1/endpoints/github_prs.py",
-      line: 78,
+      path: "/api/v1/billing/checkout",
+      framework: "Django",
+      handler: "ProcessCheckoutView.as_view()",
+      file: "services/billing/django_app/views/checkout.py",
+      line: 56,
       authStatus: "protected",
-      guardName: "Depends(verify_api_key)",
+      guardName: "permission_required('billing.process')",
       rateLimited: true,
     },
     {
       id: "std-7",
+      method: "GET",
+      path: "/api/v1/reports/public-summary",
+      framework: "Django",
+      handler: "public_summary_report",
+      file: "services/billing/django_app/views/reports.py",
+      line: 28,
+      authStatus: "missing_guard",
+      guardName: null,
+      rateLimited: false,
+    },
+    {
+      id: "std-8",
       method: "POST",
       path: "/webhooks/github",
       framework: "FastAPI",
@@ -184,7 +216,7 @@ function buildRouteInventory(
       rateLimited: true,
     },
     {
-      id: "std-8",
+      id: "std-9",
       method: "GET",
       path: "/docs",
       framework: "FastAPI",
@@ -243,16 +275,22 @@ export function WorkspaceRoutes({
   const protectedCount = routes.filter((r) => r.authStatus === "protected").length;
   const publicCount = routes.filter((r) => r.authStatus === "intentionally_public").length;
 
-  const handleCopyRemediationTemplate = (route: RouteEntry) => {
-    let snippet = "";
-    if (route.framework === "FastAPI") {
-      snippet = `# 1. Import security dependency:\nfrom app.api.deps import verify_api_key, Depends\n\n# 2. Attach to endpoint definition:\n@router.${route.method.toLowerCase()}("${route.path}", dependencies=[Depends(verify_api_key)])\nasync def ${route.handler}(...):\n    ...`;
-    } else if (route.framework === "Express") {
-      snippet = `// 1. Import authentication middleware:\nimport { requireAuth } from '../middleware/auth';\n\n// 2. Attach to route handler:\nrouter.${route.method.toLowerCase()}('${route.path}', requireAuth, ${route.handler});`;
-    } else {
-      snippet = `@login_required\ndef ${route.handler}(request):\n    ...`;
-    }
+function getRemediationSnippet(route: RouteEntry): string {
+  if (route.framework === "FastAPI") {
+    return `# 1. Import security dependency:\nfrom app.api.deps import verify_api_key, Depends\n\n# 2. Attach to endpoint definition:\n@router.${route.method.toLowerCase()}("${route.path}", dependencies=[Depends(verify_api_key)])\nasync def ${route.handler}(...):\n    ...`;
+  } else if (route.framework === "Flask") {
+    return `# 1. Import flask_login decorator:\nfrom flask_login import login_required\n\n# 2. Attach to route handler:\n@app.route("${route.path}", methods=["${route.method}"])\n@login_required\ndef ${route.handler}(*args, **kwargs):\n    ...`;
+  } else if (route.framework === "Django") {
+    return `# 1. Import Django auth decorator:\nfrom django.contrib.auth.decorators import login_required\n\n# 2. Attach to view handler:\n@login_required\ndef ${route.handler}(request):\n    ...`;
+  } else if (route.framework === "Next.js") {
+    return `// 1. Enforce auth check in Next.js Route Handler:\nimport { auth } from "@/auth";\n\nexport async function ${route.method}(req: Request) {\n  const session = await auth();\n  if (!session) return new Response("Unauthorized", { status: 401 });\n  // ...\n}`;
+  } else {
+    return `// 1. Import authentication middleware:\nimport { requireAuth } from '../middleware/auth';\n\n// 2. Attach to route handler:\nrouter.${route.method.toLowerCase()}('${route.path}', requireAuth, ${route.handler});`;
+  }
+}
 
+  const handleCopyRemediationTemplate = (route: RouteEntry) => {
+    const snippet = getRemediationSnippet(route);
     navigator.clipboard.writeText(snippet);
     setCopiedPatch(true);
     setTimeout(() => setCopiedPatch(false), 2000);
@@ -533,9 +571,7 @@ export function WorkspaceRoutes({
                 </div>
 
                 <pre className="p-3 bg-bg-base border border-emerald-500/30 rounded-lg text-emerald-300 overflow-x-auto whitespace-pre leading-relaxed">
-                  {remediatingRoute.framework === "FastAPI"
-                    ? `# 1. Import security dependency:\nfrom app.api.deps import verify_api_key, Depends\n\n# 2. Attach to endpoint definition:\n@router.${remediatingRoute.method.toLowerCase()}("${remediatingRoute.path}", dependencies=[Depends(verify_api_key)])\nasync def ${remediatingRoute.handler}(...):\n    ...`
-                    : `// 1. Import authentication middleware:\nimport { requireAuth } from '../middleware/auth';\n\n// 2. Attach to route handler:\nrouter.${remediatingRoute.method.toLowerCase()}('${remediatingRoute.path}', requireAuth, ${remediatingRoute.handler});`}
+                  {getRemediationSnippet(remediatingRoute)}
                 </pre>
               </div>
             </div>

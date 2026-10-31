@@ -8,6 +8,7 @@ import {
   PolicyEvaluation,
   PRAnalysisRecord,
   PRAnalysisTriggerRequest,
+  RefactoringSuggestion,
   RepositoryManifest,
   RepositoryScanResult,
   RepositoryTrendResponse,
@@ -15,6 +16,8 @@ import {
   ScanComparisonResult,
   SystemHealth,
 } from "@/types";
+import { DEMO_AI_EXPLANATIONS } from "./demoData";
+
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
@@ -108,12 +111,96 @@ export async function explainFinding(
   scanId: string,
   findingId: string
 ): Promise<FindingExplanation> {
-  const res = await fetch(`${API_BASE}/scans/${scanId}/findings/${findingId}/explain`, {
-    cache: "no-store",
-    headers: getHeaders(),
-  });
-  if (!res.ok) throw new Error(`Failed to get explanation: ${res.statusText}`);
-  return res.json();
+  if (scanId === "demo-forensic-scan-01" || findingId.startsWith("finding-demo-")) {
+    const demo = DEMO_AI_EXPLANATIONS[findingId];
+    if (demo) {
+      return {
+        finding_id: findingId,
+        architectural_context: demo.summary,
+        maintenance_risk: demo.architectural_impact,
+        suggested_action: demo.remediation,
+      };
+    }
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/scans/${scanId}/findings/${findingId}/explain`, {
+      cache: "no-store",
+      headers: getHeaders(),
+    });
+    if (!res.ok) {
+      const demo = DEMO_AI_EXPLANATIONS[findingId];
+      if (demo) {
+        return {
+          finding_id: findingId,
+          architectural_context: demo.summary,
+          maintenance_risk: demo.architectural_impact,
+          suggested_action: demo.remediation,
+        };
+      }
+      throw new Error(`Failed to get explanation: ${res.statusText}`);
+    }
+    return res.json();
+  } catch (err: unknown) {
+    const demo = DEMO_AI_EXPLANATIONS[findingId];
+    if (demo) {
+      return {
+        finding_id: findingId,
+        architectural_context: demo.summary,
+        maintenance_risk: demo.architectural_impact,
+        suggested_action: demo.remediation,
+      };
+    }
+    throw err;
+  }
+}
+
+export async function getRefactoringSuggestion(
+  scanId: string,
+  findingId: string
+): Promise<RefactoringSuggestion> {
+  if (scanId === "demo-forensic-scan-01" || findingId.startsWith("finding-demo-")) {
+    const demo = DEMO_AI_EXPLANATIONS[findingId];
+    if (demo) {
+      return {
+        finding_id: findingId,
+        before_code: "// Original AST fragment flagged by rule",
+        suggested_code: demo.suggested_pattern,
+        rationale: demo.summary,
+      };
+    }
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/scans/${scanId}/findings/${findingId}/refactor`, {
+      cache: "no-store",
+      headers: getHeaders(),
+    });
+    if (!res.ok) {
+      const demo = DEMO_AI_EXPLANATIONS[findingId];
+      if (demo) {
+        return {
+          finding_id: findingId,
+          before_code: "// Original AST fragment flagged by rule",
+          suggested_code: demo.suggested_pattern,
+          rationale: demo.summary,
+        };
+      }
+      throw new Error(`Failed to get refactoring suggestion: ${res.statusText}`);
+    }
+    return res.json();
+  } catch (err: unknown) {
+    const demo = DEMO_AI_EXPLANATIONS[findingId];
+    if (demo) {
+      return {
+        finding_id: findingId,
+        before_code: "// Original AST fragment flagged by rule",
+        suggested_code: demo.suggested_pattern,
+        rationale: demo.summary,
+      };
+    }
+    throw err;
+  }
 }
 
 export async function listRules(): Promise<RuleDefinition[]> {
@@ -126,19 +213,40 @@ export async function requestAIExplanation(
   findingId: string,
   scanId?: string
 ): Promise<AIExplanation> {
+  if (scanId === "demo-forensic-scan-01" || findingId.startsWith("finding-demo-")) {
+    const demo = DEMO_AI_EXPLANATIONS[findingId];
+    if (demo) {
+      return demo;
+    }
+  }
+
   const url = scanId
     ? `${API_BASE}/scans/${scanId}/findings/${findingId}/explanation`
     : `${API_BASE}/findings/${findingId}/explanation`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: getHeaders({ "Content-Type": "application/json" }),
-  });
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.detail || `Failed to generate AI explanation: ${res.statusText}`);
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: getHeaders({ "Content-Type": "application/json" }),
+    });
+    if (!res.ok) {
+      const demo = DEMO_AI_EXPLANATIONS[findingId];
+      if (demo) {
+        return demo;
+      }
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.detail || `Failed to generate AI explanation: ${res.statusText}`);
+    }
+    return res.json();
+  } catch (err: unknown) {
+    const demo = DEMO_AI_EXPLANATIONS[findingId];
+    if (demo) {
+      return demo;
+    }
+    throw err;
   }
-  return res.json();
 }
+
 
 export async function listRepositoryScans(
   repositoryId: string,

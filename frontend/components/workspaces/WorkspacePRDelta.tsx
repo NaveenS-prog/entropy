@@ -55,9 +55,10 @@ export function WorkspacePRDelta({
   const [copiedPrComment, setCopiedPrComment] = useState(false);
 
   // Derive base and head scores
-  const headScore = activeScan?.score?.total_score ?? 85;
-  const baseScore = comparisonResult?.score_comparison?.previous_score ?? 72;
+  const headScore = activeScan?.score?.total_score ?? 64;
+  const baseScore = previousScan?.score?.total_score ?? comparisonResult?.score_comparison?.previous_score ?? 72;
   const scoreDelta = headScore - baseScore;
+  const isQualityImproved = scoreDelta <= 0;
 
   // Synthesize or extract comparison items
   const { newFindings, resolvedFindings, persistentFindings } = useMemo(() => {
@@ -182,7 +183,7 @@ export function WorkspacePRDelta({
 
 | Metric | Base Branch (\`${baseBranch}\`) | PR Head (\`${headBranch}\`) | Delta | Gate Verdict |
 |:---|:---:|:---:|:---:|:---:|
-| **Calibrated Score** | **${baseScore}/100** | **${headScore}/100** | **${scoreDelta >= 0 ? `+${scoreDelta}` : scoreDelta} pts** | ${scoreDelta >= 0 ? "✅ PASSED" : "⚠️ REGRESSED"} |
+| **Calibrated Debt Score** | **${baseScore}/100** | **${headScore}/100** | **${scoreDelta <= 0 ? `${scoreDelta}` : `+${scoreDelta}`} pts** | ${isQualityImproved ? "✅ PASSED (DEBT REDUCED)" : "⚠️ REGRESSED (DEBT INCREASED)"} |
 | 🟢 **Resolved Debt** | — | **${resolvedFindings.length} findings** | -${resolvedFindings.length} | 🟢 ELIMINATED |
 | 🔴 **New Debt** | — | **${newFindings.length} findings** | +${newFindings.length} | ${newFindings.length === 0 ? "✅ ZERO NEW" : "⚠️ BLOCKED"} |
 | 🟡 **Persistent Debt** | ${persistentFindings.length + resolvedFindings.length} | **${persistentFindings.length} findings** | -${resolvedFindings.length} | ℹ️ TRACKED |
@@ -219,6 +220,7 @@ ${resolvedFindings
     baseScore,
     headScore,
     scoreDelta,
+    isQualityImproved,
     newFindings,
     resolvedFindings,
     persistentFindings,
@@ -291,15 +293,15 @@ ${resolvedFindings
 
             <div
               className={`px-3 py-1 rounded-lg font-mono text-xs font-bold border flex items-center gap-1.5 ${
-                scoreDelta >= 0
+                isQualityImproved
                   ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
                   : "bg-red-500/10 text-red-400 border-red-500/30"
               }`}
             >
-              {scoreDelta >= 0 ? <Plus className="h-3.5 w-3.5" /> : <Minus className="h-3.5 w-3.5" />}
+              {isQualityImproved ? <Minus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
               <span>{Math.abs(scoreDelta)} pts delta</span>
               <span className="text-[10px] font-normal uppercase">
-                ({scoreDelta >= 0 ? "Quality Improved" : "Quality Regressed"})
+                ({isQualityImproved ? "Debt Reduced · Quality Improved" : "Debt Added · Quality Regressed"})
               </span>
             </div>
           </div>

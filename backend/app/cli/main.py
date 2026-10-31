@@ -854,6 +854,10 @@ def cmd_explain(args: argparse.Namespace) -> int:
             )
         )
 
+        if getattr(args, "format", "text") == "json":
+            print(explanation.model_dump_json(indent=2))
+            return EXIT_PASS
+
         lines: list[str] = [
             "Entropy AI Advisory Explanation",
             "────────────────────────────",
@@ -1288,6 +1292,9 @@ def build_parser() -> argparse.ArgumentParser:
     explain_parser = subparsers.add_parser("explain", help="Get advisory AI explanation and remediation for a finding")
     explain_parser.add_argument("finding_id", help="Deterministic finding ID to explain")
     explain_parser.add_argument("--scan-id", help="Optional scan ID where finding was observed")
+    explain_parser.add_argument(
+        "--format", choices=["text", "json"], default="text", help="Output format (default: text)"
+    )
 
     # 6. version
     subparsers.add_parser("version", help="Display Entropy engine version")

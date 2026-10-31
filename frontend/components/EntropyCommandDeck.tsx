@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -89,8 +89,35 @@ export function EntropyCommandDeck({
     (f) =>
       f.rule_id === "ENT-AUTH-001" ||
       f.rule_id === "ENT-AUTH-002" ||
-      f.rule_id === "ENT-AUTH-003"
+      f.rule_id === "ENT-AUTH-003" ||
+      f.rule_id === "ENT-SEC-002" ||
+      (f.category === "authentication_consistency" && (f.severity === "critical" || f.severity === "high"))
   ).length;
+
+  // Global operational workspace keyboard shortcuts: [1] to [6]
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement).tagName)) {
+        return;
+      }
+      const workspaceShortcuts: Record<string, WorkspaceId> = {
+        "1": "executive",
+        "2": "findings",
+        "3": "architecture",
+        "4": "routes",
+        "5": "pr_delta",
+        "6": "policies",
+      };
+      const targetWorkspace = workspaceShortcuts[e.key];
+      if (targetWorkspace) {
+        e.preventDefault();
+        onSelectWorkspace(targetWorkspace);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onSelectWorkspace]);
 
   const handleStartScan = async (e: React.FormEvent) => {
     e.preventDefault();

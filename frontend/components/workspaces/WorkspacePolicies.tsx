@@ -175,7 +175,7 @@ export function WorkspacePolicies({
   const [selectedRuleDetail, setSelectedRuleDetail] = useState<RuleDefinition | null>(null);
 
   // CI Simulation Threshold Sliders
-  const [minPassScore, setMinPassScore] = useState<number>(70);
+  const [maxDebtScoreCeiling, setMaxDebtScoreCeiling] = useState<number>(70);
   const [maxCriticalAllowed, setMaxCriticalAllowed] = useState<number>(0);
   const [maxHighAllowed, setMaxHighAllowed] = useState<number>(2);
   const [maxNewAllowed, setMaxNewAllowed] = useState<number>(0);
@@ -193,7 +193,7 @@ export function WorkspacePolicies({
       });
   }, []);
 
-  const totalScore = score?.total_score ?? 85;
+  const totalScore = score?.total_score ?? 64;
   const criticalCount = findings.filter((f) => f.severity === "critical").length;
   const highCount = findings.filter((f) => f.severity === "high").length;
   const newFindingsCount = findings.filter((f) => f.status === "new").length;
@@ -203,15 +203,15 @@ export function WorkspacePolicies({
     const checks = [
       {
         id: "score-check",
-        name: "Minimum Calibrated Score Gate",
-        required: `>= ${minPassScore} pts`,
+        name: "Entropy Debt Score Ceiling Gate",
+        required: `<= ${maxDebtScoreCeiling} pts`,
         actual: `${totalScore} pts`,
-        passed: totalScore >= minPassScore,
+        passed: totalScore <= maxDebtScoreCeiling,
         fatal: true,
         reason:
-          totalScore < minPassScore
-            ? `Current score (${totalScore}) is below required policy threshold (${minPassScore})`
-            : "Satisfies minimum score standard",
+          totalScore > maxDebtScoreCeiling
+            ? `Current debt score (${totalScore} pts) exceeds maximum configured threshold (${maxDebtScoreCeiling} pts)`
+            : `Debt score (${totalScore} pts) meets maximum allowed ceiling (${maxDebtScoreCeiling} pts)`,
       },
       {
         id: "critical-check",
@@ -262,7 +262,7 @@ export function WorkspacePolicies({
 
     return { checks, verdict };
   }, [
-    minPassScore,
+    maxDebtScoreCeiling,
     maxCriticalAllowed,
     maxHighAllowed,
     maxNewAllowed,
@@ -279,8 +279,8 @@ export function WorkspacePolicies({
       version: "1.0.0",
       enabled: true,
       score: {
-        max_score: minPassScore,
-        warn_score: Math.max(0, minPassScore - 15),
+        max_score: maxDebtScoreCeiling,
+        warn_score: Math.max(0, maxDebtScoreCeiling - 15),
       },
       findings: {
         max_total_critical: maxCriticalAllowed,
@@ -380,24 +380,24 @@ export function WorkspacePolicies({
 
         {/* 4 Interactive Threshold Sliders */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Slider 1: Min Score */}
+          {/* Slider 1: Max Debt Score Ceiling */}
           <div className="bg-surface-2 border border-border-subtle rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between text-xs font-mono">
-              <span className="text-ink-400">Min Pass Score</span>
-              <span className="font-bold text-white">{minPassScore} pts</span>
+              <span className="text-ink-400">Max Debt Score Ceiling</span>
+              <span className="font-bold text-white">{maxDebtScoreCeiling} pts</span>
             </div>
             <input
               type="range"
-              min="40"
-              max="95"
+              min="20"
+              max="90"
               step="5"
-              value={minPassScore}
-              onChange={(e) => setMinPassScore(Number(e.target.value))}
+              value={maxDebtScoreCeiling}
+              onChange={(e) => setMaxDebtScoreCeiling(Number(e.target.value))}
               className="w-full accent-emerald-400 cursor-pointer"
             />
             <div className="text-[10px] text-ink-500 font-mono flex justify-between">
-              <span>Relaxed (40)</span>
-              <span>Strict (95)</span>
+              <span>Strict (20 pts)</span>
+              <span>Relaxed (90 pts)</span>
             </div>
           </div>
 

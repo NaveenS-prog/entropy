@@ -126,8 +126,15 @@ class Settings(BaseSettings):
     )
     AI_API_KEY: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("AI_API_KEY", "ENTROPY_AI_API_KEY", "GEMINI_API_KEY"),
+        validation_alias=AliasChoices(
+            "AI_API_KEY", "ENTROPY_AI_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"
+        ),
         description="API key for the configured AI provider",
+    )
+    AI_BASE_URL: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AI_BASE_URL", "ENTROPY_AI_BASE_URL", "OPENAI_BASE_URL"),
+        description="Optional base URL for AI provider (e.g. for OpenAI or local Ollama endpoints)",
     )
     AI_TIMEOUT_SECONDS: int = Field(
         default=30,

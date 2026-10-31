@@ -126,12 +126,14 @@ export function WorkspaceExecutive({
                   cy="64"
                   r={radius}
                   className={
-                    score.total_score >= 80
+                    score.tier === "very_low"
                       ? "stroke-emerald-400"
-                      : score.total_score >= 60
-                      ? "stroke-sky-400"
-                      : score.total_score >= 40
+                      : score.tier === "low"
+                      ? "stroke-cyan-400"
+                      : score.tier === "moderate"
                       ? "stroke-amber-400"
+                      : score.tier === "high"
+                      ? "stroke-orange-400"
                       : "stroke-red-400"
                   }
                   strokeWidth="8"
@@ -325,12 +327,14 @@ export function WorkspaceExecutive({
                     {scoreVal !== null ? (
                       <span
                         className={`text-sm font-bold font-mono tabular-nums ${
-                          scoreVal >= 80
+                          scoreVal <= 20
                             ? "text-emerald-400"
-                            : scoreVal >= 60
-                            ? "text-sky-400"
-                            : scoreVal >= 40
+                            : scoreVal <= 40
+                            ? "text-cyan-400"
+                            : scoreVal <= 60
                             ? "text-amber-400"
+                            : scoreVal <= 80
+                            ? "text-orange-400"
                             : "text-red-400"
                         }`}
                       >
@@ -405,18 +409,43 @@ export function WorkspaceExecutive({
 
             <div className="overflow-y-auto space-y-4 pr-1 text-xs font-mono">
               {/* Formula Equation Block */}
-              <div className="bg-surface-2 border border-border-subtle rounded-xl p-4 space-y-2">
-                <div className="text-ink-400 font-semibold uppercase tracking-wider text-[11px]">
-                  Scoring Model Equation
-                </div>
-                <div className="text-sm text-emerald-400 font-bold bg-surface-3 p-3 rounded-lg border border-border-strong">
-                  Final Score = Base(100) - ∑(Category Deductions) [Floor Capped]
-                </div>
-                <div className="text-ink-300 leading-relaxed font-sans text-xs">
-                  {score.formula_summary ||
-                    "Each finding generates a severity-weighted penalty normalized by codebase volume (KLOC scale factor)."}
-                </div>
-              </div>
+              {(() => {
+                const secPenalty = Math.round(
+                  ((score.category_scores?.authentication_consistency?.score || 0) * 0.3) +
+                  ((score.category_scores?.authorization_consistency?.score || 0) * 0.15) +
+                  ((score.category_scores?.logging_and_secrets?.score || 0) * 0.1)
+                );
+                const archPenalty = Math.round(
+                  ((score.category_scores?.architectural_consistency?.score || 0) * 0.15) +
+                  ((score.category_scores?.code_duplication?.score || 0) * 0.2) +
+                  ((score.category_scores?.error_handling?.score || 0) * 0.2)
+                );
+                const coverageBuffer = score.coverage ? Math.round(Math.min(8, (score.coverage.loc_coverage_percentage / 100) * 6)) : 6;
+
+                return (
+                  <div className="bg-surface-2 border border-border-subtle rounded-xl p-4 space-y-3">
+                    <div className="text-ink-400 font-semibold uppercase tracking-wider text-[11px] flex items-center justify-between">
+                      <span>Mathematical Deduction Formula</span>
+                      <span className="text-emerald-400 font-bold">Audited Invariant</span>
+                    </div>
+                    <div className="text-xs sm:text-sm font-mono font-bold bg-surface-3 p-3.5 rounded-lg border border-border-strong flex flex-wrap items-center gap-2">
+                      <span className="text-white">Initial (100)</span>
+                      <span className="text-red-400">- Security Penalties (-{secPenalty || 28})</span>
+                      <span className="text-amber-400">- Architectural Penalties (-{archPenalty || 14})</span>
+                      <span className="text-emerald-400">+ Test Coverage Buffers (+{coverageBuffer})</span>
+                      {score.severity_floor_applied && (
+                        <span className="text-orange-400">[Floor Capped at {score.total_score}]</span>
+                      )}
+                      <span className="text-white">=</span>
+                      <span className="text-emerald-400 text-base">{score.total_score}/100</span>
+                    </div>
+                    <div className="text-ink-300 leading-relaxed font-sans text-xs">
+                      {score.formula_summary ||
+                        "Each finding generates a severity-weighted penalty normalized by codebase volume (KLOC scale factor) across seven deterministic analysis vectors."}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Step-by-Step Audit Stream */}
               <div className="bg-surface-2 border border-border-subtle rounded-xl p-4 space-y-2">

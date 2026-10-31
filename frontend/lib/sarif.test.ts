@@ -86,5 +86,46 @@ describe("SARIF 2.1.0 Generator", () => {
     const r2 = run.results[1];
     expect(r2.ruleId).toBe("ENT-ARCH-001");
     expect(r2.level).toBe("warning");
+
+    // Verify originalUriBaseIds OASIS standard compliance
+    expect(run.originalUriBaseIds).toBeDefined();
+    expect(run.originalUriBaseIds?.["%SRCROOT%"]?.uri).toBe("file:///");
+
+    // Verify rich rule help with markdown
+    const rule1 = run.tool.driver.rules[0];
+    expect(rule1.help?.markdown).toContain("### Unprotected Endpoint");
+    expect(rule1.help?.markdown).toContain("Depends(verify_api_key)");
+  });
+
+  it("handles Windows absolute paths and edge line boundaries", () => {
+    const mockScan: RepositoryScanResult = {
+      scan_id: "scan-win",
+      repo_name: "win-repo",
+      repo_path: "C:\\projects\\win-repo",
+      status: "completed",
+      started_at: "2026-10-31T10:00:00Z",
+    };
+
+    const mockFinding: Finding = {
+      id: "f-win",
+      category: "logging_and_secrets",
+      rule_id: "ENT-SEC-001",
+      severity: "critical",
+      confidence: "high",
+      file: "C:\\projects\\win-repo\\src\\config.ts",
+      line_start: 0,
+      line_end: 0,
+      title: "Hardcoded Secret",
+      description: "Secret found in config",
+      impact: "High",
+      recommendation: "Use env var",
+      fingerprint: "sha256-win",
+      evidence: { content: "const key = '123';", line_start: 1, line_end: 1, highlight_lines: [1] },
+    };
+
+    const sarif = generateSarif(mockScan, [mockFinding], null);
+    const result = sarif.runs[0].results[0];
+    expect(result.locations[0].physicalLocation.artifactLocation.uri).toBe("projects/win-repo/src/config.ts");
+    expect(result.locations[0].physicalLocation.region?.startLine).toBe(1);
   });
 });

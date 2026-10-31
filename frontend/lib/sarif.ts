@@ -39,6 +39,10 @@ export interface SarifReportingDescriptor {
   name?: string;
   shortDescription?: SarifRuleDescription;
   fullDescription?: SarifRuleDescription;
+  help?: {
+    text: string;
+    markdown?: string;
+  };
   defaultConfiguration?: {
     level: "error" | "warning" | "note" | "none";
   };
@@ -77,6 +81,15 @@ export interface SarifRun {
     driver: SarifToolComponent;
   };
   results: SarifResult[];
+  originalUriBaseIds?: Record<
+    string,
+    {
+      uri: string;
+      description?: {
+        text: string;
+      };
+    }
+  >;
   invocations?: Array<{
     executionSuccessful: boolean;
     endTimeUtc?: string;
@@ -151,6 +164,10 @@ export function generateSarif(
         fullDescription: {
           text: finding.description || finding.title,
         },
+        help: {
+          text: `${finding.description}\n\nRemediation:\n${finding.recommendation || "Follow architectural best practices."}`,
+          markdown: `### ${finding.title}\n\n${finding.description}\n\n**Impact:** ${finding.impact || "N/A"}\n\n**Remediation:**\n${finding.recommendation || "Follow architectural best practices."}`,
+        },
         defaultConfiguration: {
           level: mapSeverityToSarifLevel(finding.severity),
         },
@@ -170,7 +187,10 @@ export function generateSarif(
   ruleList.forEach((rule, idx) => ruleIdToIndex.set(rule.id, idx));
 
   const results: SarifResult[] = findings.map((f) => {
-    const normPath = f.file.replace(/\\/g, "/").replace(/^\/+/, "");
+    const normPath = f.file
+      .replace(/^[a-zA-Z]:[\\/]/, "")
+      .replace(/\\/g, "/")
+      .replace(/^\/+/, "");
     return {
       ruleId: f.rule_id,
       ruleIndex: ruleIdToIndex.get(f.rule_id),
@@ -221,6 +241,14 @@ export function generateSarif(
             informationUri: "https://github.com/NaveenS-prog/entropy",
             organization: "Entropy Engineering",
             rules: ruleList,
+          },
+        },
+        originalUriBaseIds: {
+          "%SRCROOT%": {
+            uri: "file:///",
+            description: {
+              text: "The root directory of the analyzed repository source tree.",
+            },
           },
         },
         results,

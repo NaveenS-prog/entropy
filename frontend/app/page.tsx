@@ -307,6 +307,7 @@ export default function EntropyPrecisionDashboard() {
         {activeWorkspace === "pr_delta" && (
           <WorkspacePRDelta
             activeScan={activeScan}
+            previousScan={scans.find((s) => s.scan_id !== activeScan?.scan_id) || null}
             findings={findings}
           />
         )}

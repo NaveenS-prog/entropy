@@ -259,6 +259,13 @@ export interface FindingExplanation {
   suggested_action: string;
 }
 
+export interface RefactoringSuggestion {
+  finding_id: string;
+  before_code: string;
+  suggested_code: string;
+  rationale: string;
+}
+
 export interface AIExplanation {
   finding_id: string;
   summary: string;

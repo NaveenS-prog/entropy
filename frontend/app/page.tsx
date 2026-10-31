@@ -231,6 +231,16 @@ export default function RepositoryIngestionDashboard() {
   const [isLoadingComparison, setIsLoadingComparison] = useState(false);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
 
+  const handleStartScanClick = () => {
+    setActiveTab("overview");
+    const el = document.getElementById("scan-trigger-box");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth" });
+      const input = el.querySelector("input");
+      if (input) input.focus();
+    }
+  };
+
   const loadHistoryAndTrend = async (repoId: string, page = 1) => {
     if (!repoId) return;
     setIsLoadingHistory(true);
@@ -1635,11 +1645,15 @@ export default function RepositoryIngestionDashboard() {
                 </div>
 
                 <button
-                  onClick={handleLoadDemoSample}
-                  className="group flex items-center gap-2 px-5 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-ink-950 font-bold text-xs tracking-wide shadow-glow-red transition-all duration-200 self-start md:self-auto cursor-pointer"
+                  onClick={() => {
+                    setScanMode("folder");
+                    handleStartScanClick();
+                    setTimeout(() => folderInputRef.current?.click(), 150);
+                  }}
+                  className="group flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-ink-950 font-bold text-xs tracking-wide shadow-glow-emerald transition-all duration-200 self-start md:self-auto cursor-pointer"
                 >
-                  <Sparkles className="h-4 w-4 fill-ink-950" />
-                  <span>Launch 1-Click Forensic Demo</span>
+                  <FolderUp className="h-4 w-4 fill-ink-950" />
+                  <span>Choose Folder or Drop Files</span>
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </button>
               </div>
@@ -1694,20 +1708,25 @@ export default function RepositoryIngestionDashboard() {
                 </div>
 
                 <div
-                  onClick={handleLoadDemoSample}
-                  className="p-5 rounded-xl bg-gradient-to-br from-red-950/30 to-ink-900/90 border border-red-500/40 hover:border-red-400 hover:shadow-glow-red transition-all duration-200 cursor-pointer space-y-3 group"
+                  onClick={() => {
+                    setScanMode("path");
+                    setRepoPath("./backend/tests/fixtures/clean_python_project");
+                    setRepoName("clean-python-project");
+                    handleStartScanClick();
+                  }}
+                  className="p-5 rounded-xl bg-gradient-to-br from-emerald-950/30 to-ink-900/90 border border-emerald-500/40 hover:border-emerald-400 hover:shadow-glow-emerald transition-all duration-200 cursor-pointer space-y-3 group"
                 >
-                  <div className="h-9 w-9 rounded-lg bg-red-600/20 border border-red-500/50 flex items-center justify-center text-red-400 group-hover:scale-105 transition-transform">
-                    <Sparkles className="h-4 w-4" />
+                  <div className="h-9 w-9 rounded-lg bg-emerald-600/20 border border-emerald-500/50 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+                    <CheckCircle2 className="h-4 w-4" />
                   </div>
-                  <h4 className="text-sm font-semibold text-white group-hover:text-red-300 transition-colors">
-                    3. Live Sample Audit
+                  <h4 className="text-sm font-semibold text-white group-hover:text-emerald-300 transition-colors">
+                    3. Clean Test Fixture
                   </h4>
                   <p className="text-xs text-ink-300 leading-relaxed">
-                    No backend connection or setup required. Instantly inspect complete calibrated findings, Category Matrix, and AI remediation.
+                    Instantly inspect our zero-finding baseline test fixture. Fast deterministic AST analysis in under 20ms.
                   </p>
-                  <div className="text-[11px] font-mono text-red-400 font-bold flex items-center gap-1">
-                    <span>Load sample report</span>
+                  <div className="text-[11px] font-mono text-emerald-400 font-bold flex items-center gap-1">
+                    <span>Scan test fixture</span>
                     <ArrowRight className="h-3 w-3" />
                   </div>
                 </div>

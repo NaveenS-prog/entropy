@@ -120,7 +120,7 @@ class Settings(BaseSettings):
         description="AI provider name: gemini, fake, openai, local",
     )
     AI_MODEL: str = Field(
-        default="gemini-1.5-flash",
+        default="gemini-flash-lite-latest",
         validation_alias=AliasChoices("AI_MODEL", "ENTROPY_AI_MODEL"),
         description="Model name used for AI explanations",
     )

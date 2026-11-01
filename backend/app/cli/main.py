@@ -88,6 +88,20 @@ def _parse_languages_arg(lang_str: str | None) -> set[SupportedLanguage] | None:
     return selected or None
 
 
+def _is_remote_repo_target(target: str | Path) -> bool:
+    clean = str(target).strip().lower()
+    return (
+        clean.startswith(("http://", "https://", "git@"))
+        or clean.startswith(("github.com/", "www.github.com/"))
+        or (
+            "/" in clean
+            and not Path(clean).exists()
+            and len(clean.split("/")) == 2
+            and not clean.startswith((".", "/", "\\"))
+            and not (len(clean) > 1 and clean[1] == ":")
+        )
+    )
+
 def _run_single_scan_pipeline(
     repo_path: str | Path,
     repo_name: str | None = None,
@@ -141,11 +155,11 @@ def format_scan_text(scan: RepositoryScanResult) -> str:
     """
     lines: list[str] = [
         "Entropy Scan",
-        "────────────────────────────",
+        "----------------------------",
         f"Repository: {scan.repository.path}",
         "",
         "Category Breakdown (Primary Output)",
-        "────────────────────────────",
+        "----------------------------",
         "Categories:",
     ]
 
@@ -165,7 +179,7 @@ def format_scan_text(scan: RepositoryScanResult) -> str:
 
     lines.append("")
     lines.append("Top Findings (Primary Output)")
-    lines.append("────────────────────────────")
+    lines.append("----------------------------")
 
     sev_rank = {
         Severity.CRITICAL: 0,
@@ -204,7 +218,7 @@ def format_scan_text(scan: RepositoryScanResult) -> str:
 
     lines.append("")
     lines.append("Entropy Score & Scope [EXPERIMENTAL]")
-    lines.append("────────────────────────────")
+    lines.append("----------------------------")
 
     score_val = scan.score.total_score if scan.score else 0
     tier_val = scan.score.tier.value if scan.score else "Unknown"
@@ -359,7 +373,7 @@ def format_check_text(
     """Format check output into human-readable text."""
     lines: list[str] = [
         "Entropy Check",
-        "────────────────────────────",
+        "----------------------------",
     ]
     score_val = scan.score.total_score if scan.score else 0
     tier_val = scan.score.tier.value if scan.score else "Unknown"
@@ -383,7 +397,7 @@ def format_check_text(
 
     if comparison is not None:
         lines.append("Baseline Comparison:")
-        lines.append("────────────────────────────")
+        lines.append("----------------------------")
         lines.append(f"Baseline: {comparison.baseline_score} -> Current: {comparison.current_score} (Delta: {comparison.score_delta:+d})")
         lines.append(f"Findings: +{comparison.new_count} new, -{comparison.resolved_count} resolved, {comparison.unchanged_count} unchanged, {comparison.suppressed_count} suppressed")
         lines.append("")
@@ -421,7 +435,7 @@ def format_findings_text(findings: list[Finding]) -> str:
 
     lines: list[str] = [
         "Entropy Findings",
-        "────────────────────────────",
+        "----------------------------",
         f"Total Findings: {len(sorted_findings)}",
         "",
     ]
@@ -458,7 +472,7 @@ def format_comparison_text(comp: ScanComparisonResult) -> str:
     delta_str = f"{s.score_delta:+d}" if s.score_delta is not None else "0"
     lines: list[str] = [
         "Entropy Comparison",
-        "────────────────────────────",
+        "----------------------------",
         f"Base:  {s.previous_score if s.previous_score is not None else 'N/A'}",
         f"Head:  {s.current_score if s.current_score is not None else 'N/A'}",
         f"Delta: {delta_str}",
@@ -539,10 +553,11 @@ def cmd_version(args: argparse.Namespace) -> int:
 
 def cmd_scan(args: argparse.Namespace) -> int:
     """Execute repository scan, static analysis, and scoring."""
-    target_path = Path(args.path)
-    if not target_path.exists():
+    is_remote = _is_remote_repo_target(args.path)
+    if not is_remote and not Path(args.path).exists():
         print(f"Error: Target path '{args.path}' does not exist.", file=sys.stderr)
         return EXIT_SYSTEM_ERROR
+    target_path = args.path if is_remote else Path(args.path)
 
     start_time = time.perf_counter()
     try:
@@ -640,40 +655,13 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
 def cmd_check(args: argparse.Namespace) -> int:
     """Execute scan, score, and evaluate against policy (PRIMARY developer command)."""
-    target_path = Path(args.path)
-    if not target_path.exists():
+    is_remote = _is_remote_repo_target(args.path)
+    if not is_remote and not Path(args.path).exists():
         print(f"Error: Target path '{args.path}' does not exist.", file=sys.stderr)
         return EXIT_SYSTEM_ERROR
+    target_path = args.path if is_remote else Path(args.path)
 
-    # 1. Load Project Config if present
-    from app.core.project_config import load_project_config
-
-    cfg = None
-    try:
-        cfg = load_project_config(target_path)
-    except Exception as exc:
-        print(f"Configuration error in .entropy.yml: {exc}", file=sys.stderr)
-        return EXIT_CONFIG_ERROR
-
-    # 2. Resolve Policy
-    policy: PolicyConfig
-    policy_path = getattr(args, "policy", None)
-    if not policy_path and cfg and cfg.policy.file:
-        policy_path = str(target_path / cfg.policy.file)
-
-    if policy_path:
-        try:
-            policy = parse_policy_file(policy_path)
-        except PolicyConfigurationError as exc:
-            print(f"Policy configuration error: {exc.message}", file=sys.stderr)
-            return EXIT_CONFIG_ERROR
-        except Exception as exc:
-            print(f"Failed to read policy file: {exc}", file=sys.stderr)
-            return EXIT_CONFIG_ERROR
-    else:
-        policy = get_default_policy()
-
-    # 3. Run ONE scan pass, ONE analysis pass, ONE scoring pass
+    # 1. Run ONE scan pass, ONE analysis pass, ONE scoring pass
     try:
         langs = _parse_languages_arg(getattr(args, "languages", None))
     except ValueError as exc:
@@ -693,10 +681,40 @@ def cmd_check(args: argparse.Namespace) -> int:
         print(f"Unexpected check error: {exc}", file=sys.stderr)
         return EXIT_SYSTEM_ERROR
 
+    resolved_local_dir = Path(scan.repository.path)
+
+    # 2. Load Project Config if present
+    from app.core.project_config import load_project_config
+
+    cfg = None
+    try:
+        cfg = load_project_config(resolved_local_dir)
+    except Exception as exc:
+        print(f"Configuration error in .entropy.yml: {exc}", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    # 3. Resolve Policy
+    policy: PolicyConfig
+    policy_path = getattr(args, "policy", None)
+    if not policy_path and cfg and cfg.policy.file:
+        policy_path = str(resolved_local_dir / cfg.policy.file)
+
+    if policy_path:
+        try:
+            policy = parse_policy_file(policy_path)
+        except PolicyConfigurationError as exc:
+            print(f"Policy configuration error: {exc.message}", file=sys.stderr)
+            return EXIT_CONFIG_ERROR
+        except Exception as exc:
+            print(f"Failed to read policy file: {exc}", file=sys.stderr)
+            return EXIT_CONFIG_ERROR
+    else:
+        policy = get_default_policy()
+
     # 4. Baseline Comparison (if enabled)
     baseline_mode = cfg.scoring.baseline if cfg else "auto"
     baseline_file = cfg.scoring.baseline_file if cfg else ".entropy-baseline.json"
-    baseline_path = target_path / baseline_file
+    baseline_path = resolved_local_dir / baseline_file
 
     baseline_comp = None
     scan_comp = None
@@ -762,10 +780,11 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 def cmd_findings(args: argparse.Namespace) -> int:
     """List findings for a repository with optional filters."""
-    target_path = Path(args.path)
-    if not target_path.exists():
+    is_remote = _is_remote_repo_target(args.path)
+    if not is_remote and not Path(args.path).exists():
         print(f"Error: Target path '{args.path}' does not exist.", file=sys.stderr)
         return EXIT_SYSTEM_ERROR
+    target_path = args.path if is_remote else Path(args.path)
 
     sev_filter = None
     if getattr(args, "severity", None):
@@ -971,15 +990,18 @@ def cmd_explain(args: argparse.Namespace) -> int:
             target = "."
 
         if is_path:
-            target_path = Path(target).resolve()
-            if not target_path.exists():
+            is_remote = _is_remote_repo_target(target)
+            if not is_remote and not Path(target).exists():
                 print(f"Error: Target path '{target}' does not exist.", file=sys.stderr)
                 return EXIT_SYSTEM_ERROR
 
-            if not getattr(args, "quiet", False):
-                print(f"Entropy: Scanning '{target_path.name}' for findings to explain using {provider_label}...")
+            target_repo = target if is_remote else Path(target).resolve()
+            display_name = target if is_remote else (target_repo.name or str(target_repo))
 
-            scan_result, findings = _run_single_scan_pipeline(target_path)
+            if not getattr(args, "quiet", False):
+                print(f"Entropy: Scanning '{display_name}' for findings to explain using {provider_label}...")
+
+            scan_result, findings = _run_single_scan_pipeline(target_repo)
             if not findings:
                 print(f"No architectural or security debt findings detected in {target_path.name}.")
                 return EXIT_PASS

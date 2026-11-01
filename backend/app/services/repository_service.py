@@ -64,12 +64,24 @@ class RepositoryService:
             if not repo_path:
                 raise RepositoryNotFoundError("Repository path or source must be provided.")
             clean_path = str(repo_path).strip()
-            is_git_url = clean_path.lower().startswith(("http://", "https://"))
+            from app.repository.sources import GitUrlRepositorySource, normalize_git_url
+
+            # Detect if input is a remote Git/GitHub repository
+            is_git_url = (
+                clean_path.lower().startswith(("http://", "https://", "git@"))
+                or clean_path.lower().startswith(("github.com/", "www.github.com/"))
+                or (
+                    "/" in clean_path
+                    and not Path(clean_path).exists()
+                    and len(clean_path.split("/")) == 2
+                    and not clean_path.startswith((".", "/", "\\"))
+                    and not (len(clean_path) > 1 and clean_path[1] == ":")
+                )
+            )
 
             if is_git_url:
-                from app.repository.sources import GitUrlRepositorySource
-
-                source = GitUrlRepositorySource(clean_path, repo_name)
+                normalized_url = normalize_git_url(clean_path)
+                source = GitUrlRepositorySource(normalized_url, repo_name)
             else:
                 source = LocalRepositorySource(clean_path, repo_name, check_allowed_roots=check_allowed_roots)
 

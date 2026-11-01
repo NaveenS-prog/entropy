@@ -30,6 +30,9 @@ def scan_repository(request: ScanCreateRequest) -> ScanDetailResponse:
         repo_name=request.repo_name,
         include_tests=request.include_tests,
     )
+    analysis_service.analyze_scan(scan_result.scan_id)
+    scoring_service.calculate_scan_score(scan_result.scan_id)
+    scan_result = repository_service.get_scan(scan_result.scan_id) or scan_result
     return ScanDetailResponse(
         scan_id=scan_result.scan_id,
         repository=scan_result.repository,

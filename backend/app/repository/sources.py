@@ -137,13 +137,58 @@ class LocalRepositorySource(RepositorySource):
         return self.get_root_path().name or "unnamed-repo"
 
 
+def normalize_git_url(raw: str) -> str:
+    """Normalize user-entered Git repository URLs into a cloneable HTTPS URL."""
+    clean = str(raw).strip()
+    if clean.startswith("git@github.com:"):
+        path = clean.removeprefix("git@github.com:").removesuffix(".git")
+        return f"https://github.com/{path}"
+    if clean.lower().startswith("github.com/"):
+        return f"https://{clean}"
+    if clean.lower().startswith("www.github.com/"):
+        return f"https://{clean}"
+    # If user passed "owner/repo" (e.g. "expressjs/express")
+    if "/" in clean and not clean.startswith(("http://", "https://", "/", "\\", ".")):
+        parts = clean.split("/")
+        if len(parts) == 2 and not Path(clean).exists() and not (len(clean) > 1 and clean[1] == ":"):
+            return f"https://github.com/{parts[0]}/{parts[1]}"
+    return clean
+
+
+def safe_remove_directory(path: Path) -> None:
+    """Safely and completely delete a directory tree, resolving read-only attributes (e.g. .git on Windows)."""
+    if not path.exists():
+        return
+    import os
+    import stat
+    import shutil
+
+    def _remove_readonly(func, p, exc_info):
+        try:
+            os.chmod(p, stat.S_IWRITE | stat.S_IREAD)
+            func(p)
+        except Exception:
+            pass
+
+    try:
+        shutil.rmtree(path, onerror=_remove_readonly)
+    except Exception:
+        pass
+
+    if path.exists():
+        import subprocess
+        try:
+            subprocess.run(["cmd", "/c", "rmdir", "/s", "/q", str(path)], capture_output=True, check=False)
+        except Exception:
+            pass
+
 class GitUrlRepositorySource(RepositorySource):
     """Remote Git URL repository source cloned securely into an isolated sandbox."""
 
     def __init__(self, url: str, name: str | None = None) -> None:
         if not url or not str(url).strip():
             raise RepositoryNotFoundError("Repository URL cannot be empty.")
-        self.raw_url = str(url).strip()
+        self.raw_url = normalize_git_url(url)
         self.custom_name = name
         self._temp_dir = None
         self._resolved_path: Path | None = None
@@ -167,21 +212,55 @@ class GitUrlRepositorySource(RepositorySource):
 
         self.validate()
         import hashlib
-        import shutil
+        import os
         import subprocess
 
         url_hash = hashlib.sha256(self.raw_url.encode()).hexdigest()[:12]
         repo_name = self.get_name()
-        target_path = settings.SCAN_STORAGE_DIR / "remote_clones" / f"{repo_name}_{url_hash}"
+        clones_dir = settings.SCAN_STORAGE_DIR / "remote_clones"
+        clones_dir.mkdir(parents=True, exist_ok=True)
+        target_path = clones_dir / f"{repo_name}_{url_hash}"
 
-        if target_path.exists():
-            shutil.rmtree(target_path, ignore_errors=True)
-        target_path.mkdir(parents=True, exist_ok=True)
+        # If already cloned and valid, try to reuse/update with git fetch
+        git_dir = target_path / ".git"
+        if git_dir.is_dir():
+            try:
+                fetch_proc = subprocess.run(
+                    ["git", "fetch", "--depth", "1", "origin"],
+                    cwd=str(target_path),
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=60,
+                )
+                if fetch_proc.returncode == 0:
+                    subprocess.run(
+                        ["git", "reset", "--hard", "FETCH_HEAD"],
+                        cwd=str(target_path),
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=30,
+                    )
+                    from app.repository.git_service import GitService
 
+                    self.branch = GitService.get_current_branch(target_path)
+                    self.commit = GitService.get_head_commit(target_path)
+                    self.remote_url = GitService.get_remote_url(target_path) or self.raw_url
+                    self._resolved_path = target_path
+                    return self._resolved_path
+            except Exception as exc:
+                logger.debug("Incremental fetch failed for '%s', recreating: %s", self.raw_url, exc)
+
+        # Fresh clone: remove any existing target directory completely
+        safe_remove_directory(target_path)
+
+        # Do NOT call target_path.mkdir(); git clone will create target_path itself
+        hooks_param = "core.hooksPath=" if os.name == "nt" else "core.hooksPath=/dev/null"
         clone_cmd = [
             "git",
             "-c",
-            "core.hooksPath=/dev/null",
+            hooks_param,
             "clone",
             "--depth",
             "1",
@@ -194,10 +273,10 @@ class GitUrlRepositorySource(RepositorySource):
             capture_output=True,
             text=True,
             check=False,
-            timeout=120,
+            timeout=180,
         )
         if proc.returncode != 0:
-            shutil.rmtree(target_path, ignore_errors=True)
+            safe_remove_directory(target_path)
             raise RepositoryNotFoundError(
                 f"Failed to clone repository from '{self.raw_url}': {proc.stderr.strip()}"
             )

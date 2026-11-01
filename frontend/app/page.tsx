@@ -387,6 +387,14 @@ export default function RepositoryIngestionDashboard() {
     } catch (err: unknown) {
       clearInterval(interval);
       let errorMessage = err instanceof Error ? err.message : "Failed to scan repository";
+      const trimmedTarget = repoPath.trim().toLowerCase();
+      const isRemoteTarget =
+        trimmedTarget.startsWith("http://") ||
+        trimmedTarget.startsWith("https://") ||
+        trimmedTarget.startsWith("git@") ||
+        trimmedTarget.startsWith("github.com/") ||
+        trimmedTarget.startsWith("www.github.com/");
+
       if (
         errorMessage.toLowerCase().includes("failed to fetch") ||
         errorMessage.toLowerCase().includes("networkerror")
@@ -394,9 +402,9 @@ export default function RepositoryIngestionDashboard() {
         errorMessage =
           "Cannot reach backend API. Ensure your backend service is running (e.g. uvicorn app.main:app on port 8000).";
       } else if (
-        errorMessage.toLowerCase().includes("path is outside the allowed") ||
-        errorMessage.toLowerCase().includes("directory does not exist") ||
-        errorMessage.toLowerCase().includes("repository not found")
+        !isRemoteTarget &&
+        (errorMessage.toLowerCase().includes("path is outside the allowed") ||
+          errorMessage.toLowerCase().includes("directory does not exist"))
       ) {
         errorMessage = `${errorMessage}. Tip: To scan code from your local machine via the browser, use the "Local Files / Folder" tab above to choose your folder or upload a ZIP directly.`;
       }
@@ -1249,7 +1257,10 @@ export default function RepositoryIngestionDashboard() {
                     </button>
                   </div>
                   <p className="font-mono text-xs text-ink-300 leading-relaxed whitespace-pre-wrap">{error}</p>
-                  {scanMode === "path" && (
+                  {scanMode === "path" &&
+                    !repoPath.toLowerCase().includes("github.com") &&
+                    !repoPath.toLowerCase().startsWith("http") &&
+                    !repoPath.toLowerCase().startsWith("git@") && (
                     <div className="pt-2 border-t border-red-500/20 flex flex-wrap items-center justify-between gap-2">
                       <span className="text-[11px] text-ink-300">
                         Scanning code from your local machine?
